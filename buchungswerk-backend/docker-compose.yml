@@ -1,0 +1,23 @@
+services:
+  buchungswerk-api:
+    build: .
+    container_name: buchungswerk-api
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/data
+    restart: unless-stopped
+    environment:
+      BW_DB: /data/buchungswerk.db
+
+  buchungswerk-app:
+    image: nginx:alpine
+    container_name: buchungswerk-app
+    ports:
+      - "7070:3000"
+    volumes:
+      - ./app:/usr/share/nginx/html:ro
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    restart: unless-stopped
+    depends_on:
+      - buchungswerk-api
