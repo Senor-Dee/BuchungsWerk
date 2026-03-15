@@ -1,0 +1,7 @@
+node_modules/
+buchungswerk-backend/node_modules/
+buchungswerk-backend/data/
+buchungswerk-backend/app/assets/
+buchungswerk-backend/app/bundle.js
+bw-build/
+*.db
