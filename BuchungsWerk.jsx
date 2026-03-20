@@ -1,10 +1,62 @@
+// ============================================================
+// BuchungsWerk – BwR-Aufgabengenerator für bayerische Realschulen
+// Copyright (C) 2026  Anton Gebert <info@buchungswerk.org>
+//
+// This program is free software: you can redistribute it and/or
+// modify it under the terms of the GNU Affero General Public
+// License as published by the Free Software Foundation, either
+// version 3 of the License, or (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public
+// License along with this program. If not, see
+// <https://www.gnu.org/licenses/>.
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Erstveröffentlichung: 2024  |  Letzte Änderung: 2026-03-21
+// Repository: https://github.com/antongebert/buchungswerk
+// ============================================================
+// ============================================================
+// ============================================================
+
 import React, { useState, useRef, useCallback } from "react";
+
+// ── Error Boundary – verhindert weißen Screen bei Runtime-Fehlern ─────────────
+class ErrorBoundary extends React.Component {
+  constructor(props) { super(props); this.state = { error: null }; }
+  static getDerivedStateFromError(error) { return { error }; }
+  componentDidCatch(error, info) { console.error("BuchungsWerk Fehler:", error, info); }
+  render() {
+    if (this.state.error) {
+      return (
+        <div style={{ padding: "40px", fontFamily: "Arial", maxWidth: "600px", margin: "40px auto" }}>
+          <div style={{ background: "#fef2f2", border: "2px solid #dc2626", borderRadius: "12px", padding: "24px" }}>
+            <div style={{ fontSize: "24px", marginBottom: "12px" }}>⚠️ BuchungsWerk – Fehler</div>
+            <div style={{ fontFamily: "monospace", fontSize: "13px", color: "#7f1d1d", background: "#fee2e2", padding: "12px", borderRadius: "8px", marginBottom: "16px", wordBreak: "break-all" }}>
+              {this.state.error.message}
+            </div>
+            <button onClick={() => { this.setState({ error: null }); window.location.reload(); }}
+              style={{ background: "#dc2626", color: "#fff", border: "none", padding: "10px 20px", borderRadius: "8px", cursor: "pointer", fontWeight: 700, fontSize: "14px" }}>
+              🔄 Neu laden
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 
 // ══════════════════════════════════════════════════════════════════════════════
 // BACKEND-API
 // Raspberry Pi Home Server – URL hier anpassen, wenn nötig
 // ══════════════════════════════════════════════════════════════════════════════
-const API_URL = "http://raspberrypi.local:8000";  // ← ggf. IP eintragen
+const API_URL = "https://api.buchungswerk.org";
 
 async function apiFetch(path, method = "GET", body = null) {
   try {
@@ -25,7 +77,7 @@ async function apiFetch(path, method = "GET", body = null) {
 // HILFSFUNKTIONEN
 // ══════════════════════════════════════════════════════════════════════════════
 const r2 = n => Math.round(n * 100) / 100;
-const fmt = n => n.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fmt = n => (n == null ? "0,00" : n).toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const rnd = (min, max, step = 50) => Math.round((min + Math.random() * (max - min)) / step) * step;
 const rgnr = () => `RE-2025-${String(Math.floor(1000 + Math.random() * 8999))}`;
@@ -41,21 +93,55 @@ const duSie = klasse => klasse <= 9 ? "du" : "Sie";
 const duSieGross = klasse => klasse <= 9 ? "Du" : "Sie";
 const anrede = (klasse, text) => {
   if (!text || klasse >= 10) return text;
-  // Imperativ-Formen zuerst (vor allgemeinem "Sie"-Ersatz!)
+  // Hilfsfunktion: gibt Replacement-Funktion zurück, die nach Satzanfang groß-,
+  // sonst kleinschreibt. "Satzanfang" = Position 0 oder nach [.!?] + Whitespace.
+  const imp = (du) => (match, offset, str) => {
+    const before = str.slice(0, offset);
+    const atStart = offset === 0 || /[.!?]\s+$/.test(before) || /^[\s]*$/.test(before);
+    return atStart
+      ? du[0].toUpperCase() + du.slice(1)
+      : du[0].toLowerCase() + du.slice(1);
+  };
+  // Imperativ-Formen zuerst (vor allgemeinem "Sie"-Ersatz!), alle case-insensitiv
   return text
-    .replace(/Bilden Sie/g, "Bilde")
-    .replace(/Buchen Sie/g, "Buche")
-    .replace(/Berechnen Sie/g, "Berechne")
-    .replace(/Erstellen Sie/g, "Erstelle")
-    .replace(/Vergleichen Sie/g, "Vergleiche")
-    .replace(/Entscheiden Sie/g, "Entscheide")
-    .replace(/Begr\u00fcnden Sie/g, "Begr\u00fcnde")
-    .replace(/F\u00fcllen Sie/g, "F\u00fclle")
-    .replace(/Tragen Sie/g, "Trage")
-    .replace(/Notieren Sie/g, "Notiere")
-    .replace(/Ermitteln Sie/g, "Ermittle")
-    .replace(/Stornieren Sie/g, "Storniere")
-    .replace(/Pr\u00fcfen Sie/g, "Pr\u00fcfe")
+    .replace(/bilden Sie/gi,        imp("bilde"))
+    .replace(/buchen Sie/gi,        imp("buche"))
+    .replace(/berechnen Sie/gi,     imp("berechne"))
+    .replace(/erstellen Sie/gi,     imp("erstelle"))
+    .replace(/vergleichen Sie/gi,   imp("vergleiche"))
+    .replace(/entscheiden Sie/gi,   imp("entscheide"))
+    .replace(/begr\u00fcnden Sie/gi, imp("begr\u00fcnde"))
+    .replace(/f\u00fcllen Sie/gi,   imp("f\u00fclle"))
+    .replace(/tragen Sie/gi,        imp("trage"))
+    .replace(/notieren Sie/gi,      imp("notiere"))
+    .replace(/ermitteln Sie/gi,     imp("ermittle"))
+    .replace(/stornieren Sie/gi,    imp("storniere"))
+    .replace(/pr\u00fcfen Sie/gi,   imp("pr\u00fcfe"))
+    .replace(/nennen Sie/gi,        imp("nenne"))
+    .replace(/analysieren Sie/gi,   imp("analysiere"))
+    .replace(/erl\u00e4utern Sie/gi, imp("erl\u00e4utere"))
+    .replace(/erkl\u00e4ren Sie/gi, imp("erkl\u00e4re"))
+    .replace(/beurteilen Sie/gi,    imp("beurteile"))
+    .replace(/beschreiben Sie/gi,   imp("beschreibe"))
+    .replace(/geben Sie/gi,         imp("gib"))
+    .replace(/w\u00e4hlen Sie/gi,   imp("w\u00e4hle"))
+    .replace(/stellen Sie/gi,       imp("stelle"))
+    .replace(/zeigen Sie/gi,        imp("zeige"))
+    .replace(/lesen Sie/gi,         imp("lies"))
+    .replace(/verwenden Sie/gi,     imp("verwende"))
+    .replace(/erfassen Sie/gi,      imp("erfasse"))
+    .replace(/ordnen Sie/gi,        imp("ordne"))
+    .replace(/f\u00fchren Sie/gi,   imp("f\u00fchre"))
+    .replace(/vervollst\u00e4ndigen Sie/gi, imp("vervollst\u00e4ndige"))
+    .replace(/beantworten Sie/gi,   imp("beantworte"))
+    .replace(/beachten Sie/gi,      imp("beachte"))
+    // Indikativ-Formen (nicht-Imperativ: "Sie + Verb" → "du + konjugiert")
+    .replace(/bearbeiten Sie/gi,   (m, o, s) => { const before = s.slice(0,o); const start = o===0||/[.!?]\s+$/.test(before); return start ? "Du bearbeitest" : "du bearbeitest"; })
+    .replace(/sind Sie/gi,         (m, o, s) => { const before = s.slice(0,o); const start = o===0||/[.!?]\s+$/.test(before); return start ? "Bist du" : "bist du"; })
+    .replace(/haben Sie/gi,        (m, o, s) => { const before = s.slice(0,o); const start = o===0||/[.!?]\s+$/.test(before); return start ? "Hast du" : "hast du"; })
+    .replace(/m\u00fcssen Sie/gi,  (m, o, s) => { const before = s.slice(0,o); const start = o===0||/[.!?]\s+$/.test(before); return start ? "Musst du" : "musst du"; })
+    .replace(/k\u00f6nnen Sie/gi,  (m, o, s) => { const before = s.slice(0,o); const start = o===0||/[.!?]\s+$/.test(before); return start ? "Kannst du" : "kannst du"; })
+    .replace(/sollen Sie/gi,       (m, o, s) => { const before = s.slice(0,o); const start = o===0||/[.!?]\s+$/.test(before); return start ? "Sollst du" : "sollst du"; })
     // Dann Pronomen (als ganzes Wort via lookahead/lookbehind)
     .replace(/(^|\s)Sie(\s|$|[.,!?])/g, (_, a, b) => a + "du" + b)
     .replace(/\bIhnen\b/g, "dir")
@@ -69,20 +155,56 @@ const anrede = (klasse, text) => {
 // FAKE STAMMDATEN für realistische Belege
 // ──────────────────────────────────────────────────────────────────────────────
 const LIEFERANTEN = [
-  { name: "Bayern Rohstoffe GmbH", ort: "Augsburg", plz: "86150", strasse: "Industriestraße 12", iban: "DE12720501010012345678", bank: "UniCredit Bank AG", email: "buchhaltung@bayern-rohstoffe.de", tel: "0821 / 44 33 21-0" },
-  { name: "Südbayer Werkstoffe KG", ort: "Regensburg", plz: "93049", strasse: "Gewerbepark 5", iban: "DE45750300150001234567", bank: "Volksbank Regensburg eG", email: "info@suedbayer-werkstoffe.de", tel: "0941 / 88 77 66-0" },
-  { name: "Alpen Material AG", ort: "München", plz: "80997", strasse: "Münchner Str. 88", iban: "DE78760100850201234567", bank: "Postbank", email: "vertrieb@alpen-material.de", tel: "089 / 35 46 78-0" },
-  { name: "Ostbayern Handel GmbH", ort: "Landshut", plz: "84030", strasse: "Bahnhofstraße 22", iban: "DE11750400350012987654", bank: "Sparkasse Landshut", email: "rechnungen@ostbayern-handel.de", tel: "0871 / 22 11 00-0" },
-  { name: "Maier Industriebedarf KG", ort: "Passau", plz: "94032", strasse: "Hafenstraße 7", iban: "DE34730500000023456789", bank: "Raiffeisenbank Passau", email: "buchhaltung@maier-industrie.de", tel: "0851 / 99 88 77-0" },
+  { name: "Bayern Rohstoffe GmbH", slogan: "Rohstoffe aus Bayern", branche: "Rohstoffhandel", gf: "Thomas Huber", farbe: "#92400e", icon: "⛏️",
+    ort: "Augsburg", plz: "86150", strasse: "Industriestraße 12", iban: "DE12720501010012345678", bank: "UniCredit Bank AG", email: "buchhaltung@bayern-rohstoffe.de", tel: "0821 / 44 33 21-0", hrb: "HRB 8812" },
+  { name: "Südbayer Werkstoffe KG", slogan: "Werkstofftechnik auf höchstem Niveau", branche: "Werkstoffhandel", gf: "Maria Steinberger", farbe: "#1e3a5f", icon: "🔩",
+    ort: "Regensburg", plz: "93049", strasse: "Gewerbepark 5", iban: "DE45750300150001234567", bank: "Volksbank Regensburg eG", email: "info@suedbayer-werkstoffe.de", tel: "0941 / 88 77 66-0", hrb: "HRA 2241" },
+  { name: "Alpen Material AG", slogan: "Qualität aus den Alpen", branche: "Baumaterialien", gf: "Josef Brandl", farbe: "#14532d", icon: "⛰️",
+    ort: "München", plz: "80997", strasse: "Münchner Str. 88", iban: "DE78760100850201234567", bank: "Postbank", email: "vertrieb@alpen-material.de", tel: "089 / 35 46 78-0", hrb: "HRB 5544" },
+  { name: "Ostbayern Handel GmbH", slogan: "Ihr Partner im Osten Bayerns", branche: "Großhandel", gf: "Klaus Wimmer", farbe: "#7c2d12", icon: "📦",
+    ort: "Landshut", plz: "84030", strasse: "Bahnhofstraße 22", iban: "DE11750400350012987654", bank: "Sparkasse Landshut", email: "rechnungen@ostbayern-handel.de", tel: "0871 / 22 11 00-0", hrb: "HRB 3301" },
+  { name: "Maier Industriebedarf KG", slogan: "Alles für die Industrie", branche: "Industriebedarf", gf: "Andreas Maier", farbe: "#374151", icon: "⚙️",
+    ort: "Passau", plz: "94032", strasse: "Hafenstraße 7", iban: "DE34730500000023456789", bank: "Raiffeisenbank Passau", email: "buchhaltung@maier-industrie.de", tel: "0851 / 99 88 77-0", hrb: "HRA 1122" },
 ];
 
 const KUNDEN = [
-  { name: "TechBau AG", ort: "Nürnberg", plz: "90402", strasse: "Hauptstraße 100", iban: "DE78760100850000111122", kundennr: "KD-4821" },
-  { name: "Maier Technik GmbH", ort: "München", plz: "80335", strasse: "Karlsplatz 5", iban: "DE45700200700012345678", kundennr: "KD-3307" },
-  { name: "Franken Industrie KG", ort: "Würzburg", plz: "97070", strasse: "Juliuspromenade 64", iban: "DE12790000000012345678", kundennr: "KD-5519" },
-  { name: "Allgäu Handel GmbH", ort: "Kempten", plz: "87435", strasse: "Rottachstraße 25", iban: "DE56733500000012345678", kundennr: "KD-2044" },
-  { name: "Nord-Süd Vertrieb AG", ort: "Ingolstadt", plz: "85049", strasse: "Ringstraße 45", iban: "DE89721304000012345678", kundennr: "KD-6630" },
+  { name: "TechBau AG", slogan: "Bauen mit Technik und Tradition", branche: "Bauunternehmen", gf: "Stefan Riedl", farbe: "#1e40af", icon: "🏗️",
+    ort: "Nürnberg", plz: "90402", strasse: "Hauptstraße 100", iban: "DE78760100850000111122", kundennr: "KD-4821" },
+  { name: "Maier Technik GmbH", slogan: "Präzision und Innovation", branche: "Maschinenbau", gf: "Eva Maier", farbe: "#374151", icon: "🔧",
+    ort: "München", plz: "80335", strasse: "Karlsplatz 5", iban: "DE45700200700012345678", kundennr: "KD-3307" },
+  { name: "Franken Industrie KG", slogan: "Industrielle Lösungen aus Franken", branche: "Industrie", gf: "Bernd Hofmann", farbe: "#4c1d95", icon: "🏭",
+    ort: "Würzburg", plz: "97070", strasse: "Juliuspromenade 64", iban: "DE12790000000012345678", kundennr: "KD-5519" },
+  { name: "Allgäu Handel GmbH", slogan: "Handel und Logistik im Allgäu", branche: "Einzelhandel", gf: "Monika Zeller", farbe: "#065f46", icon: "🛒",
+    ort: "Kempten", plz: "87435", strasse: "Rottachstraße 25", iban: "DE56733500000012345678", kundennr: "KD-2044" },
+  { name: "Nord-Süd Vertrieb AG", slogan: "Vertrieb ohne Grenzen", branche: "Vertrieb & Logistik", gf: "Peter Schuster", farbe: "#7c3aed", icon: "🚛",
+    ort: "Ingolstadt", plz: "85049", strasse: "Ringstraße 45", iban: "DE89721304000012345678", kundennr: "KD-6630" },
 ];
+
+// Optionale Schritte je Kettenaufgabe – für Löschen & Hinzufügen
+const KOMPLEX_STEP_DEFS = {
+  "8_komplex_einkauf_kette": [
+    { optsKey: "angebotsvergleich", label: "Angebotsvergleich", setVal: true },
+    { optsKey: "kalkulation",       label: "Einkaufskalkulation", setVal: true },
+    { optsKey: "ruecksendung",      label: "Rücksendung", setVal: true },
+    { optsKey: "nachlass",          label: "Preisnachlass", setVal: true },
+  ],
+  "8_komplex_verkauf_kette": [
+    { optsKey: "vorkalkulation",    label: "Verkaufskalkulation", setVal: true },
+    { optsKey: "ruecksendung",      label: "Rücksendung", setVal: true },
+    { optsKey: "nachlass",          label: "Preisnachlass", setVal: true },
+  ],
+  "9_komplex_forderungskette": [
+    { optsKey: "ewb", label: "EWB bilden", setVal: true },
+  ],
+  "10_komplex_abschlusskette": [
+    { optsKey: "ara",        label: "Rechnungsabgrenzung (ARA)", setVal: true },
+    { optsKey: "rst",        label: "Rückstellung", setVal: true },
+    { optsKey: "afa",        label: "Abschreibung (AfA)", setVal: true },
+    { optsKey: "ewb",        label: "EWB bilden", setVal: true },
+    { optsKey: "guv",        label: "GuV-Abschluss", setVal: true },
+    { optsKey: "kennzahlen", label: "Kennzahlen", setVal: true },
+  ],
+};
 
 // ──────────────────────────────────────────────────────────────────────────────
 // MODELLUNTERNEHMEN
@@ -149,8 +271,8 @@ const berechnePunkte = a => a.taskTyp === "komplex"
   ? (a.schritte || []).reduce((s, st) => s + st.punkte, 0)
   : a.taskTyp === "theorie"
     ? (a.nrPunkte || 4)
-    : a.taskTyp === "rechnung"
-    ? (a.nrPunkte || 0)
+    : a.taskTyp === "rechnung" || a.taskTyp === "schaubild"
+    ? (a.punkte || a.nrPunkte || 0)
     : (a.soll?.length || 0) + (a.haben?.length || 0) + (a.nrPunkte || 0);
 
 // Regler: 0=locker, 0.5=ISB-Standard, 1=streng
@@ -200,9 +322,12 @@ const WERKSTOFF_TYPEN = [
 // LERNBEREICH-META
 // ══════════════════════════════════════════════════════════════════════════════
 const LB_INFO = {
+  "LB 1 · Prozentrechnung":                  { icon: "🔢", farbe: "#f59e0b" },
+  "LB 1 · Schaubild-Analyse":                { icon: "📊", farbe: "#0ea5e9" },
   "LB 3 · Einführung Buchführung":          { icon: "📒", farbe: "#3b82f6" },
   "LB 4 · Betrieblicher Produktionsprozess":{ icon: "⚙️", farbe: "#8b5cf6" },
   "LB 2 · Werkstoffe & Einkauf":            { icon: "📦", farbe: "#f59e0b" },
+  "LB 2 · Bestandsveränderungen Werkstoffe":{ icon: "📊", farbe: "#0ea5e9" },
   "LB 3 · Marketing":                       { icon: "📢", farbe: "#e11d48" },
   "LB 4 · Verkauf & Fertigerzeugnisse":     { icon: "🏷️", farbe: "#10b981" },
   "LB 5 · Personalbereich":                 { icon: "👥", farbe: "#ec4899" },
@@ -227,15 +352,20 @@ const LB_INFO = {
 // ══════════════════════════════════════════════════════════════════════════════
 // BELEG-HELPERS
 // ══════════════════════════════════════════════════════════════════════════════
-const mkEingangsRE = (f, artikel, menge, einheit, netto, ustPct, klasse7 = false, skonto = 0, bezugskosten = 0) => {
+const mkEingangsRE = (f, artikel, menge, einheit, netto, ustPct, klasse7 = false, skonto = 0, bezugskosten = 0, rabattInfo = null) => {
   const lief = pick(LIEFERANTEN);
+  // rabattInfo: { typ, pct } – Sofortrabatt auf Rechnung ausweisen (kein eigenes Konto!)
+  const lep = rabattInfo && rabattInfo.pct > 0 ? r2(netto / (1 - rabattInfo.pct / 100)) : netto;
+  const rabBetrag = rabattInfo && rabattInfo.pct > 0 ? r2(lep - netto) : 0;
+  const epVal = menge > 0 ? r2(lep / menge) : lep;
   const u = r2(netto * ustPct / 100);
   const b = r2(netto + u);
   const bzkNetto = bezugskosten;
   const bzkU = r2(bzkNetto * ustPct / 100);
   const gesamtBrutto = r2(b + bzkNetto + bzkU);
-  const positionen = [{ pos: 1, beschr: artikel, menge, einheit, ep: r2(netto / menge), netto }];
-  if (bzkNetto > 0) positionen.push({ pos: 2, beschr: "Transportkosten (Spedition)", menge: 1, einheit: "pauschal", ep: bzkNetto, netto: bzkNetto });
+  const positionen = [{ pos: 1, beschr: artikel, menge, einheit, ep: epVal, lepNetto: lep, netto: lep }];
+  if (rabattInfo && rabBetrag > 0) positionen.push({ pos: 2, beschr: "− " + (rabattInfo.typ || "Sofortrabatt") + " (" + rabattInfo.pct + " %)", menge: null, einheit: null, ep: null, netto: -rabBetrag, isRabatt: true });
+  if (bzkNetto > 0) positionen.push({ pos: 3, beschr: "Transportkosten (Spedition)", menge: 1, einheit: "pauschal", ep: bzkNetto, netto: bzkNetto });
   return {
     typ: "eingangsrechnung", lief, empfaenger: { name: f.name, strasse: f.strasse, plz_ort: `${f.plz} ${f.ort}` },
     rgnr: rgnr(), datum: fakeDatum(-8), lieferdatum: fakeDatum(-11), positionen,
@@ -289,6 +419,298 @@ const mkEmail = (von, vonName, an, betreff, text, datum = fakeDatum(-3)) => ({
 // ══════════════════════════════════════════════════════════════════════════════
 const AUFGABEN_POOL = {
   7: {
+    // ── Lernbereich: Prozentrechnung ──────────────────────────────────────────
+    "LB 1 · Prozentrechnung": [
+
+      // ── 1. Prozentwert berechnen ──────────────────────────────────────────
+      {
+        id: "7_pct_prozentwert", nrPunkte: 2, titel: "Prozentwert berechnen (W = G × p%)",
+        taskTyp: "rechnung",
+        generate: (f, opts = {}) => {
+          const schwer = (opts.schwierigkeit || "gemischt") === "schwer";
+          const einfach = (opts.schwierigkeit || "gemischt") === "einfach";
+          const g = einfach ? rnd(100, 1000, 100) : schwer ? rnd(1234, 9876, 1) : rnd(200, 5000, 50);
+          const p = einfach ? pick([10, 20, 25, 50]) : schwer ? pick([3, 7, 12.5, 17.5]) : pick([5, 8, 10, 12, 15, 20, 25]);
+          const w = r2(g * p / 100);
+          const ctx = pick([
+            `${f.name} gewährt ${p} % Preisnachlass auf einen Rechnungsbetrag von ${fmt(g)} €.`,
+            `${f.name} erhält ${p} % Rabatt auf einen Listenpreis von ${fmt(g)} €.`,
+            `Auf einen Warenwert von ${fmt(g)} € fallen ${p} % Umsatzsteuer an.`,
+            `${f.name} zahlt ${p} % Zinsen auf ein Darlehen von ${fmt(g)} €.`,
+          ]);
+          return {
+            aufgabe: `${ctx} Berechnen Sie den Prozentwert.`,
+            schema: [
+              { label: `Grundwert (G)`, wert: g, einheit: "€" },
+              { label: `Prozentsatz (p)`, wert: p, einheit: "%" },
+              { label: `W = G × p% = ${fmt(g)} × ${p}/100`, wert: w, einheit: "€", bold: true, trennlinie: true },
+            ],
+            punkte: 2, // 1 P Ergebnis + 1 P Schemapunkt
+          };
+        },
+      },
+
+      // ── 2. Grundwert berechnen ────────────────────────────────────────────
+      {
+        id: "7_pct_grundwert", nrPunkte: 2, titel: "Grundwert berechnen (G = W ÷ p%)",
+        taskTyp: "rechnung",
+        generate: (f, opts = {}) => {
+          const einfach = (opts.schwierigkeit || "gemischt") === "einfach";
+          const schwer  = (opts.schwierigkeit || "gemischt") === "schwer";
+          const g = einfach ? rnd(100, 1000, 100) : schwer ? rnd(1234, 9876, 1) : rnd(200, 5000, 50);
+          const p = einfach ? pick([10, 20, 25, 50]) : schwer ? pick([3, 7, 12.5, 17.5]) : pick([5, 8, 10, 12, 15, 20, 25]);
+          const w = r2(g * p / 100);
+          const ctx = pick([
+            `${f.name} erhält ${fmt(w)} € Rabatt. Der Rabattsatz beträgt ${p} %.`,
+            `Der Rabattbetrag beläuft sich auf ${fmt(w)} € bei einem Rabattsatz von ${p} %.`,
+            `Die Umsatzsteuer beträgt ${fmt(w)} €. Der USt-Satz ist ${p} %.`,
+          ]);
+          return {
+            aufgabe: `${ctx} Berechnen Sie den Grundwert (Ausgangsbetrag).`,
+            schema: [
+              { label: `Prozentwert (W)`, wert: w, einheit: "€" },
+              { label: `Prozentsatz (p)`, wert: p, einheit: "%" },
+              { label: `G = W ÷ p% = ${fmt(w)} ÷ ${p/100}`, wert: g, einheit: "€", bold: true, trennlinie: true },
+            ],
+            punkte: 2, // 1 P Ergebnis + 1 P Schemapunkt
+          };
+        },
+      },
+
+      // ── 3. Prozentsatz berechnen ──────────────────────────────────────────
+      {
+        id: "7_pct_prozentsatz", nrPunkte: 2, titel: "Prozentsatz berechnen (p% = W ÷ G)",
+        taskTyp: "rechnung",
+        generate: (f, opts = {}) => {
+          const einfach = (opts.schwierigkeit || "gemischt") === "einfach";
+          const schwer  = (opts.schwierigkeit || "gemischt") === "schwer";
+          const p = einfach ? pick([10, 20, 25, 50]) : schwer ? pick([3, 7, 12.5, 17.5]) : pick([5, 8, 10, 12, 15, 20, 25]);
+          const g = einfach ? rnd(100, 1000, 100) : schwer ? rnd(1234, 9876, 1) : rnd(200, 5000, 50);
+          const w = r2(g * p / 100);
+          const ctx = pick([
+            `Vom Listenpreis ${fmt(g)} € werden ${fmt(w)} € Rabatt gewährt.`,
+            `${f.name} zahlt ${fmt(w)} € Zinsen auf ein Darlehen von ${fmt(g)} €.`,
+            `Auf einen Warenwert von ${fmt(g)} € entfallen ${fmt(w)} € Umsatzsteuer.`,
+          ]);
+          return {
+            aufgabe: `${ctx} Berechnen Sie den Prozentsatz.`,
+            schema: [
+              { label: `Prozentwert (W)`, wert: w, einheit: "€" },
+              { label: `Grundwert (G)`, wert: g, einheit: "€" },
+              { label: `p% = W ÷ G = ${fmt(w)} ÷ ${fmt(g)}`, wert: p, einheit: "%", bold: true, trennlinie: true },
+            ],
+            punkte: 2, // 1 P Ergebnis + 1 P Schemapunkt
+          };
+        },
+      },
+
+      // ── 4. Erhöhter Grundwert (brutto) ────────────────────────────────────
+      {
+        id: "7_pct_erhoeht", nrPunkte: 3, titel: "Erhöhter Grundwert / Bruttobetrag",
+        taskTyp: "rechnung",
+        generate: (f, opts = {}) => {
+          const einfach = (opts.schwierigkeit || "gemischt") === "einfach";
+          const g = einfach ? rnd(100, 1000, 100) : rnd(200, 5000, 50);
+          const p = einfach ? pick([10, 20]) : pick([7, 10, 15, 19, 20]);
+          const brutto = r2(g * (1 + p / 100));
+          const w = r2(brutto - g);
+          return {
+            aufgabe: pick([
+              `Ein Nettopreis beträgt ${fmt(g)} €. Der Umsatzsteuersatz ist ${p} %. Berechnen Sie den Bruttobetrag.`,
+              `Der Grundpreis einer Ware bei ${f.name} beträgt ${fmt(g)} €. Aufschlag: ${p} %. Wie hoch ist der Bruttobetrag?`,
+            ]),
+            schema: [
+              { label: `Nettobetrag (G)`, wert: g, einheit: "€" },
+              { label: `+ ${p} % Aufschlag (${fmt(g)} × ${p}/100)`, wert: w, einheit: "€" },
+              { label: `= Brutto (G × (1 + p%))`, wert: brutto, einheit: "€", bold: true, trennlinie: true },
+            ],
+            punkte: 3, // 2 P Ergebnisse (Zuschlag + Brutto) + 1 P Schemapunkt
+          };
+        },
+      },
+
+      // ── 5. Verminderter Grundwert (netto rückrechnen) ─────────────────────
+      {
+        id: "7_pct_vermindert", nrPunkte: 2, titel: "Verminderter Grundwert / Nettobetrag rückrechnen",
+        taskTyp: "rechnung",
+        generate: (f, opts = {}) => {
+          const einfach = (opts.schwierigkeit || "gemischt") === "einfach";
+          const p = einfach ? pick([10, 20]) : pick([7, 10, 15, 19, 20]);
+          const g = einfach ? rnd(100, 1000, 100) : rnd(200, 5000, 50);
+          const brutto = r2(g * (1 + p / 100));
+          const netto = r2(brutto / (1 + p / 100));
+          return {
+            aufgabe: `Ein Bruttobetrag (inkl. ${p} % USt) beträgt ${fmt(brutto)} €. Berechnen Sie den Nettobetrag (verminderter Grundwert).`,
+            schema: [
+              { label: `Bruttobetrag`, wert: brutto, einheit: "€" },
+              { label: `Divisor (1 + ${p}/100 = ${1 + p/100})`, wert: null, einheit: "" },
+              { label: `Netto = Brutto ÷ (1 + p%) = ${fmt(brutto)} ÷ ${1 + p/100}`, wert: netto, einheit: "€", bold: true, trennlinie: true },
+            ],
+            punkte: 2, // 1 P Ergebnis (Netto) + 1 P Schemapunkt
+          };
+        },
+      },
+
+      // ── 6. Prozentuale Veränderung ────────────────────────────────────────
+      {
+        id: "7_pct_veraenderung", nrPunkte: 3, titel: "Prozentuale Veränderung berechnen",
+        taskTyp: "rechnung",
+        generate: (f, opts = {}) => {
+          const einfach = (opts.schwierigkeit || "gemischt") === "einfach";
+          const alt = einfach ? rnd(100, 1000, 100) : rnd(100, 3000, 50);
+          const pct = einfach
+            ? pick([-20, -10, 10, 20, 25, 50])
+            : pick([-20, -15, -10, -5, 5, 8, 10, 12, 15, 20, 25]);
+          const neu = r2(alt * (1 + pct / 100));
+          const diff = r2(neu - alt);
+          const richtung = pct > 0 ? "gestiegen" : "gesunken";
+          const kontext = pick([
+            `Der Umsatz von ${f.name} betrug im Vorjahr ${fmt(alt)} €. Im aktuellen Jahr beträgt er ${fmt(neu)} €.`,
+            `Der Einkaufspreis für ${pick(f.rohstoffe || ["Rohstoffe"])} stieg von ${fmt(alt)} € auf ${fmt(neu)} €.`,
+            `Der Warenwert sank von ${fmt(alt)} € auf ${fmt(neu)} €.`,
+          ]);
+          return {
+            aufgabe: `${kontext} Berechnen Sie die prozentuale Veränderung.`,
+            schema: [
+              { label: `Neuer Wert`, wert: neu, einheit: "€" },
+              { label: `Alter Wert`, wert: alt, einheit: "€" },
+              { label: `Differenz`, wert: Math.abs(diff), einheit: "€" },
+              { label: `p% = Differenz ÷ alter Wert × 100`, wert: Math.abs(pct), einheit: "%", bold: true, trennlinie: true },
+              { label: `→ Wert ist um ${Math.abs(pct)} % ${richtung}`, wert: null, einheit: "" },
+            ],
+            punkte: 3, // 2 P Ergebnisse (Differenz + p%) + 1 P Schemapunkt
+          };
+        },
+      },
+
+      // ── 7. Kombinierte Aufgabe: Mehrere Schritte ──────────────────────────
+      {
+        id: "7_pct_kombiniert", nrPunkte: 3, titel: "Prozentrechnung kombiniert (Einkauf mit Rabatt)",
+        taskTyp: "rechnung",
+        generate: (f, opts = {}) => {
+          const einfach = (opts.schwierigkeit || "gemischt") === "einfach";
+          const lep = einfach ? rnd(200, 2000, 100) : rnd(500, 5000, 100);
+          const rabPct = einfach ? pick([10, 20]) : pick([5, 8, 10, 12, 15]);
+          const mitSkonto = false; // Skonto erst ab Ende Kl. 7 – hier deaktiviert
+          const skoPct = 2;
+          const rab = r2(lep * rabPct / 100);
+          const zep = r2(lep - rab);
+          const sko = r2(zep * skoPct / 100);
+          const bep = r2(zep - sko);
+          const lief = pick(LIEFERANTEN);
+          const schema = [
+            { label: `Listeneinkaufspreis (LEP)`, wert: lep, einheit: "€" },
+            { label: `− Rabatt (${rabPct} % von ${fmt(lep)} €)`, wert: rab, einheit: "€" },
+            { label: `= Zieleinkaufspreis (ZEP)`, wert: zep, einheit: "€", trennlinie: true, highlight: true },
+          ];
+          if (mitSkonto) {
+            schema.push({ label: `− Skonto (${skoPct} % von ${fmt(zep)} €)`, wert: sko, einheit: "€" });
+            schema.push({ label: `= Bareinkaufspreis (BEP)`, wert: bep, einheit: "€", bold: true, trennlinie: true });
+          }
+          return {
+            aufgabe: `${f.name} kauft Waren bei ${lief.name}. Listenpreis: ${fmt(lep)} €. Rabatt: ${rabPct} %.${mitSkonto ? ` Skonto: ${skoPct} %.` : ""} Berechnen Sie den ${mitSkonto ? "Zieleinkaufs- und Bareinkaufspreis" : "Zieleinkaufspreis"}.`,
+            schema,
+            punkte: 3, // 2 P Ergebnisse (Rabatt + ZEP) + 1 P Schemapunkt
+          };
+        },
+      },
+
+    ],
+
+    "LB 1 · Schaubild-Analyse": [
+
+      // ── Liniendiagramm: Umsatzentwicklung ───────────────────────────────────
+      {
+        id: "7_schaubild_linie", nrPunkte: 6, titel: "Schaubild analysieren – Liniendiagramm",
+        taskTyp: "schaubild",
+        generate: (f, opts = {}) => {
+          const endJahr = 2025; // immer bis Vorjahr
+          const startJahr = endJahr - 4;
+          const jahre = [startJahr, startJahr+1, startJahr+2, startJahr+3, startJahr+4];
+          const basis = rnd(80, 300, 10);
+          const werte = [basis];
+          for (let i = 1; i < 5; i++) {
+            const change = pick([-15,-10,-5,5,8,10,12,15,20]);
+            werte.push(Math.max(20, r2(werte[i-1] * (1 + change/100))));
+          }
+          const einheit = "Tsd. €";
+          const thema = pick(["Umsatz", "Gewinn", "Absatz"]);
+          const quelle = "Fiktive Daten – Eigene Darstellung 2025";
+          const herausgeber = f.name;
+          // Prozentuale Veränderung vom ersten zum letzten Jahr
+          const veraenderung = r2((werte[4] - werte[0]) / werte[0] * 100);
+          const richtung = veraenderung >= 0 ? "gestiegen" : "gesunken";
+          // Zwei Jahre für Vergleichsaufgabe
+          const j1idx = 0, j2idx = pick([2, 3, 4]);
+          const pctZwei = r2((werte[j2idx] - werte[j1idx]) / werte[j1idx] * 100);
+
+          return {
+            aufgabe: `Analysiere das folgende Schaubild und beantworte die Aufgaben.`,
+            schaubild: {
+              typ: "linie",
+              titel: `${thema}sentwicklung der ${f.name}`,
+              untertitel: `in ${einheit}`,
+              einheit,
+              quelle,
+              herausgeber,
+              jahre,
+              werte,
+              j1: j1idx,
+              j2: j2idx,
+            },
+            teilaufgaben: [
+              { nr: "a", text: `Nenne die Bestandteile eines Schaubildes und ordne sie dem vorliegenden Diagramm zu.`,
+                loesung: `Überschrift: "${thema}sentwicklung der ${f.name}". Unterüberschrift: "in ${einheit}". Diagrammart: Liniendiagramm. Einheit: ${einheit}. Quelle: ${quelle}. Herausgeber: ${herausgeber}.`, punkte: 2 },
+              { nr: "b", text: `Beschreibe die Entwicklung des ${thema}s im Beobachtungszeitraum.`,
+                loesung: `Der ${thema} ist von ${fmt(werte[0])} ${einheit} (${jahre[0]}) auf ${fmt(werte[4])} ${einheit} (${jahre[4]}) insgesamt ${Math.abs(veraenderung) >= 0.1 ? Math.abs(veraenderung).toFixed(1) + " % " : ""}${richtung}.`, punkte: 2 },
+              { nr: "c", text: `Berechne die prozentuale Veränderung des ${thema}s von ${jahre[j1idx]} auf ${jahre[j2idx]}.`,
+                loesung: `p% = (${fmt(werte[j2idx])} − ${fmt(werte[j1idx])}) ÷ ${fmt(werte[j1idx])} × 100 = ${pctZwei.toFixed(1)} %`, punkte: 2 },
+            ],
+            punkte: 6,
+          };
+        },
+      },
+
+      // ── Balkendiagramm: Kostenvergleich ─────────────────────────────────────
+      {
+        id: "7_schaubild_balken", nrPunkte: 5, titel: "Schaubild analysieren – Balkendiagramm",
+        taskTyp: "schaubild",
+        generate: (f, opts = {}) => {
+          const kategorien = pick([
+            { name: "Kostenarten", items: ["Materialkosten", "Personalkosten", "Mietkosten", "Sonstige"], einheit: "Tsd. €" },
+            { name: "Produktgruppen", items: pick([f.fertigerzeugnisse, f.handelswaren, f.rohstoffe].filter(a => a?.length >= 3)) || ["Produkt A","Produkt B","Produkt C","Produkt D"], einheit: "Stk." },
+          ]);
+          const werte = kategorien.items.map(() => rnd(20, 200, 5));
+          const gesamt = werte.reduce((s,w) => s+w, 0);
+          const maxIdx = werte.indexOf(Math.max(...werte));
+          const pctMax = r2(werte[maxIdx] / gesamt * 100);
+          const quelle = "Fiktive Daten – Interne Kostenrechnung 2025";
+
+          return {
+            aufgabe: `Analysiere das folgende Balkendiagramm und beantworte die Aufgaben.`,
+            schaubild: {
+              typ: "balken",
+              titel: `${kategorien.name} der ${f.name}`,
+              untertitel: `in ${kategorien.einheit}`,
+              einheit: kategorien.einheit,
+              quelle,
+              herausgeber: f.name,
+              kategorien: kategorien.items,
+              werte,
+            },
+            teilaufgaben: [
+              { nr: "a", text: `Benenne Diagrammart, Überschrift, Einheit und Quelle des Schaubildes.`,
+                loesung: `Diagrammart: Balkendiagramm. Überschrift: "${kategorien.name} der ${f.name}". Einheit: ${kategorien.einheit}. Quelle: ${quelle}.`, punkte: 2 },
+              { nr: "b", text: `Welche Kategorie hat den größten Anteil? Berechne den prozentualen Anteil.`,
+                loesung: `${kategorien.items[maxIdx]} mit ${werte[maxIdx]} ${kategorien.einheit}. Anteil: ${werte[maxIdx]} ÷ ${gesamt} × 100 = ${pctMax.toFixed(1)} %`, punkte: 3 },
+            ],
+            punkte: 5,
+          };
+        },
+      },
+
+    ],
+
     "LB 3 · Einführung Buchführung": [
       {
         id: "7_anlage_kauf_ziel", titel: "Kauf einer Anlage auf Ziel (ohne USt – Einführung)",
@@ -607,7 +1029,7 @@ const AUFGABEN_POOL = {
           const ust = r2(netto * 0.19);
           const brutto = r2(netto + ust);
           return {
-            aufgabe: `${f.name} verkauft ${menge} Stück „${art}" an einen Kunden. Listenpreis: ${fmt(listenEP)} € je Stück. Dem Kunden wird ein Rabatt von ${rabattPct} % gewährt. Erstellen Sie die Kalkulation und bilden Sie den Buchungssatz.`,
+            aufgabe: `${f.name} verkauft ${menge} Stück "${art}" an einen Kunden. Listenpreis: ${fmt(listenEP)} € je Stück. Dem Kunden wird ein Rabatt von ${rabattPct} % gewährt. Erstellen Sie die Kalkulation und bilden Sie den Buchungssatz.`,
             beleg: null,
             schema: [
               { label: `Listenverkaufspreis (${menge} × ${fmt(listenEP)} €)`, wert: listenGesamt, einheit: "€" },
@@ -821,19 +1243,71 @@ Bilanz: Gegenüberstellung von Vermögen (Aktiva) und Kapital (Passiva) in Konto
       },
     ],
   },
+
   8: {
     "LB 2 · Werkstoffe & Einkauf": [
+      {
+        id: "8_rechnung_pruefen", titel: "Eingangsrechnung auf Richtigkeit prüfen (Fehler finden)",
+        taskTyp: "rechnung",
+        generate: f => {
+          const wt = WERKSTOFF_TYPEN[0];
+          const art = pick(f.rohstoffe);
+          const menge = rnd(50, 300, 10);
+          const ep = rnd(20, 80);
+          const richtigNetto = r2(menge * ep);
+          // Fehler: falscher Nettobetrag auf Rechnung
+          const fehlerTyp = pick(["netto", "ust", "brutto"]);
+          const richtigUSt = r2(richtigNetto * 0.19);
+          const richtigBrutto = r2(richtigNetto + richtigUSt);
+          const falschNetto = fehlerTyp === "netto" ? r2(richtigNetto + rnd(100, 500, 50)) : richtigNetto;
+          const falschUSt = fehlerTyp === "ust" ? r2(richtigUSt + rnd(50, 200, 10)) : r2(falschNetto * 0.19);
+          const falschBrutto = fehlerTyp === "brutto" ? r2(richtigBrutto + rnd(80, 300, 20)) : r2(falschNetto + falschUSt);
+          return {
+            aufgabe: `Prüfen Sie die folgende Eingangsrechnung auf sachliche und rechnerische Richtigkeit. Nennen Sie den Fehler und bilden Sie den korrekten Buchungssatz.`,
+            beleg: {
+              typ: "eingangsrechnung_fehler",
+              lief: pick(LIEFERANTEN),
+              empfaenger: { name: f.name, strasse: f.strasse, plz_ort: `${f.plz} ${f.ort}` },
+              rgnr: fakeRgNr(),
+              datum: fakeDatum(-8),
+              positionen: [{ pos: 1, beschr: art, menge, einheit: "Stk", ep, netto: falschNetto }],
+              netto: falschNetto,
+              ustPct: 19,
+              ustBetrag: falschUSt,
+              brutto: falschBrutto,
+              zahlungsziel: `Netto 30 Tage, zahlbar bis ${fakeDatum(22)}`,
+              hatFehler: true,
+              fehlerHinweis: fehlerTyp === "netto"
+                ? `Rechnerischer Fehler: ${menge} Stk × ${ep} € = ${fmt(richtigNetto)} € (nicht ${fmt(falschNetto)} €)`
+                : fehlerTyp === "ust"
+                ? `USt-Fehler: 19 % von ${fmt(richtigNetto)} € = ${fmt(richtigUSt)} € (nicht ${fmt(falschUSt)} €)`
+                : `Brutto-Fehler: ${fmt(richtigNetto)} € + ${fmt(richtigUSt)} € = ${fmt(richtigBrutto)} € (nicht ${fmt(falschBrutto)} €)`,
+            },
+            schema: [
+              { label: `${menge} Stk × ${ep} € = Netto (richtig)`, wert: richtigNetto, einheit: "€" },
+              { label: `+ USt 19 % (richtig)`, wert: richtigUSt, einheit: "€" },
+              { label: `= Brutto (richtig)`, wert: richtigBrutto, einheit: "€", bold: true, trennlinie: true },
+              { label: `Fehler auf Rechnung`, wert: falschBrutto, einheit: "€" },
+              { label: `→ Differenz`, wert: r2(Math.abs(falschBrutto - richtigBrutto)), einheit: "€", bold: true },
+            ],
+            soll: [{ nr: wt.aw.nr, name: wt.aw.name, betrag: richtigNetto }, { nr: "2600", name: "Vorsteuer (VORST)", betrag: richtigUSt }],
+            haben: [{ nr: "4400", name: "Verbindlichkeiten aus L+L (VE)", betrag: richtigBrutto }],
+            nrPunkte: 3,
+            erklaerung: `Fehler: ${fehlerTyp === "netto" ? `Netto falsch berechnet (${fmt(falschNetto)} statt ${fmt(richtigNetto)} €)` : fehlerTyp === "ust" ? `USt falsch berechnet (${fmt(falschUSt)} statt ${fmt(richtigUSt)} €)` : `Brutto falsch berechnet (${fmt(falschBrutto)} statt ${fmt(richtigBrutto)} €)`}. Buchung immer mit korrekten Werten: ${wt.aw.kürzel} ${fmt(richtigNetto)} €, VORST ${fmt(richtigUSt)} €, VE ${fmt(richtigBrutto)} €.`,
+          };
+        },
+      },
       {
         id: "8_ek_rs_netto", titel: "Einkauf Werkstoffe auf Ziel (Nettobetrag)",
         generate: (f, opts = {}) => {
           const wt = WERKSTOFF_TYPEN.find(w => w.id === (opts.werkstoffId || "rohstoffe")) || WERKSTOFF_TYPEN[0];
           const art = pick(f[wt.key] || f.rohstoffe); const menge = rnd(100, 1000, 50); const n = rnd(800, 12000); const u = r2(n * 0.19);
           return {
-            aufgabe: "Bilden Sie den Buchungssatz zu folgender Eingangsrechnung.",
+            aufgabe: "Prüfen Sie die Eingangsrechnung auf rechnerische Richtigkeit und erfassen Sie den Einkauf buchhalterisch.",
             beleg: mkEingangsRE(f, art, menge, "Stk", n, 19, false),
             soll: [{ nr: wt.aw.nr, name: wt.aw.name, betrag: n }, { nr: "2600", name: "Vorsteuer (VORST)", betrag: u }],
             haben: [{ nr: "4400", name: "Verbindlichkeiten aus L+L (VE)", betrag: r2(n + u) }],
-            nrPunkte: 0, erklaerung: `Ab Kl. 8 steht Netto auf der Rechnung. ${wt.aw.name} (${wt.aw.nr} ${wt.aw.kürzel} Soll). Vorsteuer (2600 VORST Soll). Verbindlichkeit (4400 VE Haben).`,
+            nrPunkte: 0, erklaerung: `Ab Kl. 8 steht Netto auf der Rechnung. ${wt.aw.name} (${wt.aw.nr} ${wt.aw.kürzel} Soll). Vorsteuer (2600 VORST Soll). Verbindlichkeit brutto (4400 VE Haben).`,
           };
         },
       },
@@ -920,10 +1394,10 @@ Bilanz: Gegenüberstellung von Vermögen (Aktiva) und Kapital (Passiva) in Konto
           const bareinkaufspreis = r2(zieleinkaufspreis - skonto);
           const bezugskosten = rnd(80, 400, 10);
           const einstandspreis = r2(bareinkaufspreis + bezugskosten);
-          const lieferant = pick(["Müller GmbH", "Nordbayern Rohstoffe AG", "Weber Handels GmbH", "Süddeutsche Werkstoffe KG"]);
-          const schwellenText = menge >= schwelle ? `(${menge} Stk ≥ ${schwelle} Stk → ${rabattPct} % Rabatt)` : `(${menge} Stk < ${schwelle} Stk → nur ${rabattPct} % Rabatt)`;
+          const lieferant = pick(LIEFERANTEN);
+          const schwellenText = menge >= schwelle ? `(${menge} Stk ≥ ${schwelle} Stk → ${rabattPct} % Rabatt)` : `(${menge} Stk < ${schwelle} Stk → kein erhöhter Rabatt)`;
           return {
-            aufgabe: `${f.name} bestellt ${menge} Stk ${art} bei ${lieferant} zum Listenpreis von ${fmt(listpreis)} €/Stk. Staffelrabatt: ab ${schwelle} Stk ${menge >= schwelle ? rabattPct : (rabattPct + 2)} % ${schwellenText}. Zahlungsbedingung: ${skontoPct} % Skonto. Bezugskosten: ${fmt(bezugskosten)} €. Berechnen Sie den Einstandspreis.`,
+            aufgabe: `${f.name} bestellt ${menge} Stk ${art} bei ${lieferant.name}, ${lieferant.ort}. Listenpreis: ${fmt(listpreis)} €/Stk. Staffelrabatt (Sofortrabatt): ab ${schwelle} Stk ${menge >= schwelle ? rabattPct : (rabattPct + 2)} % ${schwellenText}. Zahlungsbedingung: ${skontoPct} % Skonto. Bezugskosten (Fracht): ${fmt(bezugskosten)} €. Berechnen Sie den Einstandspreis.`,
             beleg: null,
             schema: [
               { label: `Listenpreis = ${menge} Stk × ${fmt(listpreis)} €`, wert: listenpreisSumme, einheit: "€" },
@@ -971,14 +1445,21 @@ Bilanz: Gegenüberstellung von Vermögen (Aktiva) und Kapital (Passiva) in Konto
             return { lep, rab, rabPct, zep, sko, skPct, bep, bzkBetrag, einst };
           };
 
-          // Angebot A
+          // Rabatt-Konfiguration aus opts (Sofortrabatt – direkt auf Rechnung, kein eigenes Konto)
+          const rabattTypen = ["Sofortrabatt", "Mengenrabatt", "Treuerabatt", "Wiederverkäuferrabatt"];
+          const rabattTypA = opts.rabattTyp || pick(rabattTypen);
+          const rabattTypB = pick(rabattTypen.filter(r => r !== rabattTypA));
+
+          // Angebot A – Rabatt aus opts oder zufällig
           const lepA   = rnd(8, 20, 1) * menge;
-          const rabPctA = pick([5, 8, 10, 12]);
+          // Wenn opts.rabattEuro gesetzt: Prozentsatz rückrechnen
+          const rabPctA = opts.rabattEuro ? Math.round(opts.rabattEuro / lepA * 100 * 10) / 10
+                        : (opts.rabattPct || pick([5, 8, 10, 12]));
           const skPctA  = pick([2, 3]);
           const bzkA    = rnd(50, 300, 10);
           const kA      = mkKalk(lepA, rabPctA, skPctA, bzkA);
 
-          // Angebot B – absichtlich nicht immer günstiger
+          // Angebot B – absichtlich nicht immer günstiger, eigener zufälliger Rabatt
           const lepB    = r2(lepA * pick([0.88, 0.92, 0.95, 1.05, 1.08]));
           const rabPctB = pick([3, 5, 7, 10]);
           const skPctB  = pick([2, 3]);
@@ -998,11 +1479,13 @@ Bilanz: Gegenüberstellung von Vermögen (Aktiva) und Kapital (Passiva) in Konto
           const ust1        = r2(basisNetto * 0.19);
           const brutto1     = r2(basisNetto + ust1);
 
-          const kalkulationszeilen = (k, skPct) => [
+          // Kalkulationszeile: Sofortrabatt NICHT als eigenes Konto gebucht!
+          // Er wird direkt auf der Rechnung abgezogen (LEP → ZEP)
+          const kalkulationszeilen = (k, skPct, rabTyp) => [
             { label: "Listeneinkaufspreis (netto)", wert: k.lep, einheit: "€" },
-            { label: `− Sofortrabatt (${k.rabPct} %)`, wert: k.rab, einheit: "€" },
+            { label: `− ${rabTyp || "Sofortrabatt"} (${k.rabPct} %)`, wert: k.rab, einheit: "€" },
             { label: "= Zieleinkaufspreis (netto)", wert: k.zep, einheit: "€", trennlinie: true, highlight: true },
-            { label: `− Skonto (${skPct} %)`, wert: k.sko, einheit: "€" },
+            { label: `− Lieferantenskonto (${skPct} %)`, wert: k.sko, einheit: "€" },
             { label: "= Bareinkaufspreis (netto)", wert: k.bep, einheit: "€", trennlinie: true },
             { label: "+ Bezugskosten", wert: k.bzkBetrag, einheit: "€" },
             { label: "= Einstandspreis", wert: k.einst, einheit: "€", bold: true, trennlinie: true },
@@ -1055,11 +1538,12 @@ Bilanz: Gegenüberstellung von Vermögen (Aktiva) und Kapital (Passiva) in Konto
               nr: schrNr++,
               titel: "Angebotsvergleich (Einkaufskalkulation)",
               typ: "angebotsvergleich",
+              _optsKey: "angebotsvergleich",
               aufgabe: aufgabentext,
               beleg: null, soll: [], haben: [],
               angebote: [
-                { name: "Angebot A", lief: lief.name,  ort: lief.ort,  k: kA, skPct: skPctA, rows: kalkulationszeilen(kA, skPctA) },
-                { name: "Angebot B", lief: lief2.name, ort: lief2.ort, k: kB, skPct: skPctB, rows: kalkulationszeilen(kB, skPctB) },
+                { name: "Angebot A", lief: lief.name,  ort: lief.ort,  k: kA, skPct: skPctA, rows: kalkulationszeilen(kA, skPctA, rabattTypA) },
+                { name: "Angebot B", lief: lief2.name, ort: lief2.ort, k: kB, skPct: skPctB, rows: kalkulationszeilen(kB, skPctB, rabattTypB) },
               ],
               gewinner,
               punkte: 8,
@@ -1067,16 +1551,15 @@ Bilanz: Gegenüberstellung von Vermögen (Aktiva) und Kapital (Passiva) in Konto
               erklaerung: `Angebot ${gewinner === 0 ? "A" : "B"} (${winLief.name}) ist günstiger: Einstandspreis ${fmt(winKalk.einst)} € < ${fmt(gewinner === 0 ? kB.einst : kA.einst)} €. Für den Kauf auf Ziel gilt der Zieleinkaufspreis (ZielEP) = ${fmt(winKalk.zep)} €.`,
             });
           } else if (mitKalk) {
-            // ── Einfache Kalkulation ──────────────────────────────────────
-            const ep = pick([6,8,10,12,15,18,20]);
-            const lep = r2(menge * ep);
+            // ── Einfache Kalkulation mit vollständigen Angaben ────────────────
             schritte.push({
               nr: schrNr++,
               titel: "Einkaufskalkulation",
               typ: "kalkulation",
-              aufgabe: `Berechnen Sie den Einstandspreis für ${menge} ${einheit} ${art} bei ${winLief.name}.`,
+              _optsKey: "kalkulation",
+              aufgabe: `${f.name} bezieht ${menge} ${einheit} ${art} von ${winLief.name}, ${winLief.ort}. Ermitteln Sie den Einstandspreis anhand folgender Konditionen: Listeneinkaufspreis: ${fmt(winKalk.lep)} € · Sofortrabatt: ${winKalk.rabPct} % · Lieferantenskonto: ${winSkoPct} % · Bezugskosten: ${fmt(winKalk.bzkBetrag)} €.`,
               beleg: null, soll: [], haben: [],
-              schema: kalkulationszeilen(winKalk, winSkoPct),
+              schema: kalkulationszeilen(winKalk, winSkoPct, rabattTypA),
               punkte: 5,
               nrPunkte: 4,
               erklaerung: `Zieleinkaufspreis (ZEP) = ${fmt(winKalk.zep)} € → Basis für den Kauf auf Ziel. Einstandspreis = ${fmt(winKalk.einst)} €.`,
@@ -1088,12 +1571,12 @@ Bilanz: Gegenüberstellung von Vermögen (Aktiva) und Kapital (Passiva) in Konto
             nr: schrNr++,
             titel: `Einkauf auf Ziel${mitAV || mitKalk ? " (Zieleinkaufspreis!)" : ""}`,
             typ: "buchung",
-            aufgabe: `Buchen Sie die folgende Eingangsrechnung.${mitAV || mitKalk ? " Hinweis: Als Buchungsbetrag gilt der Zieleinkaufspreis!" : ""}`,
-            beleg: mkEingangsRE(f, art, menge, einheit, basisNetto, 19, false),
+            aufgabe: `Buchen Sie die folgende Eingangsrechnung.${mitAV || mitKalk ? " Hinweis: Als Buchungsbetrag gilt der Zieleinkaufspreis (nach Sofortrabatt-Abzug)!" : ""}`,
+            beleg: mkEingangsRE(f, art, menge, einheit, basisNetto, 19, false, 0, 0, (mitAV||mitKalk) ? { typ: rabattTypA, pct: winRabPct } : null),
             soll: [{ nr: wt.aw.nr, name: wt.aw.name, betrag: basisNetto }, { nr: "2600", name: "Vorsteuer (VORST)", betrag: ust1 }],
             haben: [{ nr: "4400", name: "Verbindlichkeiten aus L+L (VE)", betrag: brutto1 }],
             nrPunkte: 1, punkte: 2 + 1 + 1,
-            erklaerung: `${mitAV || mitKalk ? `Buchungsbasis = Zieleinkaufspreis (${fmt(basisNetto)} €), nicht Listeneinkaufspreis! ` : ""}${wt.aw.kürzel} Soll ${fmt(basisNetto)} €. VORST Soll ${fmt(ust1)} €. VE Haben ${fmt(brutto1)} €.`,
+            erklaerung: `${mitAV || mitKalk ? `Buchungsbasis = Zieleinkaufspreis (${fmt(basisNetto)} €) – nicht Listeneinkaufspreis! Sofortrabatt wird auf der Rechnung direkt abgezogen, kein eigenes Buchungskonto. ` : ""}${wt.aw.kürzel} Soll ${fmt(basisNetto)} €. VORST Soll ${fmt(ust1)} €. VE Haben ${fmt(brutto1)} €.`,
           });
 
           // ── Schritt: Rücksendung ─────────────────────────────────────────
@@ -1105,7 +1588,8 @@ Bilanz: Gegenüberstellung von Vermögen (Aktiva) und Kapital (Passiva) in Konto
               nr: schrNr++,
               titel: `Rücksendung (${mengenH}) – Storno`,
               typ: "buchung",
-              aufgabe: `${f.name} sendet ${mengenH} der Lieferung zurück. Stornieren Sie den anteiligen Buchungssatz.`,
+              _optsKey: "ruecksendung",
+              aufgabe: `${f.name} sendet ${mengenH} der Lieferung zurück. Bilde den Buchungssatz!`,
               beleg: mkEmail(winLief.email, winLief.name, f.email,
                 `Gutschrift Rücksendung ${mengenH} – ${nr1}`,
                 `Sehr geehrte Damen und Herren,\n\nwir bestätigen die Rücksendung (${mengenH}) von ${art}.\n\nGutschrift netto: ${fmt(rueckN)} €\nUSt 19 %: ${fmt(rueckU)} €\nGutschrift brutto: ${fmt(rueckB)} €\n\nMit freundlichen Grüßen\n${winLief.name}`),
@@ -1124,6 +1608,7 @@ Bilanz: Gegenüberstellung von Vermögen (Aktiva) und Kapital (Passiva) in Konto
               nr: schrNr++,
               titel: `Nachträglicher Preisnachlass (${nlHinw})`,
               typ: "buchung",
+              _optsKey: "nachlass",
               aufgabe: `Der Lieferant gewährt einen Preisnachlass (${nlHinw}). Bilden Sie den Buchungssatz.`,
               beleg: mkEmail(winLief.email, winLief.name, f.email,
                 `Gutschrift Preisnachlass – ${nr1}`,
@@ -1175,7 +1660,110 @@ Bilanz: Gegenüberstellung von Vermögen (Aktiva) und Kapital (Passiva) in Konto
 
           return { kontext: kontextTeile, schritte };
         },
-      }
+      },
+    ],
+    "LB 2 · Bestandsveränderungen Werkstoffe": [
+      {
+        id: "8_bestandsveraenderung_erklaerung", titel: "Bestandsveränderungen – Grundprinzip erläutern",
+        taskTyp: "theorie", themenTyp: "freitext",
+        generate: () => ({
+          aufgabe: "Erläutern Sie, was unter einer Bestandsveränderung bei Werkstoffen zu verstehen ist. Nennen Sie die möglichen Arten und erklären Sie, wann eine Bestandsminderung bzw. eine Bestandserhöhung vorliegt.",
+          freitext: { zeilen: 6,
+            loesung: `Bestandsveränderungen entstehen, wenn der tatsächliche Endbestand laut Inventur vom Anfangsbestand abweicht.
+
+Bestandsminderung: Endbestand < Anfangsbestand → mehr Werkstoffe verbraucht als eingekauft. Buchung: Aufwandskonto (z. B. 2000 R) wird im Soll erhöht (zusätzlicher Aufwand).
+
+Bestandserhöhung: Endbestand > Anfangsbestand → mehr eingekauft als verbraucht. Buchung: Aufwandskonto wird im Haben vermindert (Aufwand sinkt).
+
+Konten: 2000 R (Rohstoffe), 2010 F (Fremdbauteile), 2020 H (Hilfsstoffe), 2030 B (Betriebsstoffe).`,
+          }, nrPunkte: 4,
+        }),
+      },
+      {
+        id: "8_bestandsmin_rohstoffe", titel: "Bestandsminderung Rohstoffe (2000 R)",
+        taskTyp: "rechnung",
+        generate: f => {
+          const ab = rnd(15000, 60000, 1000);
+          const eb = rnd(8000, ab - 2000, 500);
+          const diff = r2(ab - eb);
+          const wt = WERKSTOFF_TYPEN[0]; // Rohstoffe
+          return {
+            aufgabe: `Ermitteln Sie auf Grundlage der Inventurergebnisse die Bestandsveränderung bei den Rohstoffen und erfassen Sie diese buchhalterisch. Anfangsbestand: ${fmt(ab)} €, Endbestand laut Inventur: ${fmt(eb)} €.`,
+            beleg: null,
+            schema: [
+              { label: "Anfangsbestand (01.01.) laut Eröffnungsbilanz", wert: ab, einheit: "€" },
+              { label: "− Endbestand (31.12.) laut Inventur", wert: eb, einheit: "€" },
+              { label: "= Bestandsminderung", wert: diff, einheit: "€", bold: true, trennlinie: true, highlight: false },
+              { label: "→ Buchung: 2000 R an 6000 AWR", wert: diff, einheit: "€", bold: true },
+            ],
+            soll: [{ nr: "2000", name: "Bestandsveränderung Rohstoffe (R)", betrag: diff }],
+            haben: [{ nr: "6000", name: "Aufwendungen Rohstoffe (AWR)", betrag: diff }],
+            nrPunkte: 3,
+            erklaerung: `Endbestand (${fmt(eb)} €) < Anfangsbestand (${fmt(ab)} €) → Bestandsminderung von ${fmt(diff)} €. Mehrverbrauch = zusätzlicher Aufwand: AWR-Konto steigt (Haben), Bestandskonto 2000 R sinkt (Soll). Buchung: 2000 R an 6000 AWR.`,
+          };
+        },
+      },
+      {
+        id: "8_bestandserh_rohstoffe", titel: "Bestandserhöhung Rohstoffe (2000 R)",
+        taskTyp: "rechnung",
+        generate: f => {
+          const ab = rnd(15000, 50000, 1000);
+          const eb = rnd(ab + 1000, ab + 15000, 500);
+          const diff = r2(eb - ab);
+          return {
+            aufgabe: `Ermitteln Sie auf Grundlage der Inventurergebnisse die Bestandsveränderung bei den Rohstoffen und erfassen Sie diese buchhalterisch. Anfangsbestand: ${fmt(ab)} €, Endbestand laut Inventur: ${fmt(eb)} €.`,
+            beleg: null,
+            schema: [
+              { label: "Endbestand (31.12.) laut Inventur", wert: eb, einheit: "€" },
+              { label: "− Anfangsbestand (01.01.)", wert: ab, einheit: "€" },
+              { label: "= Bestandserhöhung", wert: diff, einheit: "€", bold: true, trennlinie: true, highlight: true },
+              { label: "→ Buchung: 6000 AWR an 2000 R", wert: diff, einheit: "€", bold: true },
+            ],
+            soll: [{ nr: "6000", name: "Aufwendungen Rohstoffe (AWR)", betrag: diff }],
+            haben: [{ nr: "2000", name: "Bestandsveränderung Rohstoffe (R)", betrag: diff }],
+            nrPunkte: 3,
+            erklaerung: `Endbestand (${fmt(eb)} €) > Anfangsbestand (${fmt(ab)} €) → Bestandserhöhung von ${fmt(diff)} €. Weniger verbraucht als eingekauft = Aufwand sinkt: AWR-Konto wird gekürzt (Soll), Bestandskonto 2000 R steigt (Haben). Buchung: 6000 AWR an 2000 R.`,
+          };
+        },
+      },
+      {
+        id: "8_bestandsveraenderung_werkstoff", titel: "Bestandsveränderung – alle Werkstoffarten",
+        taskTyp: "rechnung",
+        generate: f => {
+          const typen = [
+            { nr: "2000", kürzel: "R",  name: "Rohstoffe (R)",       aw: "6000", awName: "AWR" },
+            { nr: "2010", kürzel: "F",  name: "Fremdbauteile (F)",   aw: "6010", awName: "AWF" },
+            { nr: "2020", kürzel: "H",  name: "Hilfsstoffe (H)",     aw: "6020", awName: "AWH" },
+            { nr: "2030", kürzel: "B",  name: "Betriebsstoffe (B)",  aw: "6030", awName: "AWB" },
+          ];
+          const t = pick(typen);
+          const istMin = Math.random() > 0.5;
+          const ab = rnd(10000, 50000, 1000);
+          const eb = istMin ? rnd(5000, ab - 1000, 500) : rnd(ab + 500, ab + 12000, 500);
+          const diff = r2(Math.abs(eb - ab));
+          const art = istMin ? "Bestandsminderung" : "Bestandserhöhung";
+          return {
+            aufgabe: `Die Inventur ergibt folgenden Befund bei den ${t.name}: Anfangsbestand ${fmt(ab)} €, Endbestand ${fmt(eb)} €. Ermitteln Sie Art und Höhe der Bestandsveränderung und bilden Sie den Buchungssatz.`,
+            beleg: null,
+            schema: [
+              { label: `Endbestand 31.12. (laut Inventur)`, wert: eb, einheit: "€" },
+              { label: `− Anfangsbestand 01.01.`, wert: ab, einheit: "€" },
+              { label: `= ${art}`, wert: diff, einheit: "€", bold: true, trennlinie: true, highlight: !istMin },
+              { label: `Buchung: ${istMin ? `${t.nr} ${t.kürzel} an ${t.aw} ${t.awName}` : `${t.aw} ${t.awName} an ${t.nr} ${t.kürzel}`}`, wert: diff, einheit: "€", bold: true },
+            ],
+            soll: istMin
+              ? [{ nr: t.nr, name: t.name, betrag: diff }]
+              : [{ nr: t.aw, name: `Aufwend. ${t.name} (${t.awName})`, betrag: diff }],
+            haben: istMin
+              ? [{ nr: t.aw, name: `Aufwend. ${t.name} (${t.awName})`, betrag: diff }]
+              : [{ nr: t.nr, name: t.name, betrag: diff }],
+            nrPunkte: 3,
+            erklaerung: istMin
+              ? `${art}: EB (${fmt(eb)} €) < AB (${fmt(ab)} €). Mehrverbrauch → ${t.awName}-Konto steigt (Haben). Bestandskonto ${t.kürzel} sinkt (Soll). Buchung: ${t.nr} ${t.kürzel} an ${t.aw} ${t.awName}.`
+              : `${art}: EB (${fmt(eb)} €) > AB (${fmt(ab)} €). Weniger verbraucht → ${t.awName}-Konto sinkt (Soll). Bestandskonto ${t.kürzel} steigt (Haben). Buchung: ${t.aw} ${t.awName} an ${t.nr} ${t.kürzel}.`,
+          };
+        },
+      },
     ],
     "LB 3 · Marketing": [
       {
@@ -1371,7 +1959,7 @@ Bilanz: Gegenüberstellung von Vermögen (Aktiva) und Kapital (Passiva) in Konto
             beleg: belegText,
             soll: [{ nr: "6140", name: "Ausgangsfrachten", betrag: n }, { nr: "2600", name: "Vorsteuer (VORST)", betrag: u }],
             haben: [{ nr: viaKonto, name: viaName, betrag: b }],
-            nrPunkte: 0, erklaerung: `Versandkosten bei „frei Haus"-Lieferung = Aufwand (6140 AFR Soll, Nettobetrag). Vorsteuer (2600 VORST Soll). ${viaName} (${viaKonto} Haben).`,
+            nrPunkte: 0, erklaerung: `Versandkosten bei "frei Haus"-Lieferung = Aufwand (6140 AFR Soll, Nettobetrag). Vorsteuer (2600 VORST Soll). ${viaName} (${viaKonto} Haben).`,
           };
         },
       },
@@ -1443,7 +2031,8 @@ Bilanz: Gegenüberstellung von Vermögen (Aktiva) und Kapital (Passiva) in Konto
               nr: schrNr++,
               titel: "Verkaufskalkulation",
               typ: "kalkulation_vk",
-              aufgabe: `Berechnen Sie den Zielverkaufspreis für ${menge} Stk. ${art}.`,
+              _optsKey: "vorkalkulation",
+              aufgabe: `Ermitteln Sie den Zielverkaufspreis für ${menge} Stk. ${art}. Kalkulationsgrundlage: Einstandspreis ${fmt(ekp)} € · Handelsspanne (Aufschlag): ${aufschPct} % auf den Einstandspreis.`,
               beleg: null, soll: [], haben: [],
               schema: [
                 { label: "Einstandspreis", wert: ekp, einheit: "€" },
@@ -1482,7 +2071,8 @@ Bilanz: Gegenüberstellung von Vermögen (Aktiva) und Kapital (Passiva) in Konto
               nr: schrNr++,
               titel: `Rücksendung (${mengenH}) – Storno`,
               typ: "buchung",
-              aufgabe: `Der Kunde sendet ${mengenH} der Lieferung wegen Mängeln zurück. Stornieren Sie den anteiligen Buchungssatz.`,
+              _optsKey: "ruecksendung",
+              aufgabe: `Der Kunde sendet ${mengenH} der Lieferung wegen Mängeln zurück. Bilde den Buchungssatz!`,
               beleg: mkEmail(
                 `einkauf@${kunde.name.toLowerCase().replace(/[\s\-]/g,"")}.de`,
                 kunde.name, f.email,
@@ -1506,6 +2096,7 @@ Bilanz: Gegenüberstellung von Vermögen (Aktiva) und Kapital (Passiva) in Konto
               nr: schrNr++,
               titel: `Nachträglicher Preisnachlass (${nlHinw})`,
               typ: "buchung",
+              _optsKey: "nachlass",
               aufgabe: `${f.name} gewährt dem Kunden einen Preisnachlass (${nlHinw}). Bilden Sie den Buchungssatz.`,
               beleg: mkEmail(f.email, f.name,
                 `einkauf@${kunde.name.toLowerCase().replace(/[\s\-]/g,"")}.de`,
@@ -1583,7 +2174,7 @@ Bilanz: Gegenüberstellung von Vermögen (Aktiva) und Kapital (Passiva) in Konto
           const svAN = r2(brutto * 0.20); const svAG = r2(brutto * 0.20); const netto = r2(brutto - lst - kist - svAN); const svGes = r2(svAN + svAG);
           const monat = ["Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"][new Date().getMonth()];
           return {
-            aufgabe: "Bilden Sie den Buchungssatz zur folgenden E-Mail (Gehaltsauszahlung).",
+            aufgabe: "Analysieren Sie die Entgeltabrechnung und erfassen Sie den monatlichen Personalaufwand buchhalterisch.",
             beleg: mkEmail(`personal@${f.name.toLowerCase().replace(/[\s\-]/g,"")}.de`, `${f.name} – Personalbüro`, f.email,
               `Gehaltsabrechnung ${monat} 2025`,
               `Gehaltsabrechnung ${monat} 2025\n\nBruttolohn:              ${fmt(brutto)} €\n− Lohnsteuer:            ${fmt(lst)} €\n− Kirchensteuer:         ${fmt(kist)} €\n− SV-Beitrag AN (20 %):  ${fmt(svAN)} €\n─────────────────────────────────\nNettobetrag:             ${fmt(netto)} €\n\nAG-SV-Beitrag (20 %):    ${fmt(svAG)} €\nGesamtpersonalkosten:    ${fmt(r2(brutto+svAG))} €\n\nNettoauszahlung per Überweisung. LSt/KiSt an FA, SV-Gesamt an SV-Träger.`),
@@ -1610,16 +2201,39 @@ Bilanz: Gegenüberstellung von Vermögen (Aktiva) und Kapital (Passiva) in Konto
     ],
     "LB 6 · Unternehmen und Staat": [
       {
+        id: "8_ust_zahllast_ermittlung", titel: "USt-Zahllast ermitteln (Berechnung + Buchung)",
+        taskTyp: "rechnung",
+        generate: f => {
+          const ust = rnd(4000, 15000, 100);
+          const vst = rnd(1500, ust - 500, 100);
+          const zahllast = r2(ust - vst);
+          return {
+            aufgabe: `Ermitteln Sie rechnerisch die USt-Zahllast für ${f.name} und erfassen Sie deren Überweisung an das Finanzamt buchhalterisch. Umsatzsteuer (4800 UST): ${fmt(ust)} €, Vorsteuer (2600 VORST): ${fmt(vst)} €.`,
+            beleg: null,
+            schema: [
+              { label: "Umsatzsteuer (4800 UST) – Schuld ggü. Finanzamt", wert: ust, einheit: "€" },
+              { label: "− Vorsteuer (2600 VORST) – Forderung ggü. Finanzamt", wert: vst, einheit: "€" },
+              { label: "= USt-Zahllast (an Finanzamt zu überweisen)", wert: zahllast, einheit: "€", bold: true, trennlinie: true, highlight: false },
+              { label: "Buchungssatz: 4800 UST an 2600 VORST + 2800 BK", wert: zahllast, einheit: "€", bold: true },
+            ],
+            soll: [{ nr: "4800", name: "Umsatzsteuer (UST)", betrag: ust }],
+            haben: [{ nr: "2600", name: "Vorsteuer (VORST)", betrag: vst }, { nr: "2800", name: "Bank (BK — Zahllast)", betrag: zahllast }],
+            nrPunkte: 3,
+            erklaerung: `Zahllast = UST (${fmt(ust)} €) − VORST (${fmt(vst)} €) = ${fmt(zahllast)} €. USt-Konto aufgelöst (4800 Soll). VORST aufgelöst (2600 Haben). Zahllast per Bank (2800 Haben). Merke: USt = Schuld, VORST = Forderung.`,
+          };
+        },
+      },
+      {
         id: "8_ust_zahllast", titel: "Überweisung der USt-Zahllast",
         generate: f => {
           const ust = rnd(3000, 12000, 100); const vst = rnd(1000, ust - 500, 100); const zahllast = r2(ust - vst);
           return {
-            aufgabe: "Bilden Sie den Buchungssatz zur folgenden Online-Überweisung.",
+            aufgabe: "Ermitteln Sie rechnerisch die USt-Zahllast und erfassen Sie deren Überweisung an das Finanzamt buchhalterisch.",
             beleg: mkUeberweisung(f, "Finanzamt Ingolstadt", "DE86 7000 0000 0070 0101 00", zahllast, `USt-Voranmeldung ${["Jan","Feb","Mär","Apr","Mai","Jun","Jul","Aug","Sep","Okt","Nov","Dez"][new Date().getMonth()]} 2025`),
             nebenrechnungen: [{ label: "USt-Zahllast", formel: `${fmt(ust)} € − ${fmt(vst)} €`, ergebnis: `${fmt(zahllast)} €` }],
             soll: [{ nr: "4800", name: "Umsatzsteuer (UST)", betrag: ust }],
             haben: [{ nr: "2600", name: "Vorsteuer (VORST)", betrag: vst }, { nr: "2800", name: "Bank (BK — Zahllast)", betrag: zahllast }],
-            nrPunkte: 1, erklaerung: `USt-Konto aufgelöst (4400 Soll). VSt-Konto aufgelöst (1600 Haben). Zahllast ${fmt(zahllast)} € an FA überwiesen (2800 BK Haben).`,
+            nrPunkte: 1, erklaerung: `USt-Konto aufgelöst (4800 UST Soll, ${fmt(ust)} €). VSt-Konto aufgelöst (2600 VORST Haben, ${fmt(vst)} €). Zahllast ${fmt(zahllast)} € an FA überwiesen (2800 BK Haben). Zahllast = USt − VSt.`,
           };
         },
       },
@@ -1642,6 +2256,36 @@ Bilanz: Gegenüberstellung von Vermögen (Aktiva) und Kapital (Passiva) in Konto
             soll: [{ nr: sz.nr, name: sz.steuer, betrag: b }],
             haben: [{ nr: "2800", name: "Bank (BK)", betrag: b }],
             nrPunkte: 0, erklaerung: `Betriebliche Steuern sind Aufwand (${sz.nr} ${sz.kürzel} Soll). Keine Vorsteuer! Betriebssteuern sind von der Vorsteuer ausgenommen. Bankguthaben sinkt (2800 BK Haben).`,
+          };
+        },
+      },
+      {
+        id: "8_gewerbesteuer_berechnung", titel: "Gewerbesteuer berechnen (Freibetrag, Messbetrag, Hebesatz)",
+        taskTyp: "rechnung",
+        generate: f => {
+          const gewinn = rnd(60000, 250000, 5000);
+          const freibetrag = 24500;
+          const steuermesszahl = 0.035;
+          const hebesatz = pick([310, 340, 370, 400, 430, 460]);
+          const bmg = Math.max(0, gewinn - freibetrag);
+          const messbetrag = r2(bmg * steuermesszahl);
+          const gwst = r2(messbetrag * hebesatz / 100);
+          return {
+            aufgabe: `Berechnen Sie die Gewerbesteuer für ${f.name}. Gewinn laut GUV: ${fmt(gewinn)} €. Hebesatz der Gemeinde ${f.ort}: ${hebesatz} %. Freibetrag: ${fmt(freibetrag)} €, Steuermesszahl: 3,5 %.`,
+            beleg: null,
+            schema: [
+              { label: "Gewinn laut GUV", wert: gewinn, einheit: "€" },
+              { label: `− Freibetrag (Einzelunternehmen)`, wert: freibetrag, einheit: "€" },
+              { label: "= Bemessungsgrundlage", wert: bmg, einheit: "€", bold: true, trennlinie: true },
+              { label: "× Steuermesszahl (3,5 %)", wert: messbetrag, einheit: "€" },
+              { label: `× Hebesatz (${hebesatz} %)`, wert: gwst, einheit: "€", bold: true, trennlinie: true },
+              { label: "= Gewerbesteuer", wert: gwst, einheit: "€", bold: true, highlight: false },
+              { label: "Buchungssatz: 7000 GWST an 2800 BK", wert: gwst, einheit: "€", bold: true },
+            ],
+            soll: [{ nr: "7000", name: "Gewerbesteuer (GWST)", betrag: gwst }],
+            haben: [{ nr: "2800", name: "Bank (BK)", betrag: gwst }],
+            nrPunkte: 4,
+            erklaerung: `Berechnung: (${fmt(gewinn)} € − ${fmt(freibetrag)} €) × 3,5 % × ${hebesatz} % = ${fmt(gwst)} €. Gewerbesteuer = Betriebsaufwand (7000 GWST Soll). Kein Vorsteuerabzug! Bank sinkt (2800 BK Haben).`,
           };
         },
       },
@@ -2404,6 +3048,7 @@ Mustermann & Partner Rechtsanwälte`
               nr: schrNr++,
               titel: `EWB bilden am 31.12. (geschätzter Ausfall ${ewbPct} %)`,
               typ: "buchung",
+              _optsKey: "ewb",
               aufgabe: `Am Jahresende wird der voraussichtliche Nettoausfall für die Forderung gegen ${kunde.name} auf ${ewbPct} % geschätzt. Berechnen Sie die EWB und bilden Sie den Buchungssatz.`,
               beleg: null,
               soll: [{ nr: "6950", name: "Abschreibungen auf Forderungen (ABFO)", betrag: ewbBetrag }],
@@ -2899,6 +3544,7 @@ PWB (Pauschalwertberichtigung):
               nr: schrNr++,
               titel: `ARA bilden (${araMonate} Monate Folgejahr)`,
               typ: "buchung",
+              _optsKey: "ara",
               aufgabe: `Bilden Sie den Buchungssatz zur Jahresvorauszahlung (${aufwandKonto.name}). Von ${fmt(jahresMiete)} € entfallen ${araMonate} Monate auf das Folgejahr.`,
               beleg: mkEingangsRE(f, `Jahresvorauszahlung ${aufwandKonto.name} (01.10.–30.09.)`, 1, "Jahr", jahresMiete, 0, false),
               soll: [{ nr: "2900", name: "Aktiver Rechnungsabgrenzungsposten (ARA)", betrag: araBetrag }],
@@ -2915,6 +3561,7 @@ PWB (Pauschalwertberichtigung):
               nr: schrNr++,
               titel: `Rückstellung bilden (${rst.art})`,
               typ: "buchung",
+              _optsKey: "rst",
               aufgabe: `Bilden Sie zum 31.12. eine Rückstellung für ${rst.art} in Höhe von ${fmt(rst.betrag)} €.`,
               beleg: null,
               soll: [{ nr: "6990", name: "Rückstellungsaufwand", betrag: rst.betrag }],
@@ -2931,6 +3578,7 @@ PWB (Pauschalwertberichtigung):
               nr: schrNr++,
               titel: `Abschreibung (AfA) auf ${anlage}`,
               typ: "buchung",
+              _optsKey: "afa",
               aufgabe: `Buchen Sie die lineare Jahres-AfA auf ${anlage}. Anschaffungswert: ${fmt(aw)} €, Nutzungsdauer: ${nutzung} Jahre.`,
               beleg: null,
               soll: [{ nr: "6200", name: "Abschreibungen auf Sachanlagen (AFAA)", betrag: afa }],
@@ -2947,6 +3595,7 @@ PWB (Pauschalwertberichtigung):
               nr: schrNr++,
               titel: `EWB bilden (${ewbPct} % auf zweifelhafte Forderung)`,
               typ: "buchung",
+              _optsKey: "ewb",
               aufgabe: `Die zweifelhafte Forderung gegen ${kunde.name} beträgt ${fmt(ewbBrutto)} € brutto. Der voraussichtliche Nettoausfall wird auf ${ewbPct} % geschätzt. Berechnen Sie die EWB und bilden Sie den Buchungssatz.`,
               beleg: null,
               soll: [{ nr: "6950", name: "Abschreibungen auf Forderungen (ABFO)", betrag: ewbBetrag }],
@@ -2964,6 +3613,7 @@ PWB (Pauschalwertberichtigung):
               nr: schrNr++,
               titel: `GuV-Abschluss (${istGewinn ? "Gewinn" : "Verlust"}: ${fmt(Math.abs(gewinn))} €)`,
               typ: "kalkulation_vk",
+              _optsKey: "guv",
               aufgabe: `Ermitteln Sie das Jahresergebnis von ${f.name} und bilden Sie den abschließenden Buchungssatz (GuV → EK).`,
               beleg: null,
               schema: [
@@ -2994,6 +3644,7 @@ PWB (Pauschalwertberichtigung):
               nr: schrNr++,
               titel: "Kennzahlenberechnung aus Schlussbilanz",
               typ: "kalkulation_vk",
+              _optsKey: "kennzahlen",
               aufgabe: `Berechnen Sie EK-Quote und EK-Rentabilität auf Basis des ermittelten Jahresergebnisses. EK: ${fmt(ek)} €, FK: ${fmt(fk)} €.`,
               beleg: null,
               schema: [
@@ -3057,8 +3708,466 @@ PWB (Pauschalwertberichtigung):
           };
         },
       },
+      {
+        id: "10_ara_bildung", titel: "ARA bilden (Aktive Rechnungsabgrenzung)",
+        taskTyp: "rechnung",
+        generate: f => {
+          const konten = [
+            { nr: "6900", name: "Versicherungsbeiträge (VBEI)", art: "Versicherungsprämie" },
+            { nr: "6700", name: "Mieten und Pachten (AWMP)", art: "Mietzahlung" },
+            { nr: "7510", name: "Zinsaufwendungen (ZAW)", art: "Zinszahlung" },
+          ];
+          const k = pick(konten);
+          const monateBez = pick([6, 9, 12]);
+          const monateDJ  = pick([2, 3, 4, 5]);
+          const monateNJ  = r2(monateBez - monateDJ);
+          const gesamt    = rnd(1200, 9600, 600);
+          const perMonat  = r2(gesamt / monateBez);
+          const djBetrag  = r2(perMonat * monateDJ);
+          const araBetrag = r2(perMonat * monateNJ);
+          return {
+            aufgabe: `Bilden Sie die Buchungssätze: (1) Zahlung am 01.10. per Bank, (2) Vorabschlussbuchung am 31.12.
+${f.name} überweist am 01.10. eine ${k.art} in Höhe von ${fmt(gesamt)} € für ${monateBez} Monate im Voraus.`,
+            beleg: null,
+            schema: [
+              { label: `Gesamtbetrag (${monateBez} Monate)`, wert: gesamt, einheit: "€" },
+              { label: `÷ ${monateBez} Monate = pro Monat`, wert: perMonat, einheit: "€/Monat" },
+              { label: `× ${monateDJ} Monate (altes Jahr)`, wert: djBetrag, einheit: "€", bold: true },
+              { label: `× ${monateNJ} Monate (neues Jahr) → ARA`, wert: araBetrag, einheit: "€", bold: true, trennlinie: true, highlight: true },
+            ],
+            soll: [{ nr: k.nr, name: k.name, betrag: gesamt }, { nr: "2900", name: "Aktive Rechnungsabgrenzung (ARA)", betrag: araBetrag }],
+            haben: [{ nr: "2800", name: "Bank (BK)", betrag: gesamt }, { nr: k.nr, name: k.name, betrag: araBetrag }],
+            nrPunkte: 4,
+            erklaerung: `ARA: Zahlung im alten Jahr, Aufwand gehört auch ins neue Jahr. (1) ${k.nr} ${gesamt} € an 2800 BK. (2) Vorabschluss: 2900 ARA ${araBetrag} € an ${k.nr} (Anteil neues Jahr).`,
+          };
+        },
+      },
+      {
+        id: "10_pra_bildung", titel: "PRA bilden (Passive Rechnungsabgrenzung)",
+        taskTyp: "rechnung",
+        generate: f => {
+          const konten = [
+            { nr: "5400", name: "Erträge aus Mieten/Pachten (EMP)", art: "Mieteinnahme" },
+            { nr: "5710", name: "Zinserträge (ZE)", art: "Zinsgutschrift" },
+          ];
+          const k = pick(konten);
+          const monateBez = pick([3, 6, 9]);
+          const monateDJ  = pick([1, 2]);
+          const monateNJ  = r2(monateBez - monateDJ);
+          const netto     = rnd(900, 7200, 300);
+          const ust       = r2(netto * 0.19);
+          const brutto    = r2(netto + ust);
+          const perMonat  = r2(netto / monateBez);
+          const djBetrag  = r2(perMonat * monateDJ);
+          const praBetrag = r2(perMonat * monateNJ);
+          const mitUSt    = k.nr === "5400";
+          return {
+            aufgabe: `Bilden Sie die Buchungssätze: (1) Zahlung am 01.12. per Bank, (2) Vorabschlussbuchung am 31.12.
+Ein Mieter überweist am 01.12. die ${k.art} für ${monateBez} Monate im Voraus: ${fmt(mitUSt ? brutto : netto)} € ${mitUSt ? "brutto" : ""}.`,
+            beleg: null,
+            schema: [
+              { label: `Nettobetrag (${monateBez} Monate)`, wert: netto, einheit: "€" },
+              { label: `÷ ${monateBez} Monate = pro Monat (netto)`, wert: perMonat, einheit: "€/Monat" },
+              { label: `× ${monateDJ} Monat(e) (altes Jahr)`, wert: djBetrag, einheit: "€", bold: true },
+              { label: `× ${monateNJ} Monat(e) (neues Jahr) → PRA`, wert: praBetrag, einheit: "€", bold: true, trennlinie: true, highlight: true },
+            ],
+            soll: mitUSt
+              ? [{ nr: "2800", name: "Bank (BK)", betrag: brutto }, { nr: k.nr, name: k.name, betrag: praBetrag }]
+              : [{ nr: "2800", name: "Bank (BK)", betrag: netto }, { nr: k.nr, name: k.name, betrag: praBetrag }],
+            haben: mitUSt
+              ? [{ nr: k.nr, name: k.name, betrag: netto }, { nr: "4800", name: "Umsatzsteuer (UST)", betrag: ust }, { nr: "4900", name: "Passive Rechnungsabgrenzung (PRA)", betrag: praBetrag }]
+              : [{ nr: k.nr, name: k.name, betrag: netto }, { nr: "4900", name: "Passive Rechnungsabgrenzung (PRA)", betrag: praBetrag }],
+            nrPunkte: 4,
+            erklaerung: `PRA: Zahlung im alten Jahr, Ertrag gehört ins neue Jahr. (1) BK an ${k.nr}${mitUSt ? " + UST" : ""}. (2) Vorabschluss: ${k.nr} ${praBetrag} € an 4900 PRA.`,
+          };
+        },
+      },
+      {
+        id: "10_rst_bildung", titel: "Rückstellung bilden (Kostenvoranschlag)",
+        generate: f => {
+          const szenarien = [
+            { art: "Reparatur einer CNC-Maschine", konto: "6160", kname: "Fremdleistungen/Reparaturen (FRI)", absender: "Maschinenservice GmbH" },
+            { art: "Reparatur des Firmen-LKW", konto: "6160", kname: "Fremdleistungen/Reparaturen (FRI)", absender: "Kfz-Werkstatt Müller" },
+            { art: "laufender Prozess gegen Lieferant", konto: "6770", kname: "Rechts- und Beratungskosten (RBK)", absender: "Kanzlei Dr. Schmidt" },
+          ];
+          const sz = pick(szenarien);
+          const betrag = rnd(1500, 12000, 500);
+          return {
+            aufgabe: `Bilden Sie den Buchungssatz zum 31.12. für folgende E-Mail.`,
+            beleg: mkEmail(`info@${sz.absender.toLowerCase().replace(/[\s.]/g,"")+".de"}`, sz.absender, f.email,
+              `Kostenvoranschlag – ${sz.art}`,
+              `Sehr geehrte Damen und Herren,
+
+bezugnehmend auf unser Gespräch teilen wir Ihnen mit, dass wir die Kosten für ${sz.art} auf ca. ${fmt(betrag)} € schätzen.
+
+Da die Reparatur erst im neuen Jahr erfolgen kann, empfehlen wir die Bildung einer Rückstellung.
+
+Mit freundlichen Grüßen
+${sz.absender}`),
+            soll: [{ nr: sz.konto, name: sz.kname, betrag }],
+            haben: [{ nr: "3900", name: "Rückstellungen (RST)", betrag }],
+            nrPunkte: 0,
+            erklaerung: `Rückstellung für ungewisse Verbindlichkeit. Aufwand (${sz.konto} Soll, Nettobetrag). Rückstellung auf der Passivseite (3900 RST Haben). Keine USt bei Bildung!`,
+          };
+        },
+      },
+      {
+        id: "10_rst_aufloesung_vollstaendig", titel: "Rückstellung auflösen (4 Fälle)",
+        taskTyp: "rechnung",
+        generate: f => {
+          const rst = rnd(2000, 10000, 500);
+          const fall = pick(["gleich", "mehr", "weniger", "entfaellt"]);
+          const tat = fall === "gleich" ? rst : fall === "mehr" ? r2(rst + rnd(200,1500,100)) : fall === "weniger" ? r2(rst - rnd(200,1000,100)) : 0;
+          const diff = r2(rst - tat);
+          const ust  = fall !== "entfaellt" ? r2(tat * 0.19) : 0;
+          const label = fall === "gleich" ? "Rückstellung = tatsächliche Kosten" : fall === "mehr" ? "Rückstellung < tatsächliche Kosten (→ PFAW)" : fall === "weniger" ? "Rückstellung > tatsächliche Kosten (→ PFE)" : "Kosten entfallen (→ PFE)";
+          const mehrPFAW = r2(tat - rst); // positiv wenn tat > rst
+          const sollArr = fall === "mehr"
+            ? [{ nr: "3900", name: "Rückstellungen (RST)", betrag: rst }, { nr: "6990", name: "Periodfremder Aufwand (PFAW)", betrag: Math.abs(mehrPFAW) }, { nr: "2600", name: "Vorsteuer (VORST)", betrag: ust }]
+            : [{ nr: "3900", name: "Rückstellungen (RST)", betrag: rst }];
+          const habenArr = fall === "entfaellt"
+            ? [{ nr: "5490", name: "Periodfremder Ertrag (PFE)", betrag: rst }]
+            : fall === "weniger"
+            ? [{ nr: "4400", name: "Verbindlichkeiten aus L+L (VE)", betrag: r2(tat + ust) }, { nr: "5490", name: "Periodfremder Ertrag (PFE)", betrag: Math.abs(diff) }, { nr: "2600", name: "Vorsteuer (VORST)", betrag: ust }]
+            : [{ nr: "4400", name: "Verbindlichkeiten aus L+L (VE)", betrag: r2(tat + ust) }, { nr: "2600", name: "Vorsteuer (VORST)", betrag: ust }];
+          return {
+            aufgabe: `Eine Rückstellung (3900 RST) von ${fmt(rst)} € wird aufgelöst. ${label}. ${fall !== "entfaellt" ? `Tatsächliche Reparaturkosten: ${fmt(tat)} € netto (Rechnung liegt vor).` : "Die Reparatur entfällt (Kostenlosleistung des Lieferanten)."}`,
+            beleg: null,
+            schema: [
+              { label: "Rückstellung (RST) Vorjahr", wert: rst, einheit: "€" },
+              { label: fall !== "entfaellt" ? "Tatsächliche Kosten netto" : "Tatsächliche Kosten (entfällt)", wert: tat, einheit: "€" },
+              { label: `Differenz → ${fall === "mehr" ? "Periodenfremder Aufwand (PFAW)" : "Periodenfremder Ertrag (PFE)"}`, wert: Math.abs(diff), einheit: "€", bold: true, trennlinie: true, highlight: diff > 0 },
+            ],
+            soll: sollArr,
+            haben: habenArr,
+            nrPunkte: fall === "gleich" ? 2 : 3,
+            erklaerung: `Fall: ${label}. RST wird immer aufgelöst (Soll). ${fall === "entfaellt" ? "Keine Kosten → PFE." : fall === "gleich" ? "Kosten decken sich genau." : fall === "mehr" ? `Mehrkosten ${fmt(r2(tat-rst))} € → PFAW.` : `Einsparung ${fmt(diff)} € → PFE.`} USt erst bei Auflösung!`,
+          };
+        },
+      },
+      {
+        id: "10_ara_pra_unterschied", titel: "ARA vs. PRA – Unterschied erläutern",
+        taskTyp: "theorie", themenTyp: "zuordnung",
+        generate: () => ({
+          aufgabe: "Ordnen Sie die Merkmale der aktiven bzw. passiven Rechnungsabgrenzung zu.",
+          zuordnung: { paare: [
+            { term: "Aktive Rechnungsabgrenzung (ARA)", def: "Zahlung im alten Jahr, Aufwand gehört ins neue Jahr" },
+            { term: "Passive Rechnungsabgrenzung (PRA)", def: "Zahlung im alten Jahr, Ertrag gehört ins neue Jahr" },
+            { term: "2900 ARA", def: "Aktivkonto – steht auf der Aktivseite der Bilanz" },
+            { term: "4900 PRA", def: "Passivkonto – steht auf der Passivseite der Bilanz" },
+            { term: "Auflösung am 01.01.", def: "Umbuchung in das jeweilige Aufwands- oder Ertragskonto" },
+            { term: "Keine USt-Buchung", def: "Abgrenzung erfolgt immer mit Nettobetrag" },
+          ]}, nrPunkte: 6,
+        }),
+      },
     ],
     "LB 2 · Kennzahlen & Bilanzanalyse": [
+      {
+        id: "10_ara_buchungskette", titel: "ARA – vollständige Buchungskette (3 Buchungen)",
+        taskTyp: "komplex",
+        generate: (f, opts = {}) => {
+          const konto = pick([
+            { nr: "6900", name: "Versicherungsbeiträge (VBEI)", art: "Versicherungsprämie" },
+            { nr: "6700", name: "Mieten und Pachten (AWMP)", art: "Mietzahlung" },
+          ]);
+          const monateBez = pick([6, 9, 12]);
+          const startMonat = pick([8, 9, 10, 11]);
+          const monateAltJ = 12 - startMonat + 1;
+          const monateNeuJ = monateBez - monateAltJ;
+          const netto = rnd(1200, 9600, 600);
+          const vorst = r2(netto * 0.19);
+          const brutto = r2(netto + vorst);
+          const perMonat = r2(netto / monateBez);
+          const djBetrag = r2(perMonat * monateAltJ);
+          const araBetrag = r2(perMonat * monateNeuJ);
+          const datum1 = `01.${startMonat < 10 ? "0" + startMonat : startMonat}.`;
+          return {
+            vorspann: `Als Mitarbeiterin bzw. Mitarbeiter von ${f.name} bearbeiten Sie folgende Jahresabschlussaufgabe.`,
+            schritte: [
+              {
+                nr: 1, titel: "Buchung bei Zahlung", typ: "buchung", punkte: 4,
+                aufgabe: `${f.name} überweist am ${datum1} die ${konto.art} in Höhe von ${fmt(brutto)} € brutto für ${monateBez} Monate ab ${datum1}. Bilden Sie den Buchungssatz.`,
+                beleg: null,
+                soll: [{ nr: konto.nr, name: konto.name, betrag: netto }, { nr: "2600", name: "Vorsteuer (VORST)", betrag: vorst }],
+                haben: [{ nr: "2800", name: "Bank (BK)", betrag: brutto }],
+                nrPunkte: 0,
+                erklaerung: `Zahlung brutto: ${konto.nr} ${fmt(netto)} + VORST ${fmt(vorst)} an BK ${fmt(brutto)}.`,
+              },
+              {
+                nr: 2, titel: "Vorabschlussbuchung 31.12.", typ: "buchung", punkte: 2,
+                aufgabe: `Buchen Sie die Vorabschlussbuchung zum 31.12. (Anteil neues Jahr: ${monateNeuJ} Monate = ${fmt(araBetrag)} €).`,
+                beleg: null,
+                soll: [{ nr: "2900", name: "Aktive Rechnungsabgrenzung (ARA)", betrag: araBetrag }],
+                haben: [{ nr: konto.nr, name: konto.name, betrag: araBetrag }],
+                nrPunkte: 2,
+                erklaerung: `ARA = Anteil neues Jahr: ${monateNeuJ} × ${fmt(perMonat)} = ${fmt(araBetrag)} €. 2900 ARA an ${konto.nr}.`,
+              },
+              {
+                nr: 3, titel: "Auflösung am 01.01.", typ: "buchung", punkte: 2,
+                aufgabe: `Buchen Sie die Auflösung der ARA zu Beginn des neuen Jahres (01.01.).`,
+                beleg: null,
+                soll: [{ nr: konto.nr, name: konto.name, betrag: araBetrag }],
+                haben: [{ nr: "2900", name: "Aktive Rechnungsabgrenzung (ARA)", betrag: araBetrag }],
+                nrPunkte: 0,
+                erklaerung: `Umbuchung am 01.01.: ${konto.nr} an 2900 ARA ${fmt(araBetrag)} €. ARA-Konto auf 0.`,
+              },
+            ],
+          };
+        },
+      },
+      {
+        id: "10_zeitstrahl_ara_pra", titel: "Zeitstrahl: Beträge auf Geschäftsjahre aufteilen",
+        taskTyp: "rechnung",
+        generate: f => {
+          const typ = pick(["ara", "pra"]);
+          const konten = typ === "ara"
+            ? [{ nr: "6900", name: "VBEI", art: "KFZ-Versicherung" }, { nr: "6700", name: "AWMP", art: "Mietzahlung" }]
+            : [{ nr: "5400", name: "EMP", art: "Mieteinnahme" }, { nr: "5710", name: "ZE", art: "Zinsgutschrift" }];
+          const k = pick(konten);
+          const startMonat = pick([8, 9, 10, 11]);
+          const monateBez = pick([3, 6, 9, 12]);
+          const monateAlt = 12 - startMonat + 1;
+          const monateNeu = monateBez - monateAlt;
+          const gesamt = r2(rnd(1200, 9600, 300));
+          const perMonat = r2(gesamt / monateBez);
+          const altBetrag = r2(perMonat * monateAlt);
+          const neuBetrag = r2(perMonat * monateNeu);
+          return {
+            aufgabe: `Teilen Sie die Zahlung auf die Geschäftsjahre auf. ${typ === "ara" ? `${f.name} überweist am 01.${startMonat < 10 ? "0"+startMonat : startMonat}. eine ${k.art} von ${fmt(gesamt)} € für ${monateBez} Monate im Voraus.` : `Ein Mieter überweist am 01.${startMonat < 10 ? "0"+startMonat : startMonat}. ${fmt(gesamt)} € für ${monateBez} Monate Miete im Voraus.`}`,
+            beleg: null,
+            schema: [
+              { label: `Gesamtbetrag (${monateBez} Monate)`, wert: gesamt, einheit: "€" },
+              { label: `÷ ${monateBez} Monate = Betrag pro Monat`, wert: perMonat, einheit: "€/Monat" },
+              { label: `× ${monateAlt} Monate im alten Jahr (→ lfd. GuV)`, wert: altBetrag, einheit: "€", bold: true },
+              { label: `× ${monateNeu} Monate im neuen Jahr (→ ${typ === "ara" ? "2900 ARA" : "4900 PRA"})`, wert: neuBetrag, einheit: "€", bold: true, trennlinie: true, highlight: true },
+              { label: `Art der Abgrenzung: ${typ === "ara" ? "Aktive Rechnungsabgrenzung (ARA)" : "Passive Rechnungsabgrenzung (PRA)"}`, wert: null, einheit: "" },
+            ],
+            nrPunkte: 3,
+            erklaerung: `${gesamt} € ÷ ${monateBez} = ${perMonat} €/Monat. Anteil altes Jahr: ${monateAlt} × ${perMonat} = ${altBetrag} €. Anteil neues Jahr: ${monateNeu} × ${perMonat} = ${neuBetrag} €. → ${typ.toUpperCase()} bilden.`,
+          };
+        },
+      },
+      {
+        id: "10_aufbereitete_bilanz", titel: "Aufbereitete Bilanz erstellen",
+        taskTyp: "rechnung",
+        generate: f => {
+          const gr = rnd(200000, 500000, 10000);
+          const bvg = rnd(300000, 800000, 10000);
+          const ma = rnd(400000, 1200000, 10000);
+          const fp = rnd(100000, 300000, 10000);
+          const bga = rnd(20000, 80000, 5000);
+          const wp = rnd(50000, 200000, 5000);
+          const av = r2(gr+bvg+ma+fp+bga+wp);
+          const r = rnd(50000, 150000, 5000);
+          const fo = rnd(100000, 400000, 10000);
+          const ewb = rnd(5000, 20000, 1000);
+          const vorst = rnd(10000, 30000, 1000);
+          const ara = rnd(2000, 10000, 500);
+          const foNetto = r2(fo - ewb + vorst + ara);
+          const bk = rnd(30000, 100000, 5000);
+          const ka = rnd(5000, 20000, 1000);
+          const fm = rnd(20000, 80000, 5000);
+          const uv = r2(r + foNetto + bk + ka + fm);
+          const gv = r2(av + uv);
+          const ek = rnd(200000, 600000, 10000);
+          const lbkv = rnd(100000, 400000, 10000);
+          const kbkv = rnd(50000, 150000, 5000);
+          const ve = rnd(30000, 120000, 5000);
+          const ust = rnd(5000, 25000, 1000);
+          const rst = rnd(10000, 40000, 2000);
+          const pra = rnd(1000, 8000, 500);
+          const gk = r2(ek + lbkv + kbkv + ve + ust + rst + pra);
+          return {
+            aufgabe: `Erstellen Sie die aufbereitete Bilanz für ${f.name} aus den folgenden Kontenwerten.`,
+            beleg: null,
+            schema: [
+              { label: "A. Anlagevermögen", wert: av, einheit: "€", bold: true },
+              { label: "   GR+BVG+MA+FP+BGA+WP", wert: av, einheit: "€" },
+              { label: "B. Umlaufvermögen – Vorräte (R)", wert: r2(r+fm), einheit: "€" },
+              { label: "   Forderungen (FO−EWB+VORST+ARA)", wert: foNetto, einheit: "€" },
+              { label: "   Flüssige Mittel (BK+KA)", wert: r2(bk+ka), einheit: "€" },
+              { label: "= Gesamtvermögen", wert: gv, einheit: "€", bold: true, trennlinie: true },
+              { label: "A. Eigenkapital (EK)", wert: ek, einheit: "€", bold: true },
+              { label: "B. Langfr. Fremdkapital (LBKV)", wert: lbkv, einheit: "€" },
+              { label: "   Kurzfr. Fremdkapital (KBKV+VE+UST+RST+PRA)", wert: r2(kbkv+ve+ust+rst+pra), einheit: "€" },
+              { label: "= Gesamtkapital", wert: gk, einheit: "€", bold: true },
+            ],
+            nrPunkte: 6,
+            erklaerung: `Aufbereitete Bilanz: Anlagevermögen (alle AV-Konten), Forderungen (FO − EWB − PWB + VORST + ARA), Vorräte (R+F+H+B), Flüssige Mittel (BK+KA). Kurzfr. FK = KBKV+VE+UST+VFA+VSV+RST+PRA.`,
+          };
+        },
+      },
+      {
+        id: "10_kennzahlen_alle", titel: "Alle Kennzahlen berechnen und beurteilen",
+        taskTyp: "rechnung",
+        generate: f => {
+          const av = rnd(1000000, 4000000, 50000);
+          const ek = rnd(500000, 2000000, 50000);
+          const lbkv = rnd(300000, 1500000, 50000);
+          const kfFk = rnd(200000, 800000, 25000);
+          const gk = r2(ek + lbkv + kfFk);
+          const fo = rnd(100000, 500000, 25000);
+          const flm = rnd(30000, 200000, 10000);
+          const gewinn = rnd(20000, 200000, 5000);
+          const ekQuote = r2(ek / gk * 100);
+          const barLiq = r2(flm / kfFk * 100);
+          const einzugLiq = r2((flm + fo) / kfFk * 100);
+          const anlDeck1 = r2(ek / av * 100);
+          const anlDeck2 = r2((ek + lbkv) / av * 100);
+          const ekRent = r2(gewinn / ek * 100);
+          return {
+            aufgabe: `Berechnen Sie alle Kennzahlen für ${f.name}. AV: ${fmt(av)} €, EK: ${fmt(ek)} €, langfr. FK: ${fmt(lbkv)} €, kurzfr. FK: ${fmt(kfFk)} €, Forderungen: ${fmt(fo)} €, Flüssige Mittel: ${fmt(flm)} €, Jahresgewinn: ${fmt(gewinn)} €.`,
+            beleg: null,
+            schema: [
+              { label: `Gesamtkapital = ${fmt(ek)} + ${fmt(lbkv)} + ${fmt(kfFk)}`, wert: gk, einheit: "€" },
+              { label: "EK-Quote (EK ÷ GK × 100)", wert: ekQuote, einheit: "%", bold: true, highlight: ekQuote >= 30 },
+              { label: "Barliquidität (Flm ÷ kurzfr.FK × 100)", wert: barLiq, einheit: "%", bold: true, highlight: barLiq >= 10 && barLiq <= 30 },
+              { label: "Einzugsliquidität ((Flm+FO) ÷ kurzfr.FK × 100)", wert: einzugLiq, einheit: "%", bold: true, highlight: einzugLiq >= 100 },
+              { label: "Anlagendeckung I (EK ÷ AV × 100)", wert: anlDeck1, einheit: "%", bold: true, highlight: anlDeck1 >= 70 },
+              { label: "Anlagendeckung II ((EK+lfr.FK) ÷ AV × 100)", wert: anlDeck2, einheit: "%", bold: true, highlight: anlDeck2 >= 100 },
+              { label: "EK-Rentabilität (Gewinn ÷ EK × 100)", wert: ekRent, einheit: "%", bold: true, highlight: ekRent >= 5 },
+            ],
+            nrPunkte: 7,
+            erklaerung: `Zielwerte: EK-Quote ≥ 30%, Barliquidität 10–30%, Einzugsliquidität 100–120%, Anlagendeckung I 70–100%, Anlagendeckung II > 100%.`,
+          };
+        },
+      },
+      {
+        id: "10_ek_rentabilitaet", titel: "EK-Rentabilität mit Privatkonto berechnen",
+        taskTyp: "rechnung",
+        generate: f => {
+          const ekEnde = rnd(300000, 900000, 10000);
+          const entnahmen = rnd(20000, 80000, 5000);
+          const einlagen = rnd(0, 30000, 5000);
+          const gewinn = rnd(30000, 150000, 5000);
+          const ekAnfang = r2(ekEnde - gewinn + entnahmen - einlagen);
+          const rent = r2(gewinn / ekAnfang * 100);
+          return {
+            aufgabe: `Ermitteln Sie das EK-Anfangsbestand und berechnen Sie die EK-Rentabilität für ${f.name}. EK 31.12.: ${fmt(ekEnde)} €, Privatentnahmen: ${fmt(entnahmen)} €, Privateinlagen: ${fmt(einlagen)} €, Jahresgewinn: ${fmt(gewinn)} €.`,
+            beleg: null,
+            schema: [
+              { label: "EK-Schlussbestand (31.12.)", wert: ekEnde, einheit: "€" },
+              { label: "− Jahresgewinn (+ Verlust)", wert: gewinn, einheit: "€" },
+              { label: "+ Privatentnahmen", wert: entnahmen, einheit: "€" },
+              { label: `− Privateinlagen`, wert: einlagen, einheit: "€" },
+              { label: "= EK-Anfangsbestand (01.01.)", wert: ekAnfang, einheit: "€", bold: true, trennlinie: true },
+              { label: "EK-Rentabilität = Gewinn ÷ EK-Anfang × 100", wert: rent, einheit: "%", bold: true, highlight: rent >= 5 },
+            ],
+            nrPunkte: 4,
+            erklaerung: `EK-Anfang = EK-Ende − Gewinn + Entnahmen − Einlagen = ${fmt(ekAnfang)} €. EK-Rent. = ${fmt(gewinn)} ÷ ${fmt(ekAnfang)} × 100 = ${fmt(rent)} %. Sollte über Kapitalmarktzins liegen!`,
+          };
+        },
+      },
+      {
+        id: "10_privatkonto", titel: "Privatkonto abschließen (3001 P)",
+        taskTyp: "rechnung",
+        generate: f => {
+          const entnahmen = rnd(25000, 90000, 2500);
+          const einlagen = rnd(0, 40000, 2500);
+          const saldo = r2(entnahmen - einlagen);
+          const istGewinn = saldo > 0;
+          return {
+            aufgabe: `Bilden Sie den Buchungssatz für den Abschluss des Privatkontos (3001 P) von ${f.name}. Privatentnahmen (Soll): ${fmt(entnahmen)} €, Privateinlagen (Haben): ${fmt(einlagen)} €.`,
+            beleg: null,
+            schema: [
+              { label: "Privatentnahmen (Soll)", wert: entnahmen, einheit: "€" },
+              { label: "− Privateinlagen (Haben)", wert: einlagen, einheit: "€" },
+              { label: `= Saldo (${istGewinn ? "Privatentnahmen überwiegen → EK sinkt" : "Privateinlagen überwiegen → EK steigt"})`, wert: Math.abs(saldo), einheit: "€", bold: true, trennlinie: true },
+              { label: `Buchung: ${istGewinn ? "3000 EK an 3001 P" : "3001 P an 3000 EK"}`, wert: Math.abs(saldo), einheit: "€", bold: true },
+            ],
+            soll: istGewinn ? [{ nr: "3000", name: "Eigenkapital (EK)", betrag: Math.abs(saldo) }] : [{ nr: "3001", name: "Privatkonto (P)", betrag: Math.abs(saldo) }],
+            haben: istGewinn ? [{ nr: "3001", name: "Privatkonto (P)", betrag: Math.abs(saldo) }] : [{ nr: "3000", name: "Eigenkapital (EK)", betrag: Math.abs(saldo) }],
+            nrPunkte: 2,
+            erklaerung: `Privatkonto schließt auf EK. ${istGewinn ? `Entnahmen (${fmt(entnahmen)}) > Einlagen (${fmt(einlagen)}) → EK sinkt: 3000 EK an 3001 P.` : `Einlagen (${fmt(einlagen)}) > Entnahmen (${fmt(entnahmen)}) → EK steigt: 3001 P an 3000 EK.`}`,
+          };
+        },
+      },
+      {
+        id: "10_vergleich_intern_extern", titel: "Interner vs. externer Vergleich beurteilen",
+        taskTyp: "theorie", themenTyp: "freitext",
+        generate: f => {
+          const kennzahl = pick(["Eigenkapitalquote", "Einzugsliquidität", "Anlagendeckung II", "EK-Rentabilität"]);
+          const vorjahr = r2(30 + Math.random() * 40);
+          const aktuell = r2(vorjahr + (Math.random() > 0.5 ? 5 : -8));
+          const branche = r2(35 + Math.random() * 20);
+          return {
+            aufgabe: `${f.name} verzeichnet bei der Kennzahl ${kennzahl} folgende Werte: Vorjahr ${fmt(vorjahr)} %, aktuelles Jahr ${fmt(aktuell)} %, Branchendurchschnitt ${fmt(branche)} %. Führen Sie einen internen und einen externen Vergleich durch und beurteilen Sie die Entwicklung.`,
+            freitext: { zeilen: 6,
+              loesung: `Interner Vergleich (Zeitvergleich): Die ${kennzahl} hat sich von ${fmt(vorjahr)} % auf ${fmt(aktuell)} % ${aktuell > vorjahr ? "verbessert" : "verschlechtert"} (${aktuell > vorjahr ? "+" : "−"}${fmt(Math.abs(aktuell-vorjahr))} %). Das Unternehmen entwickelt sich ${aktuell > vorjahr ? "positiv" : "negativ"}.
+
+Externer Vergleich (Branchenvergleich): Mit ${fmt(aktuell)} % liegt ${f.name} ${aktuell >= branche ? "über" : "unter"} dem Branchendurchschnitt von ${fmt(branche)} %. Die Unternehmensposition ist damit im Branchenvergleich ${aktuell >= branche ? "gut" : "unterdurchschnittlich"}.`,
+            }, nrPunkte: 4,
+          };
+        },
+      },
+      {
+        id: "10_aufbereitete_guv", titel: "Aufbereitete GUV – Posten zuordnen und berechnen",
+        taskTyp: "rechnung",
+        generate: f => {
+          const uefe = rnd(1000000, 4000000, 50000);
+          const asbe = rnd(10000, 60000, 5000);
+          const eawp = rnd(5000, 30000, 2000);
+          const ze = rnd(3000, 20000, 1000);
+          const ertraege = r2(uefe + asbe + eawp + ze);
+          const awr = rnd(300000, 1200000, 25000);
+          const lg = rnd(150000, 600000, 10000);
+          const agasv = rnd(30000, 120000, 5000);
+          const absa = rnd(20000, 100000, 5000);
+          const sba = rnd(30000, 150000, 5000);
+          const gwst = rnd(5000, 30000, 2000);
+          const zaw = rnd(5000, 40000, 2000);
+          const aufwendungen = r2(awr + lg + agasv + absa + sba + gwst + zaw);
+          const gewinn = r2(ertraege - aufwendungen);
+          return {
+            aufgabe: `Vervollständigen Sie die aufbereitete GUV von ${f.name} und ermitteln Sie den Jahresüberschuss/-fehlbetrag.`,
+            beleg: null,
+            schema: [
+              { label: "AUFWENDUNGEN (Soll)", wert: null, einheit: "" },
+              { label: "Materialaufwand (AWR+AWF+AWH+AWB)", wert: awr, einheit: "€" },
+              { label: "Personalaufwand (LG+AGASV)", wert: r2(lg+agasv), einheit: "€" },
+              { label: "Abschreibungen auf AV", wert: absa, einheit: "€" },
+              { label: "Sonstige betr. Aufwendungen", wert: sba, einheit: "€" },
+              { label: "Betriebliche Steuern (GWST+GRST+KFZST)", wert: gwst, einheit: "€" },
+              { label: "Zinsen (ZAW)", wert: zaw, einheit: "€" },
+              { label: "Summe Aufwendungen", wert: aufwendungen, einheit: "€", bold: true, trennlinie: true },
+              { label: "ERTRÄGE (Haben)", wert: null, einheit: "" },
+              { label: "Umsatzerlöse (UEFE)", wert: uefe, einheit: "€" },
+              { label: "Sonst. betr. Erträge (ASBE)", wert: asbe, einheit: "€" },
+              { label: "Erträge aus Wertpapieren (EAWP)", wert: eawp, einheit: "€" },
+              { label: "Zinsen und ähnliche Erträge (ZE)", wert: ze, einheit: "€" },
+              { label: "Summe Erträge", wert: ertraege, einheit: "€", bold: true, trennlinie: true },
+              { label: gewinn >= 0 ? "Jahresüberschuss (Gewinn)" : "Jahresfehlbetrag (Verlust)", wert: Math.abs(gewinn), einheit: "€", bold: true, highlight: gewinn >= 0 },
+            ],
+            nrPunkte: 5,
+            erklaerung: `Aufbereitete GUV fasst einzelne Konten zusammen. Buchungssatz Abschluss: 8020 GUV an 3000 EK ${fmt(Math.abs(gewinn))} € (Gewinn) bzw. 3000 EK an 8020 GUV (Verlust).`,
+          };
+        },
+      },
+      {
+        id: "10_liquiditaet_berechnen", titel: "Bar- und Einzugsliquidität berechnen & beurteilen",
+        taskTyp: "rechnung",
+        generate: f => {
+          const flm = rnd(20000, 150000, 5000);
+          const fo = rnd(50000, 300000, 10000);
+          const kfFk = rnd(80000, 400000, 10000);
+          const barLiq = r2(flm / kfFk * 100);
+          const einzugLiq = r2((flm + fo) / kfFk * 100);
+          const barOK = barLiq >= 10 && barLiq <= 30;
+          const einzugOK = einzugLiq >= 100 && einzugLiq <= 120;
+          return {
+            aufgabe: `Berechnen und beurteilen Sie die Liquiditätskennzahlen für ${f.name}. Flüssige Mittel: ${fmt(flm)} €, Forderungen: ${fmt(fo)} €, kurzfristiges Fremdkapital: ${fmt(kfFk)} €.`,
+            beleg: null,
+            schema: [
+              { label: "Barliquidität = (Flüssige Mittel ÷ kurzfr. FK) × 100", wert: barLiq, einheit: "%", bold: true, highlight: barOK },
+              { label: `Zielwert: 10 % – 30 % → ${barOK ? "✓ im Zielbereich" : barLiq < 10 ? "⚠ zu niedrig" : "⚠ zu hoch (gebundenes Kapital)"}`, wert: null, einheit: "" },
+              { label: "Einzugsliquidität = ((Flm + FO) ÷ kurzfr. FK) × 100", wert: einzugLiq, einheit: "%", bold: true, highlight: einzugOK },
+              { label: `Zielwert: 100 % – 120 % → ${einzugOK ? "✓ im Zielbereich" : einzugLiq < 100 ? "⚠ Zahlungsschwierigkeiten möglich" : "⚠ zu hohe Liquidität"}`, wert: null, einheit: "" },
+            ],
+            nrPunkte: 4,
+            erklaerung: `Barliquidität: nur Flüssige Mittel vs. kurzfr. FK. Einzugsliquidität: Flüssige Mittel + Forderungen vs. kurzfr. FK. Zielwerte unbedingt nennen und Wert beurteilen!`,
+          };
+        },
+      },
       {
         id: "10_ek_quote", titel: "Eigenkapitalquote berechnen",
         taskTyp: "rechnung",
@@ -3212,6 +4321,203 @@ PWB (Pauschalwertberichtigung):
     ],
     "LB 3 · Vollkostenrechnung": [
       {
+        id: "10_bab_zuschlagsaetze", titel: "BAB – Zuschlagsätze berechnen",
+        taskTyp: "rechnung",
+        generate: f => {
+          const fm = rnd(50000, 200000, 5000);
+          const fl = rnd(80000, 300000, 5000);
+          const mgk = rnd(5000, 30000, 1000);
+          const fgk = rnd(30000, 150000, 5000);
+          const hkde = r2(fm + mgk + fl + fgk);
+          const vwgk = rnd(5000, 40000, 2000);
+          const vtgk = rnd(8000, 50000, 2000);
+          const hkdu = r2(hkde + rnd(-5000, 5000, 500));
+          const mgkPct = r2(mgk / fm * 100);
+          const fgkPct = r2(fgk / fl * 100);
+          const vwPct = r2(vwgk / hkdu * 100);
+          const vtPct = r2(vtgk / hkdu * 100);
+          return {
+            aufgabe: `Ermitteln Sie alle Gemeinkostenzuschlagsätze für ${f.name}. Fertigungsmaterial (FM): ${fmt(fm)} €, Fertigungslöhne (FL): ${fmt(fl)} €, MGK: ${fmt(mgk)} €, FGK: ${fmt(fgk)} €, HKdU: ${fmt(hkdu)} €, VwGK: ${fmt(vwgk)} €, VtGK: ${fmt(vtgk)} €.`,
+            beleg: null,
+            schema: [
+              { label: "MGK-Zuschlagsatz = MGK ÷ FM × 100", wert: mgkPct, einheit: "%", bold: true },
+              { label: "FGK-Zuschlagsatz = FGK ÷ FL × 100", wert: fgkPct, einheit: "%", bold: true },
+              { label: "VwGK-Zuschlagsatz = VwGK ÷ HKdU × 100", wert: vwPct, einheit: "%", bold: true },
+              { label: "VtGK-Zuschlagsatz = VtGK ÷ HKdU × 100", wert: vtPct, einheit: "%", bold: true },
+              { label: "Gemeinsamer Vw/VtGK-Zuschlagsatz", wert: r2((vwgk+vtgk)/hkdu*100), einheit: "%", bold: true, trennlinie: true },
+            ],
+            nrPunkte: 5,
+            erklaerung: `MGK beziehen sich auf FM, FGK auf FL, VwGK und VtGK auf HKdU (oder HKdE wenn keine Bestandsveränderung).`,
+          };
+        },
+      },
+      {
+        id: "10_kalkulation_mit_bestand", titel: "Kalkulation mit Bestandsveränderung FE",
+        taskTyp: "rechnung",
+        generate: f => {
+          const fm = rnd(1000, 5000, 100);
+          const fl = rnd(1500, 6000, 100);
+          const mgkPct = pick([8, 10, 12, 15]);
+          const fgkPct = pick([80, 100, 120, 150]);
+          const vwvtPct = pick([8, 10, 12, 15]);
+          const mgk = r2(fm * mgkPct / 100);
+          const fgk = r2(fl * fgkPct / 100);
+          const mk = r2(fm + mgk);
+          const fk = r2(fl + fgk);
+          const hkde = r2(mk + fk);
+          const bestandAenderung = pick(["minderung", "erhoehung"]);
+          const bestandBetrag = rnd(200, 1500, 100);
+          const hkdu = bestandAenderung === "minderung" ? r2(hkde + bestandBetrag) : r2(hkde - bestandBetrag);
+          const vwvtk = r2(hkdu * vwvtPct / 100);
+          const sk = r2(hkdu + vwvtk);
+          const gwPct = pick([15, 20, 25]);
+          const gw = r2(sk * gwPct / 100);
+          const ap = r2(sk + gw);
+          return {
+            aufgabe: `Berechnen Sie Selbstkosten und Angebotspreis für ${pick(f.fertigerzeugnisse)}. FM: ${fmt(fm)} €, FL: ${fmt(fl)} €, MGK: ${mgkPct} %, FGK: ${fgkPct} %, Vw/VtGK: ${vwvtPct} %, Bestands${bestandAenderung === "minderung" ? "minderung" : "erhöhung"} FE: ${fmt(bestandBetrag)} €, Gewinn: ${gwPct} %.`,
+            beleg: null,
+            schema: [
+              { label: "Fertigungsmaterial (FM)", wert: fm, einheit: "€" },
+              { label: `+ MGK (${mgkPct} %)`, wert: mgk, einheit: "€" },
+              { label: "= Materialkosten (MK)", wert: mk, einheit: "€", bold: true },
+              { label: "+ Fertigungslöhne (FL)", wert: fl, einheit: "€" },
+              { label: `+ FGK (${fgkPct} %)`, wert: fgk, einheit: "€" },
+              { label: "= Fertigungskosten (FK)", wert: fk, einheit: "€", bold: true },
+              { label: "= Herstellkosten der Erzeugung (HKdE)", wert: hkde, einheit: "€", bold: true, trennlinie: true },
+              { label: bestandAenderung === "minderung" ? "+ Bestandsminderung FE" : "− Bestandserhöhung FE", wert: bestandBetrag, einheit: "€" },
+              { label: "= Herstellkosten des Umsatzes (HKdU)", wert: hkdu, einheit: "€", bold: true },
+              { label: `+ Vw/VtGK (${vwvtPct} % auf HKdU)`, wert: vwvtk, einheit: "€" },
+              { label: "= Selbstkosten (SK)", wert: sk, einheit: "€", bold: true, trennlinie: true },
+              { label: `+ Gewinn (${gwPct} %)`, wert: gw, einheit: "€" },
+              { label: "= Angebotspreis (ListenVP)", wert: ap, einheit: "€", bold: true, highlight: true },
+            ],
+            nrPunkte: 7,
+            erklaerung: `${bestandAenderung === "minderung" ? "Bestandsminderung: mehr verkauft als produziert → HKdU = HKdE + Minderung." : "Bestandserhöhung: weniger verkauft als produziert → HKdU = HKdE − Erhöhung."} VwGK/VtGK auf HKdU beziehen!`,
+          };
+        },
+      },
+      {
+        id: "10_kosten_leistungen", titel: "Kosten vs. Leistungen vs. neutral – zuordnen",
+        taskTyp: "theorie", themenTyp: "zuordnung",
+        generate: () => ({
+          aufgabe: "Ordnen Sie die Konten/Vorgänge den Begriffen Kosten, Leistungen, neutrale Aufwendungen oder neutrale Erträge zu.",
+          zuordnung: { paare: [
+            { term: "5000 UEFE (Umsatzerlöse FE)", def: "Leistungen – betriebsbezogener Ertrag" },
+            { term: "6950 ABFO (Abschreibung Forderungen)", def: "Neutrale Aufwendungen – betriebsfremd" },
+            { term: "6000 AWR (Aufwendungen Rohstoffe)", def: "Kosten – betriebsbezogener Aufwand" },
+            { term: "5490 PFE (Periodenfremder Ertrag)", def: "Neutrale Erträge – periodenfremd" },
+            { term: "5400 EMP (Erträge aus Miete/Pacht)", def: "Neutrale Erträge – betriebsfremd" },
+            { term: "7460 VAWP (Verluste aus Wertpapieren)", def: "Neutrale Aufwendungen – betriebsfremd" },
+          ]}, nrPunkte: 6,
+        }),
+      },
+      {
+        id: "10_betriebsergebnis_ermittlung", titel: "Betriebsergebnis aus GUV ermitteln",
+        taskTyp: "rechnung",
+        generate: f => {
+          const aufwGes = rnd(800000, 3000000, 50000);
+          const ertrGes = r2(aufwGes + rnd(50000, 300000, 10000));
+          const neutAufw = rnd(10000, 60000, 5000); // ABFO, PFAW, VAWP
+          const neutErtr = rnd(5000, 40000, 5000); // EMP, PFE, ZE, EAWP
+          const bilmAbs = rnd(20000, 80000, 5000);
+          const kalkAbs = r2(bilmAbs + rnd(5000, 20000, 2000)); // höher als bilm.
+          const kalkUl = rnd(30000, 80000, 5000);
+          const kosten = r2(aufwGes - neutAufw - bilmAbs + kalkAbs + kalkUl);
+          const leistungen = r2(ertrGes - neutErtr);
+          const be = r2(leistungen - kosten);
+          const neutrErg = r2(neutErtr - neutAufw);
+          const gesErg = r2(ertrGes - aufwGes);
+          return {
+            aufgabe: `Ermitteln Sie das Betriebsergebnis für ${f.name}. Gesamtaufwand: ${fmt(aufwGes)} €, Gesamtertrag: ${fmt(ertrGes)} €, neutrale Aufwendungen: ${fmt(neutAufw)} €, neutrale Erträge: ${fmt(neutErtr)} €, bilanzmäßige AfA: ${fmt(bilmAbs)} €, kalk. AfA: ${fmt(kalkAbs)} €, kalk. Unternehmerlohn: ${fmt(kalkUl)} €.`,
+            beleg: null,
+            schema: [
+              { label: "Aufwendungen gesamt", wert: aufwGes, einheit: "€" },
+              { label: "− neutrale Aufwendungen", wert: neutAufw, einheit: "€" },
+              { label: "− bilanzmäßige AfA", wert: bilmAbs, einheit: "€" },
+              { label: "+ kalkulatorische AfA", wert: kalkAbs, einheit: "€" },
+              { label: "+ kalkulatorischer Unternehmerlohn", wert: kalkUl, einheit: "€" },
+              { label: "= Kosten", wert: kosten, einheit: "€", bold: true, trennlinie: true },
+              { label: "Erträge gesamt", wert: ertrGes, einheit: "€" },
+              { label: "− neutrale Erträge", wert: neutErtr, einheit: "€" },
+              { label: "= Leistungen", wert: leistungen, einheit: "€", bold: true, trennlinie: true },
+              { label: "Betriebsergebnis (Leistungen − Kosten)", wert: be, einheit: "€", bold: true, highlight: be >= 0 },
+            ],
+            nrPunkte: 5,
+            erklaerung: `Betriebsergebnis = Leistungen − Kosten = ${fmt(leistungen)} − ${fmt(kosten)} = ${fmt(be)} €. Kalk. AfA (Anderskosten) ersetzt bilanzmäßige AfA. Kalk. UL (Zusatzkosten) hat keine GUV-Buchung.`,
+          };
+        },
+      },
+      {
+        id: "10_kalkulation_vollstaendig", titel: "Vollständige Kalkulation bis Bruttopreis",
+        taskTyp: "rechnung",
+        generate: f => {
+          const fm = rnd(50, 300, 10); const fl = rnd(80, 400, 10);
+          const mgkPct = pick([8, 10, 12, 15]);
+          const fgkPct = pick([80, 100, 120, 150]);
+          const vwvtPct = pick([8, 10, 12, 15]);
+          const gwPct = pick([15, 20, 25, 30]);
+          const rabattPct = pick([10, 15, 20]);
+          const skontoPct = pick([2, 3]);
+          const mgk = r2(fm * mgkPct / 100);
+          const fgk = r2(fl * fgkPct / 100);
+          const mk = r2(fm + mgk); const fk = r2(fl + fgk);
+          const hk = r2(mk + fk);
+          const vwvtk = r2(hk * vwvtPct / 100);
+          const sk = r2(hk + vwvtk);
+          const gw = r2(sk * gwPct / 100);
+          const barVP = r2(sk + gw);
+          const skonto = r2(barVP / (1 - skontoPct/100) - barVP);
+          const zielVP = r2(barVP + skonto);
+          const rabatt = r2(zielVP / (1 - rabattPct/100) - zielVP);
+          const listenVP = r2(zielVP + rabatt);
+          const ust = r2(listenVP * 0.19);
+          const bruttoVP = r2(listenVP + ust);
+          return {
+            aufgabe: `Berechnen Sie den vollständigen Angebotskalkulationsweg für ${pick(f.fertigerzeugnisse)} von den Selbstkosten bis zum Bruttoverkaufspreis. SK: ${fmt(sk)} €, Gewinn: ${gwPct} %, Kundenskonto: ${skontoPct} %, Kundenrabatt: ${rabattPct} %.`,
+            beleg: null,
+            schema: [
+              { label: "Selbstkosten (SK)", wert: sk, einheit: "€" },
+              { label: `+ Gewinn (${gwPct} % auf SK)`, wert: gw, einheit: "€" },
+              { label: "= Barverkaufspreis (BarVP)", wert: barVP, einheit: "€", bold: true },
+              { label: `+ Kundenskonto (${skontoPct} % auf ZielVP)`, wert: r2(skonto), einheit: "€" },
+              { label: "= Zielverkaufspreis (ZielVP)", wert: zielVP, einheit: "€", bold: true },
+              { label: `+ Kundenrabatt (${rabattPct} % auf ListenVP)`, wert: r2(rabatt), einheit: "€" },
+              { label: "= Listenverkaufspreis / Angebotspreis (netto)", wert: listenVP, einheit: "€", bold: true, trennlinie: true },
+              { label: "+ Umsatzsteuer 19 %", wert: ust, einheit: "€" },
+              { label: "= Bruttoverkaufspreis", wert: bruttoVP, einheit: "€", bold: true, highlight: true },
+            ],
+            nrPunkte: 6,
+            erklaerung: `Rückwärtskalkulation: BarVP = SK + Gewinn. Skonto und Rabatt werden aufaddiert (Lieferantensicht). ZielVP = BarVP ÷ (1 − Skonto%). ListenVP = ZielVP ÷ (1 − Rabatt%).`,
+          };
+        },
+      },
+      {
+        id: "10_bab_verteilung", titel: "BAB – Gemeinkosten verteilen",
+        taskTyp: "rechnung",
+        generate: f => {
+          const gesamt = rnd(10000, 50000, 1000);
+          const anteile = [pick([2,3,4]), pick([8,10,12,14]), pick([3,4,5]), pick([2,3])];
+          const sumAnteile = anteile.reduce((a,b) => a+b, 0);
+          const kosten = anteile.map(a => r2(gesamt * a / sumAnteile));
+          const rest = r2(gesamt - kosten.slice(0,-1).reduce((a,b)=>a+b, 0));
+          kosten[3] = rest;
+          return {
+            aufgabe: `Verteilen Sie die Heizkosten von ${fmt(gesamt)} € auf die vier Kostenstellen nach Flächenanteilen. Material: ${anteile[0]} Anteile, Fertigung: ${anteile[1]} Anteile, Verwaltung: ${anteile[2]} Anteile, Vertrieb: ${anteile[3]} Anteile.`,
+            beleg: null,
+            schema: [
+              { label: `Gesamtkosten ÷ ${sumAnteile} Anteile = je Anteil`, wert: r2(gesamt/sumAnteile), einheit: "€/Anteil" },
+              { label: `Kostenstelle I Material (${anteile[0]} Anteile)`, wert: kosten[0], einheit: "€", bold: true },
+              { label: `Kostenstelle II Fertigung (${anteile[1]} Anteile)`, wert: kosten[1], einheit: "€", bold: true },
+              { label: `Kostenstelle III Verwaltung (${anteile[2]} Anteile)`, wert: kosten[2], einheit: "€", bold: true },
+              { label: `Kostenstelle IV Vertrieb (${anteile[3]} Anteile)`, wert: kosten[3], einheit: "€", bold: true },
+              { label: "Summe (Probe)", wert: gesamt, einheit: "€", trennlinie: true },
+            ],
+            nrPunkte: 4,
+            erklaerung: `BAB: Gemeinkosten verteilen nach Verteilungsschlüssel. ${fmt(gesamt)} ÷ ${sumAnteile} = ${fmt(r2(gesamt/sumAnteile))} € je Anteil. Geeigneter Schlüssel für Heizkosten: Fläche (m²).`,
+          };
+        },
+      },
+      {
         id: "10_kts", titel: "Zuschlagskalkulation (Kostenträgerstückrechnung)",
         taskTyp: "rechnung",
         generate: f => {
@@ -3246,6 +4552,180 @@ PWB (Pauschalwertberichtigung):
       },
     ],
     "LB 4 · Teilkostenrechnung": [
+      {
+        id: "10_db_zweiprodukt", titel: "Deckungsbeitragsrechnung (2 Produkte)",
+        taskTyp: "rechnung",
+        generate: f => {
+          const fe = f.fertigerzeugnisse || ["Produkt A", "Produkt B"];
+          const p1 = pick(fe); const p2 = pick(fe.filter(x => x !== p1)) || "Produkt B";
+          const preis1 = rnd(100, 500, 10); const vk1 = rnd(40, r2(preis1*0.75), 10); const menge1 = rnd(200, 1000, 50);
+          const preis2 = rnd(80, 400, 10); const vk2 = rnd(30, r2(preis2*0.75), 10); const menge2 = rnd(300, 1200, 50);
+          const fixk = rnd(20000, 100000, 5000);
+          const db1 = r2(preis1 - vk1); const db2 = r2(preis2 - vk2);
+          const dbGes = r2(db1 * menge1 + db2 * menge2);
+          const be = r2(dbGes - fixk);
+          return {
+            aufgabe: `Berechnen Sie das Betriebsergebnis für ${f.name} mit zwei Produkten. ${p1}: ${fmt(preis1)} €/Stk, var. K. ${fmt(vk1)} €, ${menge1} Stk. ${p2}: ${fmt(preis2)} €/Stk, var. K. ${fmt(vk2)} €, ${menge2} Stk. Fixkosten: ${fmt(fixk)} €.`,
+            beleg: null,
+            schema: [
+              { label: `${p1}: NVP ${fmt(preis1)} − var.K. ${fmt(vk1)} = DB/Stk.`, wert: db1, einheit: "€/Stk", bold: true },
+              { label: `${p1}: DB/Stk × ${menge1} Stk = DB gesamt`, wert: r2(db1*menge1), einheit: "€" },
+              { label: `${p2}: NVP ${fmt(preis2)} − var.K. ${fmt(vk2)} = DB/Stk.`, wert: db2, einheit: "€/Stk", bold: true },
+              { label: `${p2}: DB/Stk × ${menge2} Stk = DB gesamt`, wert: r2(db2*menge2), einheit: "€" },
+              { label: "Gesamtdeckungsbeitrag", wert: dbGes, einheit: "€", bold: true, trennlinie: true },
+              { label: "− Fixkosten", wert: fixk, einheit: "€" },
+              { label: "= Betriebsergebnis", wert: be, einheit: "€", bold: true, highlight: be >= 0 },
+            ],
+            nrPunkte: 5,
+            erklaerung: `Bei 2 Produkten: Fixkosten als Block. DB/Stk = NVP − var.K. Gesamt-DB = Summe aller Einzel-DB. Betriebsergebnis = Gesamt-DB − Fixkosten.`,
+          };
+        },
+      },
+      {
+        id: "10_zusatzauftrag", titel: "Zusatzauftrag annehmen oder ablehnen?",
+        taskTyp: "rechnung",
+        generate: f => {
+          const vk = rnd(80, 300, 10);
+          const nvp = r2(vk * (1 + 0.3 + Math.random() * 0.2)); // 30-50% über var.K.
+          const menge = rnd(100, 500, 50);
+          const rabatt = pick([10, 15, 20, 25]);
+          const nvpZusatz = r2(nvp * (1 - rabatt / 100));
+          const dbZusatz = r2(nvpZusatz - vk);
+          const fixkSteigerung = Math.random() > 0.6 ? rnd(500, 3000, 500) : 0;
+          const gesamtDb = r2(dbZusatz * menge);
+          const ergebnis = r2(gesamtDb - fixkSteigerung);
+          const lohnt = ergebnis > 0;
+          return {
+            aufgabe: `${f.name} erhält eine Anfrage für einen Zusatzauftrag: ${menge} Stk. ${pick(f.fertigerzeugnisse)} zu ${rabatt} % unter dem normalen NVP von ${fmt(nvp)} €. Variable Kosten: ${fmt(vk)} €/Stk.${fixkSteigerung > 0 ? ` Die Fixkosten steigen um ${fmt(fixkSteigerung)} €.` : ""} Begründen Sie rechnerisch, ob der Zusatzauftrag angenommen werden soll.`,
+            beleg: null,
+            schema: [
+              { label: `Normaler NVP: ${fmt(nvp)} €`, wert: nvp, einheit: "€" },
+              { label: `− ${rabatt} % Sonderrabatt`, wert: r2(nvp * rabatt / 100), einheit: "€" },
+              { label: `= NVP Zusatzauftrag`, wert: nvpZusatz, einheit: "€" },
+              { label: `− variable Kosten/Stk.`, wert: vk, einheit: "€" },
+              { label: "= Deckungsbeitrag/Stk.", wert: dbZusatz, einheit: "€", bold: true },
+              { label: `× ${menge} Stk. = DB gesamt`, wert: gesamtDb, einheit: "€", bold: true, trennlinie: true },
+              ...(fixkSteigerung > 0 ? [{ label: "− Fixkostensteigerung", wert: fixkSteigerung, einheit: "€" }] : []),
+              { label: `= Verbesserung des Betriebsergebnisses`, wert: ergebnis, einheit: "€", bold: true, highlight: lohnt },
+              { label: lohnt ? "→ Zusatzauftrag LOHNT SICH" : "→ Zusatzauftrag LOHNT SICH NICHT", wert: " ", einheit: "" },
+            ],
+            nrPunkte: 4,
+            erklaerung: `Zusatzauftrag lohnt sich, wenn DB > 0 (bzw. DB > Fixkostensteigerung). NVP Zusatz ${fmt(nvpZusatz)} € > var. K. ${fmt(vk)} € = DB ${fmt(dbZusatz)} €/Stk. ${lohnt ? "Betriebsergebnis verbessert sich." : "Betriebsergebnis verschlechtert sich."}`,
+          };
+        },
+      },
+      {
+        id: "10_eigenfertigung_fremdbezug", titel: "Eigenfertigung oder Fremdbezug (make-or-buy)",
+        taskTyp: "rechnung",
+        generate: f => {
+          const menge = rnd(500, 3000, 100);
+          const varKEigen = rnd(8, 40, 2);
+          const fixkEigen = rnd(3000, 15000, 500);
+          const lep = rnd(r2(varKEigen * 1.1), r2(varKEigen * 2), 2);
+          const rabatt = pick([5, 10, 15, 20]);
+          const einstand = r2(lep * (1 - rabatt / 100));
+          const gesEigen = r2(varKEigen * menge + fixkEigen);
+          const gesFremdb = r2(einstand * menge);
+          const diff = r2(gesFremdb - gesEigen);
+          const eigenBesser = gesEigen < gesFremdb;
+          return {
+            aufgabe: `Überprüfen Sie für ${menge} Stk., ob ${f.name} einen Bauteil selbst fertigen oder fremdbezziehen soll. Eigenfertigung: var.K. ${fmt(varKEigen)} €/Stk., Fixkosten ${fmt(fixkEigen)} €. Fremdbezug: LEP ${fmt(lep)} €/Stk., Rabatt ${rabatt} %.`,
+            beleg: null,
+            schema: [
+              { label: "EIGENFERTIGUNG:", wert: null, einheit: "" },
+              { label: `Variable Kosten (${fmt(varKEigen)} × ${menge})`, wert: r2(varKEigen * menge), einheit: "€" },
+              { label: "+ Fixkosten", wert: fixkEigen, einheit: "€" },
+              { label: "= Gesamtkosten Eigenfertigung", wert: gesEigen, einheit: "€", bold: true },
+              { label: "FREMDBEZUG:", wert: null, einheit: "" },
+              { label: `LEP: ${fmt(lep)} − ${rabatt} % = Einstandspreis`, wert: einstand, einheit: "€/Stk." },
+              { label: `× ${menge} Stk. = Gesamtkosten Fremdbezug`, wert: gesFremdb, einheit: "€", bold: true },
+              { label: `Differenz (günstiger: ${eigenBesser ? "Eigenfertigung" : "Fremdbezug"})`, wert: Math.abs(diff), einheit: "€", bold: true, trennlinie: true, highlight: true },
+            ],
+            nrPunkte: 4,
+            erklaerung: `${eigenBesser ? `Eigenfertigung günstiger (${fmt(gesEigen)} € < ${fmt(gesFremdb)} €, Ersparnis ${fmt(diff)} €).` : `Fremdbezug günstiger (${fmt(gesFremdb)} € < ${fmt(gesEigen)} €, Ersparnis ${fmt(Math.abs(diff))} €).`}`,
+          };
+        },
+      },
+      {
+        id: "10_gewinnschwelle", titel: "Gewinnschwelle (Break-Even-Point) berechnen",
+        taskTyp: "rechnung",
+        generate: f => {
+          const nvp = rnd(50, 400, 10);
+          const vk = rnd(20, r2(nvp * 0.75), 10);
+          const fixk = rnd(10000, 80000, 2500);
+          const db = r2(nvp - vk);
+          const bep = Math.ceil(fixk / db);
+          const kapazitaet = r2(bep * (1.5 + Math.random() * 1.5));
+          const auslastungPct = r2(bep / kapazitaet * 100);
+          return {
+            aufgabe: `Berechnen Sie die Gewinnschwellenmenge (Break-Even-Point) für ${pick(f.fertigerzeugnisse)}. NVP: ${fmt(nvp)} €, variable Kosten: ${fmt(vk)} €/Stk., Fixkosten: ${fmt(fixk)} €.`,
+            beleg: null,
+            schema: [
+              { label: `NVP ${fmt(nvp)} € − var.K. ${fmt(vk)} € = DB/Stk.`, wert: db, einheit: "€/Stk.", bold: true },
+              { label: "BEP = Fixkosten ÷ DB/Stk.", wert: bep, einheit: "Stk.", bold: true, trennlinie: true, highlight: true },
+              { label: `BEP = ${fmt(fixk)} ÷ ${fmt(db)} =`, wert: bep, einheit: "Stk." },
+              { label: "→ Ab dieser Stückzahl wird Gewinn erzielt", wert: null, einheit: "" },
+              { label: `Gewinnschwellenumsatz (BEP × NVP)`, wert: r2(bep * nvp), einheit: "€", bold: true },
+            ],
+            nrPunkte: 4,
+            erklaerung: `BEP = Fixkosten ÷ DB/Stk. = ${fmt(fixk)} ÷ ${fmt(db)} = ${bep} Stk. Unterhalb = Verlustzone, oberhalb = Gewinnzone.`,
+          };
+        },
+      },
+      {
+        id: "10_preisuntergrenze", titel: "Kurz- und langfristige Preisuntergrenze",
+        taskTyp: "rechnung",
+        generate: f => {
+          const vk = rnd(30, 150, 5);
+          const fixk = rnd(5000, 40000, 1000);
+          const menge = rnd(200, 800, 50);
+          const fixkJeStk = r2(fixk / menge);
+          const pug_kurz = vk;
+          const pug_lang = r2(vk + fixkJeStk);
+          return {
+            aufgabe: `Ermitteln Sie die kurz- und langfristige Preisuntergrenze für ${pick(f.fertigerzeugnisse)}. Variable Kosten: ${fmt(vk)} €/Stk., Fixkosten: ${fmt(fixk)} €, Produktionsmenge: ${menge} Stk.`,
+            beleg: null,
+            schema: [
+              { label: "Kurzfristige Preisuntergrenze", wert: pug_kurz, einheit: "€/Stk.", bold: true },
+              { label: "= variable Kosten/Stk. (DB = 0)", wert: pug_kurz, einheit: "€/Stk." },
+              { label: "→ Verlust = Fixkosten (Weiterproduzieren sinnvoll wenn Marktpreis > var.K.)", wert: null, einheit: "" },
+              { label: "Fixkosten/Stk. = Fixkosten ÷ Menge", wert: fixkJeStk, einheit: "€/Stk." },
+              { label: "Langfristige Preisuntergrenze", wert: pug_lang, einheit: "€/Stk.", bold: true, trennlinie: true, highlight: true },
+              { label: "= var.K. + Fixkosten/Stk. (Betriebsergebnis = 0)", wert: pug_lang, einheit: "€/Stk." },
+            ],
+            nrPunkte: 4,
+            erklaerung: `Kurzfristige PUG = variable Kosten (${fmt(vk)} €). Langfristige PUG = var.K. + Fixkosten/Stk. = ${fmt(vk)} + ${fmt(fixkJeStk)} = ${fmt(pug_lang)} €. Unter langfr. PUG = Verlust auf Dauer nicht tragbar.`,
+          };
+        },
+      },
+      {
+        id: "10_produkteliminierung", titel: "Produkteliminierung (Sortimentsentscheidung)",
+        taskTyp: "rechnung",
+        generate: f => {
+          const fe = f.fertigerzeugnisse.slice(0,3);
+          const produkte = fe.map(name => ({
+            name,
+            nvp: rnd(100, 500, 10),
+            vk: rnd(40, 200, 10),
+          })).map(p => ({ ...p, db: r2(p.nvp - p.vk) }));
+          const minDB = Math.min(...produkte.map(p => p.db));
+          const eliminieren = produkte.find(p => p.db === minDB);
+          return {
+            aufgabe: `${f.name} produziert ${produkte.length} Produkte. Welches soll aus dem Programm genommen werden? Begründen Sie rechnerisch.`,
+            beleg: null,
+            schema: produkte.map(p => ({
+              label: `${p.name}: NVP ${fmt(p.nvp)} € − var.K. ${fmt(p.vk)} € = DB/Stk.`,
+              wert: p.db,
+              einheit: "€",
+              bold: p.name === eliminieren.name,
+            })).concat([
+              { label: `→ ${eliminieren.name} hat den geringsten DB/Stk. → eliminieren`, wert: null, einheit: "" },
+            ]),
+            nrPunkte: 3,
+            erklaerung: `Produkt mit dem niedrigsten Deckungsbeitrag/Stk. wird zuerst eliminiert. Für Verkaufsförderung wird das Produkt mit dem höchsten DB/Stk. gewählt.`,
+          };
+        },
+      },
       {
         id: "10_deckungsbeitrag", titel: "Deckungsbeitragsrechnung",
         taskTyp: "rechnung",
@@ -3349,6 +4829,59 @@ PWB (Pauschalwertberichtigung):
           };
         },
       },
+      {
+        id: "10_vorabschluss_unterkonten", titel: "Vorabschluss von Unterkonten",
+        taskTyp: "theorie", themenTyp: "zuordnung",
+        generate: () => ({
+          aufgabe: "Ordnen Sie die Vorabschlussbuchungen den richtigen Beschreibungen zu.",
+          zuordnung: { paare: [
+            { term: "6001 BZKR – Mehrbestand", def: "6000 AWR an 6001 BZKR – Rohstofflager gewachsen, Aufwand sinkt" },
+            { term: "6001 BZKR – Minderbestand", def: "6001 BZKR an 6000 AWR – Rohstofflager geschrumpft, Aufwand steigt" },
+            { term: "5001 EBFE", def: "5000 UEFE an 5001 EBFE – Erlösberichtigungen auf Hauptkonto saldieren" },
+            { term: "6012 NF (Nebenkosten FB)", def: "6012 NF an 6010 AWF – Nebenkosten-Unterkonto auf Fremdbauteile abschließen" },
+          ]}, nrPunkte: 4,
+        }),
+      },
+      {
+        id: "10_jahresabschluss_buchungen", titel: "Jahresabschluss-Buchungssätze (Wiederholung)",
+        taskTyp: "komplex",
+        generate: (f) => {
+          const afa = rnd(15000, 60000, 2500);
+          const lbkv = rnd(50000, 300000, 10000);
+          const guv = rnd(10000, 200000, 5000);
+          const istGewinn = Math.random() > 0.35;
+          const sb_bk = rnd(20000, 80000, 5000);
+          return {
+            vorspann: `Bilden Sie die folgenden Jahresabschluss-Buchungssätze für ${f.name} zum 31.12.`,
+            schritte: [
+              {
+                nr: 1, titel: "Abschreibung auf Sachanlagen", typ: "buchung", punkte: 2,
+                aufgabe: `Nehmen Sie Abschreibungen in Höhe von ${fmt(afa)} € auf Maschinen und Anlagen vor.`,
+                beleg: null, nrPunkte: 0,
+                soll: [{ nr: "6520", name: "Abschreibungen Sachanlagen (ABSA)", betrag: afa }],
+                haben: [{ nr: "0700", name: "Maschinen und Anlagen (MA)", betrag: afa }],
+                erklaerung: `6520 ABSA an 0700 MA. Aufwand im GUV, Buchwert sinkt.`,
+              },
+              {
+                nr: 2, titel: "Bankkonto auf SBK abschließen", typ: "buchung", punkte: 2,
+                aufgabe: `Schließen Sie das Konto 2800 BK mit einem Schlussbestand von ${fmt(sb_bk)} € auf die SBK ab.`,
+                beleg: null, nrPunkte: 0,
+                soll: [{ nr: "2800", name: "Bank (BK)", betrag: sb_bk }],
+                haben: [{ nr: "9010", name: "Schlussbilanz (SBK)", betrag: sb_bk }],
+                erklaerung: `Aktivkonto: 2800 BK an 9010 SBK (Schlussbestand auf Haben-Seite der SBK).`,
+              },
+              {
+                nr: 3, titel: "GUV-Konto abschließen", typ: "buchung", punkte: 2,
+                aufgabe: `Das GUV-Konto zeigt einen ${istGewinn ? "Gewinn" : "Verlust"} in Höhe von ${fmt(guv)} €. Bilden Sie den Buchungssatz.`,
+                beleg: null, nrPunkte: 0,
+                soll: istGewinn ? [{ nr: "8020", name: "GUV", betrag: guv }] : [{ nr: "3000", name: "Eigenkapital (EK)", betrag: guv }],
+                haben: istGewinn ? [{ nr: "3000", name: "Eigenkapital (EK)", betrag: guv }] : [{ nr: "8020", name: "GUV", betrag: guv }],
+                erklaerung: istGewinn ? `Gewinn erhöht EK: 8020 GUV an 3000 EK.` : `Verlust mindert EK: 3000 EK an 8020 GUV.`,
+              },
+            ],
+          };
+        },
+      },
     ],
 
     "Theorie · Abschluss & Controlling": [
@@ -3433,36 +4966,137 @@ Buchung: ARA 2900 Soll / Mieten und Pachten 6700 Haben 3.000 €`,
 // DESIGN-SYSTEM
 // ══════════════════════════════════════════════════════════════════════════════
 const S = {
-  page: { minHeight: "100vh", background: "#f1f5f9", fontFamily: "'Segoe UI',system-ui,sans-serif", color: "#0f172a" },
-  topbar: { background: "#0f172a", padding: "0 28px", height: "60px", display: "flex", alignItems: "center", gap: "0", borderBottom: "1px solid #1e293b" },
-  logo: { fontSize: "18px", fontWeight: 800, color: "#fff", cursor: "pointer", whiteSpace: "nowrap", minWidth: "180px", flexShrink: 0, letterSpacing: "-0.03em" },
+  page: { minHeight: "100vh", display: "flex", flexDirection: "column", background: "#f8fafc", fontFamily: "'Segoe UI',system-ui,-apple-system,sans-serif", color: "#0f172a" },
+  topbar: { background: "#0f172a", padding: "0 20px", height: "62px", display: "flex", alignItems: "center", gap: "0", borderBottom: "2px solid #f59e0b", position: "sticky", top: 0, zIndex: 200 },
+  logo: { fontSize: "19px", fontWeight: 900, color: "#fff", cursor: "pointer", whiteSpace: "nowrap", minWidth: "160px", flexShrink: 0, letterSpacing: "-0.04em" },
   logoAccent: { color: "#f59e0b" },
-  container: { maxWidth: "900px", margin: "0 auto", padding: "28px 20px" },
-  card: { background: "#fff", border: "1px solid #e2e8f0", borderRadius: "14px", padding: "24px", marginBottom: "16px" },
-  label: { fontSize: "11px", fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "#94a3b8", marginBottom: "12px" },
-  h2: { fontSize: "22px", fontWeight: 700, color: "#0f172a", marginBottom: "4px", letterSpacing: "-0.02em" },
-  btnPrimary: { padding: "11px 24px", background: "#0f172a", color: "#fff", border: "none", borderRadius: "8px", fontWeight: 700, fontSize: "14px", cursor: "pointer" },
-  btnSecondary: { padding: "9px 18px", background: "#f1f5f9", color: "#475569", border: "1px solid #e2e8f0", borderRadius: "8px", fontWeight: 600, fontSize: "13px", cursor: "pointer" },
-  input: { padding: "9px 12px", border: "1.5px solid #e2e8f0", borderRadius: "8px", fontSize: "14px", outline: "none", boxSizing: "border-box", background: "#fff" },
-  tag: c => ({ display: "inline-block", padding: "3px 10px", background: c + "18", color: c, borderRadius: "20px", fontSize: "12px", fontWeight: 700, border: `1px solid ${c}33` }),
+  container: { flex: 1, width: "100%", maxWidth: "900px", margin: "0 auto", padding: "0", boxSizing: "border-box" },
+  card: { background: "#fff", border: "1px solid #e2e8f0", borderRadius: "20px", padding: "28px 24px", marginBottom: "16px", textAlign: "left", boxShadow: "0 2px 12px rgba(0,0,0,0.06)" },
+  label: { fontSize: "11px", fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "#94a3b8", marginBottom: "10px" },
+  h2: { fontSize: "26px", fontWeight: 800, color: "#0f172a", marginBottom: "4px", letterSpacing: "-0.03em" },
+  btnPrimary: { padding: "14px 28px", background: "#0f172a", color: "#fff", border: "none", borderRadius: "12px", fontWeight: 700, fontSize: "15px", cursor: "pointer", minHeight: "48px" },
+  btnSecondary: { padding: "12px 20px", background: "#f1f5f9", color: "#475569", border: "1.5px solid #e2e8f0", borderRadius: "12px", fontWeight: 600, fontSize: "14px", cursor: "pointer", minHeight: "48px" },
+  input: { padding: "12px 14px", border: "1.5px solid #e2e8f0", borderRadius: "10px", fontSize: "15px", outline: "none", boxSizing: "border-box", background: "#fff", color: "#0f172a", minHeight: "48px" },
+  tag: c => ({ display: "inline-block", padding: "4px 12px", background: c + "18", color: c, borderRadius: "20px", fontSize: "12px", fontWeight: 700, border: `1px solid ${c}33` }),
 };
+
+// ══════════════════════════════════════════════════════════════════════════════
+// EINSTELLUNGEN – global, in localStorage gespeichert
+// ══════════════════════════════════════════════════════════════════════════════
+const DEFAULT_SETTINGS = {
+  // Profil
+  lehrerVorname: "",
+  lehrerNachname: "",
+  stammschule: "",
+  // Aufgaben
+  sofortrabatte: true,
+  anschaffungsnebenkosten: true,
+  einfacheBetraege: false,
+  // Anzeige
+  kontennummernAnzeigen: true,
+  anredeKlasse10: true,         // Klasse 10 → Sie-Anrede
+  belegModus: "beleg",          // "beleg" | "text"
+  loesungenStandardAn: false,
+  // Lösungen
+  loesungsfarbe: "#16a34a",     // Grün
+  // Export
+  exportFormat: "word",         // "word" | "pdf"
+};
+
+function ladeSettings() {
+  try {
+    const s = localStorage.getItem("buchungswerk_settings");
+    return s ? { ...DEFAULT_SETTINGS, ...JSON.parse(s) } : { ...DEFAULT_SETTINGS };
+  } catch { return { ...DEFAULT_SETTINGS }; }
+}
+function speichereSettings(s) {
+  try { localStorage.setItem("buchungswerk_settings", JSON.stringify(s)); } catch {}
+}
+
+// React context for settings – muss VOR allen Komponenten stehen die useSettings() nutzen
+const SettingsContext = React.createContext(DEFAULT_SETTINGS);
+const useSettings = () => React.useContext(SettingsContext);
+
 
 // ══════════════════════════════════════════════════════════════════════════════
 // BELEG-KOMPONENTEN
 // ══════════════════════════════════════════════════════════════════════════════
 
+
+// ── Firmen-Logo SVG Generator ──────────────────────────────
+function FirmaLogoSVG({ firma, size = 48 }) {
+  const f = firma;
+  const bg = f.farbe || "#0f172a";
+  const initials = f.name.split(" ").map(w => w[0]).join("").slice(0,2).toUpperCase();
+  const s = size, cx = s/2, cy = s/2, r = s*0.38;
+
+  const renderShape = () => {
+    if (f.id === "lumitec") {
+      // Sonne: Kreis + Strahlen
+      const rays = [0,45,90,135,180,225,270,315].map(deg => {
+        const rad = deg * Math.PI/180;
+        return <line key={deg}
+          x1={cx + r*0.55*Math.cos(rad)} y1={cy + r*0.55*Math.sin(rad)}
+          x2={cx + r*0.9*Math.cos(rad)}  y2={cy + r*0.9*Math.sin(rad)}
+          stroke="#f59e0b" strokeWidth={s*0.055} strokeLinecap="round"/>;
+      });
+      return <>{rays}<circle cx={cx} cy={cy} r={r*0.4} fill="#f59e0b"/></>;
+    }
+    if (f.id === "waldform") {
+      // Baum
+      return <>
+        <polygon points={`${cx},${cy-r} ${cx-r*0.7},${cy+r*0.45} ${cx+r*0.7},${cy+r*0.45}`} fill="#a3e635"/>
+        <rect x={cx-r*0.14} y={cy+r*0.45} width={r*0.28} height={r*0.38} fill="#a3e635" opacity="0.8"/>
+      </>;
+    }
+    if (f.id === "alpentextil") {
+      // Nadel + Faden
+      return <>
+        <line x1={cx} y1={cy-r} x2={cx} y2={cy+r} stroke="#34d399" strokeWidth={s*0.07} strokeLinecap="round"/>
+        <circle cx={cx} cy={cy} r={r*0.28} fill="#34d399" opacity="0.85"/>
+        <line x1={cx-r*0.55} y1={cy} x2={cx+r*0.55} y2={cy} stroke="#34d399" strokeWidth={s*0.04} strokeLinecap="round"/>
+      </>;
+    }
+    if (f.id === "vitasport") {
+      // Blitz
+      const pts = [
+        [cx+r*0.2, cy-r],[cx-r*0.35, cy+r*0.1],[cx+r*0.05, cy],
+        [cx-r*0.2, cy+r],[cx+r*0.35, cy-r*0.1],[cx-r*0.05, cy]
+      ].map(p => p.join(",")).join(" ");
+      return <polygon points={pts} fill="#60a5fa"/>;
+    }
+    // Default: Initialen
+    return <text x={cx} y={cy+s*0.13} textAnchor="middle"
+      fontFamily="Arial,sans-serif" fontWeight="900" fontSize={s*0.34} fill="#fff">{initials}</text>;
+  };
+
+  return (
+    <svg width={s} height={s} viewBox={`0 0 ${s} ${s}`} style={{ borderRadius: s*0.18, flexShrink: 0 }}>
+      <rect width={s} height={s} rx={s*0.18} fill={bg}/>
+      {renderShape()}
+    </svg>
+  );
+}
 function BelegEingangsrechnung({ b }) {
   return (
     <div style={{ border: "1px solid #cbd5e1", borderRadius: "10px", overflow: "hidden", fontFamily: "Arial, sans-serif", fontSize: "13px" }}>
       {/* Header */}
-      <div style={{ background: "#1e293b", padding: "14px 18px", display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-        <div style={{ color: "#fff" }}>
-          <div style={{ fontWeight: 800, fontSize: "15px", marginBottom: "4px" }}>{b.lief.name}</div>
-          <div style={{ color: "#94a3b8", fontSize: "12px" }}>{b.lief.strasse} · {b.lief.plz} {b.lief.ort}</div>
-          <div style={{ color: "#94a3b8", fontSize: "12px" }}>{b.lief.tel} · {b.lief.email}</div>
-          <div style={{ color: "#64748b", fontSize: "11px", marginTop: "2px" }}>IBAN: {fmtIBAN(b.lief.iban)}</div>
+      <div style={{ background: "#1e293b", padding: "14px 18px", display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "12px" }}>
+        <div style={{ display: "flex", gap: "12px", alignItems: "flex-start", flex: 1 }}>
+          {/* Lieferanten-Initial-Logo */}
+          <div style={{ width: 48, height: 48, borderRadius: "10px", background: "#334155", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <span style={{ fontSize: "16px", fontWeight: 900, color: "#94a3b8", letterSpacing: "-0.02em" }}>
+              {b.lief.name.split(" ").map(w => w[0]).join("").slice(0,2).toUpperCase()}
+            </span>
+          </div>
+          <div style={{ color: "#fff" }}>
+            <div style={{ fontWeight: 800, fontSize: "15px", marginBottom: "4px" }}>{b.lief.name}</div>
+            <div style={{ color: "#94a3b8", fontSize: "12px" }}>{b.lief.strasse} · {b.lief.plz} {b.lief.ort}</div>
+            <div style={{ color: "#94a3b8", fontSize: "12px" }}>{b.lief.tel} · {b.lief.email}</div>
+            <div style={{ color: "#64748b", fontSize: "11px", marginTop: "2px" }}>IBAN: {fmtIBAN(b.lief.iban)}</div>
+          </div>
         </div>
-        <div style={{ textAlign: "right", color: "#f59e0b" }}>
+        <div style={{ textAlign: "right", color: "#f59e0b", flexShrink: 0 }}>
           <div style={{ fontSize: "22px", fontWeight: 900, letterSpacing: "0.1em" }}>RECHNUNG</div>
           {b.klasse7 && <div style={{ background: "#f59e0b", color: "#0f172a", fontSize: "10px", fontWeight: 800, padding: "2px 8px", borderRadius: "4px", marginTop: "4px" }}>Klasse 7: Nur Bruttobetrag angegeben</div>}
         </div>
@@ -3503,7 +5137,7 @@ function BelegEingangsrechnung({ b }) {
               <tr key={i} style={{ borderBottom: "1px solid #f1f5f9" }}>
                 <td style={{ padding: "8px 6px", color: "#64748b" }}>{p.pos}</td>
                 <td style={{ padding: "8px 6px", fontWeight: 500 }}>{p.beschr}</td>
-                <td style={{ padding: "8px 6px", textAlign: "right" }}>{p.menge.toLocaleString("de-DE")}</td>
+                <td style={{ padding: "8px 6px", textAlign: "right" }}>{p.menge != null ? p.menge.toLocaleString("de-DE") : ""}</td>
                 <td style={{ padding: "8px 6px", textAlign: "right", color: "#64748b" }}>{p.einheit}</td>
                 <td style={{ padding: "8px 6px", textAlign: "right" }}>{fmt(p.ep)} €</td>
                 {!b.klasse7 && <td style={{ padding: "8px 6px", textAlign: "right", fontWeight: 600 }}>{fmt(p.netto)} €</td>}
@@ -3545,13 +5179,17 @@ function BelegEingangsrechnung({ b }) {
 function BelegAusgangsrechnung({ b }) {
   return (
     <div style={{ border: "1px solid #cbd5e1", borderRadius: "10px", overflow: "hidden", fontFamily: "Arial, sans-serif", fontSize: "13px" }}>
-      <div style={{ background: b.firma.farbe, padding: "14px 18px", display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-        <div style={{ color: "#fff" }}>
-          <div style={{ fontWeight: 900, fontSize: "16px", marginBottom: "2px" }}>{b.firma.icon} {b.firma.name}</div>
-          <div style={{ opacity: 0.85, fontSize: "12px" }}>{b.firma.strasse} · {b.firma.plz} {b.firma.ort}</div>
-          <div style={{ opacity: 0.7, fontSize: "11px" }}>{b.firma.email} · IBAN: {fmtIBAN(b.firma.iban)}</div>
+      <div style={{ background: b.firma.farbe, padding: "14px 18px", display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "12px" }}>
+        <div style={{ display: "flex", gap: "12px", alignItems: "flex-start", flex: 1 }}>
+          <FirmaLogoSVG firma={b.firma} size={52} />
+          <div style={{ color: "#fff" }}>
+            <div style={{ fontWeight: 900, fontSize: "17px", marginBottom: "3px", letterSpacing: "-0.01em" }}>{b.firma.name}</div>
+            <div style={{ opacity: 0.85, fontSize: "12px" }}>{b.firma.strasse} · {b.firma.plz} {b.firma.ort}</div>
+            <div style={{ opacity: 0.7, fontSize: "11px" }}>{b.firma.email} · IBAN: {fmtIBAN(b.firma.iban)}</div>
+            <div style={{ marginTop: "4px", fontSize: "10px", color: "rgba(255,255,255,0.6)", letterSpacing: "0.08em" }}>{b.firma.slogan || ""}</div>
+          </div>
         </div>
-        <div style={{ textAlign: "right", color: "#fff" }}>
+        <div style={{ textAlign: "right", color: "#fff", flexShrink: 0 }}>
           <div style={{ fontSize: "22px", fontWeight: 900, letterSpacing: "0.1em", opacity: 0.9 }}>RECHNUNG</div>
         </div>
       </div>
@@ -3745,46 +5383,153 @@ function belegToGeschaeftsfall(beleg) {
   if (!beleg) return null;
   switch (beleg.typ) {
     case "eingangsrechnung": {
-      const pos = beleg.positionen[0];
+      const pos = (beleg.positionen||[]).find(p => !p.isRabatt) || {};
+      if (!pos.menge) return null;
       if (beleg.klasse7) {
         return `${beleg.empfaenger.name} kauft ${pos.menge.toLocaleString("de-DE")} ${pos.einheit} ${pos.beschr} beim Lieferanten ${beleg.lief.name}, ${beleg.lief.ort}, zum Rechnungsbetrag (brutto) von ${fmt(beleg.brutto)} € auf Ziel (USt-Satz 19 %).`;
       }
-      const extra = beleg.positionen.length > 1
-        ? ` Zusätzlich werden ${beleg.positionen[1].beschr} von ${fmt(beleg.positionen[1].netto)} € netto in Rechnung gestellt (ebenfalls auf Ziel).`
+      const extra = beleg.positionen.filter(p => !p.isRabatt).length > 1
+        ? ` Zusätzlich werden ${beleg.positionen.filter(p => !p.isRabatt)[1].beschr} von ${fmt(beleg.positionen.filter(p => !p.isRabatt)[1].netto)} € netto in Rechnung gestellt (ebenfalls auf Ziel).`
         : "";
       return `${beleg.empfaenger.name} kauft ${pos.menge.toLocaleString("de-DE")} ${pos.einheit} ${pos.beschr} beim Lieferanten ${beleg.lief.name}, ${beleg.lief.ort}, zum Nettobetrag von ${fmt(pos.netto)} € (zzgl. ${beleg.ustPct} % USt ${fmt(beleg.ustBetrag)} €; Brutto: ${fmt(beleg.brutto)} €) auf Ziel.${extra}`;
     }
     case "ausgangsrechnung": {
-      const pos = beleg.positionen[0];
-      const skonto = beleg.zahlungsziel.includes("Skonto") ? ` Zahlungsbedingung: ${beleg.zahlungsziel.split("|")[0].trim()}.` : "";
+      const pos = (beleg.positionen||[]).find(p => !p.isRabatt) || beleg.positionen[0] || {};
+      const skonto = (beleg.zahlungsziel||"").includes("Skonto") ? ` Zahlungsbedingung: ${beleg.zahlungsziel.split("|")[0].trim()}.` : "";
       return `${beleg.firma.name}, ${beleg.firma.ort}, verkauft ${pos.menge} ${pos.einheit} ${pos.beschr} an ${beleg.kunde.name}, ${beleg.kunde.ort} (Kd.-Nr. ${beleg.kunde.kundennr}), zum Nettopreis von ${fmt(pos.netto)} € (zzgl. ${beleg.ustPct} % USt ${fmt(beleg.ustBetrag)} €; Brutto: ${fmt(beleg.brutto)} €) auf Ziel.${skonto}`;
     }
     case "ueberweisung": {
       const skontoHinweis = beleg.skontoBetrag > 0
         ? ` (Rechnungsbetrag brutto: ${fmt(r2(beleg.betrag + beleg.skontoBetrag))} €, abzgl. Skonto: ${fmt(beleg.skontoBetrag)} €)`
         : "";
-      return `${beleg.absender.name} überweist ${fmt(beleg.betrag)} € an ${beleg.empfaenger.name}${skontoHinweis}. Verwendungszweck: „${beleg.verwendungszweck}" (Ausführungsdatum: ${beleg.ausfuehrungsdatum}).`;
+      return `${beleg.absender.name} überweist ${fmt(beleg.betrag)} € an ${beleg.empfaenger.name}${skontoHinweis}. Verwendungszweck: "${beleg.verwendungszweck}" (Ausführungsdatum: ${beleg.ausfuehrungsdatum}).`;
     }
     case "kontoauszug": {
       const hl = beleg.buchungen.find(b => b.highlight);
       if (!hl) return "Bankbuchung laut Kontoauszug.";
       const richtung = hl.betrag > 0 ? "eingehend" : "ausgehend";
-      return `Laut Kontoauszug der ${beleg.kontoinhaber} (${beleg.bank}) ist am ${hl.datum} ein Betrag von ${fmt(Math.abs(hl.betrag))} € ${richtung}. Buchungstext: „${hl.text}".`;
+      return `Laut Kontoauszug der ${beleg.kontoinhaber} (${beleg.bank}) ist am ${hl.datum} ein Betrag von ${fmt(Math.abs(hl.betrag))} € ${richtung}. Buchungstext: "${hl.text}".`;
     }
     case "email": {
-      return `Am ${beleg.datum} erhält die Buchhaltung eine E-Mail von ${beleg.vonName} (${beleg.von}) mit dem Betreff: „${beleg.betreff}". Entnehmen Sie der E-Mail den buchungsrelevanten Sachverhalt.`;
+      return `Am ${beleg.datum} erhält die Buchhaltung eine E-Mail von ${beleg.vonName} (${beleg.von}) mit dem Betreff: "${beleg.betreff}". Entnehmen Sie der E-Mail den buchungsrelevanten Sachverhalt.`;
     }
     default: return null;
   }
 }
 
-function GeschaeftsfallKarte({ text, aufgabeText }) {
+// ── Schaubild-Komponenten (SVG, selbst generiert – kein Urheberrecht) ────────
+function LinienDiagramm({ daten }) {
+  const { titel, untertitel, einheit, quelle, herausgeber, jahre, werte } = daten;
+  const W = 480, H = 220, pad = { t: 40, r: 20, b: 50, l: 60 };
+  const iW = W - pad.l - pad.r, iH = H - pad.t - pad.b;
+  const min = 0, max = Math.max(...werte) * 1.2;
+  const x = i => pad.l + i * iW / (jahre.length - 1);
+  const y = v => pad.t + iH - (v - min) / (max - min) * iH;
+  const pts = werte.map((v, i) => `${x(i)},${y(v)}`).join(" ");
+  const farbe = "#0ea5e9";
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", maxWidth: 480, fontFamily: "Arial, sans-serif", border: "1px solid #e2e8f0", borderRadius: 8, background: "#fafafa" }}>
+      {/* Titel */}
+      <text x={W/2} y={16} textAnchor="middle" fontSize={11} fontWeight="700" fill="#0f172a">{titel}</text>
+      <text x={W/2} y={28} textAnchor="middle" fontSize={9} fill="#64748b">{untertitel}</text>
+      {/* Gitternetz */}
+      {[0,0.25,0.5,0.75,1].map((t,i) => {
+        const yv = pad.t + iH * (1-t);
+        const val = min + (max-min)*t;
+        return <g key={i}>
+          <line x1={pad.l} y1={yv} x2={W-pad.r} y2={yv} stroke="#e2e8f0" strokeWidth={1}/>
+          <text x={pad.l-5} y={yv+4} textAnchor="end" fontSize={8} fill="#94a3b8">{val.toFixed(0)}</text>
+        </g>;
+      })}
+      {/* Achsen */}
+      <line x1={pad.l} y1={pad.t} x2={pad.l} y2={pad.t+iH} stroke="#cbd5e1" strokeWidth={1.5}/>
+      <line x1={pad.l} y1={pad.t+iH} x2={W-pad.r} y2={pad.t+iH} stroke="#cbd5e1" strokeWidth={1.5}/>
+      {/* Linie */}
+      <polyline points={pts} fill="none" stroke={farbe} strokeWidth={2.5} strokeLinejoin="round"/>
+      {/* Punkte + Werte */}
+      {werte.map((v, i) => <g key={i}>
+        <circle cx={x(i)} cy={y(v)} r={4} fill={farbe} stroke="#fff" strokeWidth={1.5}/>
+        <text x={x(i)} y={y(v)-8} textAnchor="middle" fontSize={8} fontWeight="600" fill={farbe}>{v.toLocaleString("de-DE")}</text>
+        <text x={x(i)} y={pad.t+iH+14} textAnchor="middle" fontSize={9} fill="#374151">{jahre[i]}</text>
+      </g>)}
+      {/* Einheit links */}
+      <text x={12} y={pad.t+iH/2} textAnchor="middle" fontSize={8} fill="#94a3b8" transform={`rotate(-90,12,${pad.t+iH/2})`}>{einheit}</text>
+      {/* Quelle */}
+      <text x={W-4} y={H-4} textAnchor="end" fontSize={7} fill="#94a3b8">Quelle: {quelle} | {herausgeber}</text>
+    </svg>
+  );
+}
+
+function BalkenDiagramm({ daten }) {
+  const { titel, untertitel, einheit, quelle, herausgeber, kategorien, werte } = daten;
+  const W = 480, H = 220, pad = { t: 40, r: 20, b: 60, l: 70 };
+  const iW = W - pad.l - pad.r, iH = H - pad.t - pad.b;
+  const max = Math.max(...werte) * 1.15;
+  const barH = iH / kategorien.length * 0.65;
+  const gap  = iH / kategorien.length;
+  const farben = ["#0ea5e9","#f59e0b","#10b981","#8b5cf6","#ef4444","#64748b"];
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", maxWidth: 480, fontFamily: "Arial, sans-serif", border: "1px solid #e2e8f0", borderRadius: 8, background: "#fafafa" }}>
+      <text x={W/2} y={16} textAnchor="middle" fontSize={11} fontWeight="700" fill="#0f172a">{titel}</text>
+      <text x={W/2} y={28} textAnchor="middle" fontSize={9} fill="#64748b">{untertitel}</text>
+      {/* Achsen */}
+      <line x1={pad.l} y1={pad.t} x2={pad.l} y2={pad.t+iH} stroke="#cbd5e1" strokeWidth={1.5}/>
+      <line x1={pad.l} y1={pad.t+iH} x2={W-pad.r} y2={pad.t+iH} stroke="#cbd5e1" strokeWidth={1.5}/>
+      {/* Balken */}
+      {kategorien.map((kat, i) => {
+        const bW = werte[i] / max * iW;
+        const yPos = pad.t + i * gap + (gap - barH) / 2;
+        return <g key={i}>
+          <text x={pad.l-5} y={yPos+barH/2+4} textAnchor="end" fontSize={9} fill="#374151">{kat.length > 14 ? kat.slice(0,13)+"…" : kat}</text>
+          <rect x={pad.l} y={yPos} width={bW} height={barH} fill={farben[i % farben.length]} rx={2} opacity={0.85}/>
+          <text x={pad.l+bW+4} y={yPos+barH/2+4} fontSize={9} fontWeight="600" fill={farben[i % farben.length]}>{werte[i].toLocaleString("de-DE")}</text>
+        </g>;
+      })}
+      {/* Einheit */}
+      <text x={W-4} y={H-4} textAnchor="end" fontSize={7} fill="#94a3b8">Quelle: {quelle} | {herausgeber}</text>
+    </svg>
+  );
+}
+
+function SchaubildAnzeige({ schaubild }) {
+  if (!schaubild) return null;
+  return (
+    <div style={{ margin: "12px 0" }}>
+      {schaubild.typ === "linie" && <LinienDiagramm daten={schaubild} />}
+      {schaubild.typ === "balken" && <BalkenDiagramm daten={schaubild} />}
+    </div>
+  );
+}
+
+function GeschaeftsfallKarte({ text, editText, onEdit, isEditing, onSave, onReset, onCancel, onKI, kiLaden }) {
   return (
     <div style={{ border: "1.5px dashed #94a3b8", borderRadius: "10px", background: "#f8fafc", padding: "16px 18px" }}>
-      <div style={{ fontSize: "11px", fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: "8px" }}>
-        📝 Geschäftsfall
+      <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
+        <div style={{ fontSize: "11px", fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.1em", flex: 1 }}>
+          📝 Geschäftsfall
+        </div>
+        {!isEditing && onEdit && (
+          <button onClick={onEdit} title="Geschäftsfall bearbeiten"
+            style={{ padding: "2px 7px", border: "1.5px solid #e2e8f0", borderRadius: "6px", background: "#fff", cursor: "pointer", fontSize: "13px" }}>✏️</button>
+        )}
       </div>
-      <p style={{ margin: 0, fontSize: "14px", color: "#1e293b", lineHeight: 1.7 }}>{text}</p>
+      {isEditing ? (
+        <div>
+          <textarea value={editText} onChange={e => onEdit && onEdit(e.target.value)} rows={4}
+            style={{ width: "100%", padding: "8px", border: "2px solid #3b82f6", borderRadius: "6px", fontSize: "13px", fontFamily: "inherit", resize: "vertical", boxSizing: "border-box" }} />
+          <div style={{ display: "flex", gap: "6px", marginTop: "6px", flexWrap: "wrap" }}>
+            <button onClick={onSave} style={{ padding: "5px 12px", background: "#0f172a", color: "#fff", border: "none", borderRadius: "6px", fontWeight: 700, fontSize: "11px", cursor: "pointer" }}>💾 Speichern</button>
+            <button onClick={onReset} style={{ padding: "5px 12px", background: "#fee2e2", color: "#dc2626", border: "none", borderRadius: "6px", fontWeight: 700, fontSize: "11px", cursor: "pointer" }}>↺ Original</button>
+            {onKI && <button onClick={onKI} disabled={kiLaden}
+              style={{ padding: "5px 12px", background: "#ede9fe", color: "#7c3aed", border: "none", borderRadius: "6px", fontWeight: 700, fontSize: "11px", cursor: kiLaden ? "wait" : "pointer", opacity: kiLaden ? 0.7 : 1 }}>
+              {kiLaden ? "⏳ KI…" : "🔄 KI-Neuformulierung"}
+            </button>}
+            <button onClick={onCancel} style={{ padding: "5px 12px", background: "#f1f5f9", color: "#64748b", border: "none", borderRadius: "6px", fontSize: "11px", cursor: "pointer" }}>Abbrechen</button>
+          </div>
+        </div>
+      ) : (
+        <p style={{ margin: 0, fontSize: "14px", color: "#1e293b", lineHeight: 1.7 }}>{text}</p>
+      )}
     </div>
   );
 }
@@ -4021,8 +5766,8 @@ function KontenplanModal({ onSchliessen }) {
         <div style={{ background:"linear-gradient(135deg,#1e293b,#0f172a)", borderBottom:"1px solid #334155",
           padding:"18px 20px 14px", display:"flex", alignItems:"center", gap:12, flexShrink:0 }}>
           <div>
-            <div style={{ fontSize:16, fontWeight:800, color:"#f8fafc", letterSpacing:"-0.3px" }}>Kontenplan ISB Bayern</div>
-            <div style={{ fontSize:10, color:"#64748b", textTransform:"uppercase", letterSpacing:".1em", marginTop:2 }}>IKR · LehrplanPLUS Realschule · BwR Klassen 7–10</div>
+            <div style={{ fontSize:16, fontWeight:800, color:"#f8fafc", letterSpacing:"-0.3px" }}>Kontenplan Bayern</div>
+            <div style={{ fontSize:10, color:"#64748b", textTransform:"uppercase", letterSpacing:".1em", marginTop:2 }}>IKR · BwR · Klassen 7–10</div>
           </div>
           <button onClick={onSchliessen} style={{ marginLeft:"auto", background:"#1e293b", border:"1.5px solid #334155",
             borderRadius:8, color:"#94a3b8", fontSize:18, cursor:"pointer", width:34, height:34, display:"flex", alignItems:"center", justifyContent:"center" }}>×</button>
@@ -4629,7 +6374,7 @@ function TheorieKarte({ aufgabe, nr, showLoesung, klasse = 10 }) {
         <div style={{ display: "flex", alignItems: "center", background: "#0f172a", color: "#f59e0b", borderRadius: "20px", padding: "3px 12px", fontSize: "12px", fontWeight: 800, flexShrink: 0 }}>
           {punkte} P
         </div>
-        <button onClick={() => setOpen(!open)} style={{ ...S.btnSecondary, padding: "4px 10px", fontSize: "12px" }}>{open ? "▲" : "▼ Lösung"}</button>
+        <button onClick={() => setOpen(!open)} style={{ ...S.btnSecondary, padding: "8px 14px", fontSize: "12px", borderRadius: "10px", fontWeight: 700, background: open ? "#0f172a" : "#f8fafc", color: open ? "#fff" : "#475569" }}>{open ? "▲ Lösung" : "▼ Lösung"}</button>
       </div>
 
       <div style={{ padding: "16px" }}>
@@ -4655,13 +6400,25 @@ function TheorieKarte({ aufgabe, nr, showLoesung, klasse = 10 }) {
   );
 }
 
-function KomplexKarte({ aufgabe, nr, showLoesung, globalMode, klasse = 10 }) {
+function KomplexKarte({ aufgabe, nr, showLoesung, globalMode, klasse = 10, onSchrittEntfernen, onSchrittHinzufuegen, onAufgabeChange }) {
   const [openAll, setOpenAll] = useState(false);
   const [openSchritte, setOpenSchritte] = useState({});
   const [loesungsViews, setLoesungsViews] = useState({});
   const [localMode, setLocalMode] = useState(null);
+  const [schrittModes, setSchrittModes] = useState({});
+  const [addMenuOffen, setAddMenuOffen] = useState(false);
+  const [editSchrittIdx, setEditSchrittIdx] = useState(null);
+  const [editText, setEditText] = useState("");
+  const [kiLaden, setKiLaden] = useState(false);
   const effectiveMode = localMode ?? globalMode;
+  const getSchrittMode = i => schrittModes[i] ?? effectiveMode;
+  const setSchrittMode = (i, v) => setSchrittModes(p => ({ ...p, [i]: v }));
   const gesamtPunkte = (aufgabe.schritte || []).reduce((s, st) => s + st.punkte, 0);
+
+  // Verfügbare Schritte die noch nicht enthalten sind
+  const vorhandenKeys = new Set((aufgabe.schritte || []).map(s => s._optsKey).filter(Boolean));
+  const stepDefs = KOMPLEX_STEP_DEFS[aufgabe._baseTypId] || [];
+  const verfuegbareSchritte = stepDefs.filter(d => !vorhandenKeys.has(d.optsKey));
 
   const toggleSchritt = i => setOpenSchritte(p => ({ ...p, [i]: !p[i] }));
   const getLoeView = i => loesungsViews[i] || "buchungssatz";
@@ -4697,8 +6454,14 @@ function KomplexKarte({ aufgabe, nr, showLoesung, globalMode, klasse = 10 }) {
       </div>
 
       {/* ── Szenario-Box ── */}
-      <div style={{ padding: "12px 18px 10px", background: "#f8fafc", borderBottom: "1px solid #e2e8f0", fontSize: "13px", color: "#374151", lineHeight: 1.5 }}>
-        📋 <strong>Szenario:</strong> {aufgabe.kontext}
+      <div style={{ padding: "12px 18px 10px", background: "#f8fafc", borderBottom: "1px solid #e2e8f0", fontSize: "13px", color: "#374151", textAlign: "left" }}>
+        <span style={{ fontWeight: 700, color: "#0f172a" }}>📋 Szenario</span>
+        {Array.isArray(aufgabe.kontext)
+          ? aufgabe.kontext.map((teil, i) => (
+              <p key={i} style={{ margin: "6px 0 0", lineHeight: 1.6, paddingLeft: i > 0 ? "12px" : 0, borderLeft: i > 0 ? "2px solid #e2e8f0" : "none", textAlign: "left" }}>{teil}</p>
+            ))
+          : <p style={{ margin: "6px 0 0", lineHeight: 1.6, textAlign: "left" }}>{aufgabe.kontext}</p>
+        }
       </div>
 
       {/* ── Schritte ── */}
@@ -4713,7 +6476,7 @@ function KomplexKarte({ aufgabe, nr, showLoesung, globalMode, klasse = 10 }) {
           <div key={i} style={{ borderTop: "1px solid #e2e8f0" }}>
             {/* Schritt-Header */}
             <div style={{ padding: "9px 18px", display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap", background: "#fafafa" }}>
-              <div style={{ width: "22px", height: "22px", background: "#1e293b", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", color: "#f59e0b", fontSize: "11px", fontWeight: 800, flexShrink: 0 }}>{schritt.nr}</div>
+              <div style={{ width: "22px", height: "22px", background: "#1e293b", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", color: "#f59e0b", fontSize: "11px", fontWeight: 800, flexShrink: 0 }}>{i + 1}</div>
               <span style={{ fontWeight: 700, fontSize: "13px", color: "#0f172a", flex: 1 }}>{schritt.titel}</span>
               <div style={{ display: "flex", alignItems: "center", background: "#1e293b", color: "#f59e0b", borderRadius: "20px", padding: "2px 10px", fontSize: "11px", fontWeight: 800 }}>
                 {schritt.punkte} P{nrPunkte > 0 && <span style={{ color: "#fde68a", fontSize: "10px", fontWeight: 600 }}> (+{nrPunkte} NR)</span>}
@@ -4721,11 +6484,68 @@ function KomplexKarte({ aufgabe, nr, showLoesung, globalMode, klasse = 10 }) {
               <button onClick={() => toggleSchritt(i)} style={{ ...S.btnSecondary, padding: "3px 9px", fontSize: "11px" }}>
                 {openSchritte[i] ? "▲" : "▼ Lösung"}
               </button>
+              {onSchrittEntfernen && schritt._optsKey && (
+                <button onClick={() => onSchrittEntfernen(i)}
+                  title="Teilaufgabe entfernen"
+                  style={{ padding: "3px 8px", border: "1px solid #fca5a5", borderRadius: "6px", background: "#fff1f2",
+                    color: "#dc2626", fontSize: "11px", fontWeight: 700, cursor: "pointer" }}>
+                  ✕
+                </button>
+              )}
             </div>
 
             {/* Schritt-Body */}
-            <div style={{ padding: "12px 18px 14px 48px" }}>
-              <p style={{ margin: "0 0 10px", fontSize: "13px", color: "#374151", fontWeight: 600 }}>{anrede(klasse, schritt.aufgabe)}</p>
+            <div style={{ padding: "12px 18px 14px 48px", textAlign: "left" }}>
+              {/* Aufgabentext mit Edit */}
+              {editSchrittIdx === i ? (
+                <div style={{ marginBottom: "10px" }}>
+                  <textarea value={editText} onChange={e => setEditText(e.target.value)} rows={3}
+                    style={{ width: "100%", padding: "8px", border: "2px solid #3b82f6", borderRadius: "8px", fontSize: "13px", fontFamily: "inherit", resize: "vertical", boxSizing: "border-box", color: "#0f172a" }} />
+                  <div style={{ display: "flex", gap: "6px", marginTop: "6px", flexWrap: "wrap" }}>
+                    <button onClick={() => {
+                      if (onAufgabeChange) {
+                        const neuSchritte = (aufgabe.schritte || []).map((s, si) => si === i ? { ...s, _aufgabeEdit: editText.trim() || undefined } : s);
+                        onAufgabeChange({ ...aufgabe, schritte: neuSchritte });
+                      }
+                      setEditSchrittIdx(null);
+                    }} style={{ padding: "5px 12px", background: "#0f172a", color: "#fff", border: "none", borderRadius: "6px", fontWeight: 700, fontSize: "11px", cursor: "pointer" }}>💾 Speichern</button>
+                    <button onClick={() => {
+                      if (onAufgabeChange) {
+                        const neuSchritte = (aufgabe.schritte || []).map((s, si) => si === i ? { ...s, _aufgabeEdit: undefined } : s);
+                        onAufgabeChange({ ...aufgabe, schritte: neuSchritte });
+                      }
+                      setEditText(anrede(klasse, schritt.aufgabe ?? ""));
+                      setEditSchrittIdx(null);
+                    }} style={{ padding: "5px 12px", background: "#fee2e2", color: "#dc2626", border: "none", borderRadius: "6px", fontWeight: 700, fontSize: "11px", cursor: "pointer" }}>↺ Original</button>
+                    <button disabled={kiLaden} onClick={async () => {
+                      setKiLaden(true);
+                      try {
+                        const orig = anrede(klasse, schritt.aufgabe || "");
+                        const res = await apiFetch("/ki/buchung", "POST", { prompt: `Formuliere die folgende BwR-Aufgabenstellung für Klasse ${klasse} neu – gleicher Inhalt, andere Wortwahl. Nur den neuen Text, ohne Erklärung.\n\nOriginal: ${orig}`, max_tokens: 200 });
+                        const t = (res?.content?.find?.(c => c.type==="text")?.text || "").trim();
+                        if (t) setEditText(t);
+                      } catch(e) { alert("KI-Fehler: " + e.message); }
+                      setKiLaden(false);
+                    }} style={{ padding: "5px 12px", background: "#ede9fe", color: "#7c3aed", border: "none", borderRadius: "6px", fontWeight: 700, fontSize: "11px", cursor: kiLaden?"wait":"pointer", opacity: kiLaden?0.7:1 }}>
+                      {kiLaden ? "⏳ KI…" : "🔄 KI-Neuformulierung"}
+                    </button>
+                    <button onClick={() => setEditSchrittIdx(null)} style={{ padding: "5px 12px", background: "#f1f5f9", color: "#64748b", border: "none", borderRadius: "6px", fontSize: "11px", cursor: "pointer" }}>Abbrechen</button>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ display: "flex", alignItems: "flex-start", gap: "8px", marginBottom: "10px" }}>
+                  <p style={{ margin: 0, fontSize: "13px", color: "#374151", fontWeight: 600, flex: 1 }}>
+                    {schritt._aufgabeEdit ?? anrede(klasse, schritt.aufgabe)}
+                  </p>
+                  <button onClick={() => { setEditText(schritt._aufgabeEdit ?? anrede(klasse, schritt.aufgabe ?? "")); setEditSchrittIdx(i); }}
+                    title="Aufgabentext bearbeiten"
+                    style={{ padding: "2px 7px", border: `1.5px solid ${schritt._aufgabeEdit ? "#f59e0b" : "#e2e8f0"}`,
+                      borderRadius: "6px", background: schritt._aufgabeEdit ? "#fffbeb" : "#fff",
+                      cursor: "pointer", fontSize: "13px", flexShrink: 0 }}>
+                    ✏️{schritt._aufgabeEdit ? " ✓" : ""}
+                  </button>
+                </div>
+              )}
 
               {/* ── Angebotsvergleich: Aufgabenteil (immer sichtbar) ── */}
               {schritt.typ === "angebotsvergleich" && schritt.angebote && (
@@ -4768,7 +6588,21 @@ function KomplexKarte({ aufgabe, nr, showLoesung, globalMode, klasse = 10 }) {
               {/* ── Normaler Beleg ── */}
               {hasBeleg && schritt.typ !== "angebotsvergleich" && schritt.typ !== "kalkulation" && schritt.typ !== "kalkulation_vk" && (
                 <div style={{ marginBottom: "10px" }}>
-                  {effectiveMode === "beleg"
+                  {/* Per-Schritt Toggle */}
+                  <div style={{ display: "flex", gap: "6px", marginBottom: "8px", alignItems: "center" }}>
+                    {[{ key: "beleg", label: "📄 Beleg" }, { key: "text", label: "📝 Geschäftsfall" }].map(opt => {
+                      const aktiv = getSchrittMode(i) === opt.key;
+                      return (
+                        <button key={opt.key} onClick={() => setSchrittMode(i, opt.key)}
+                          style={{ padding: "3px 10px", border: `1px solid ${aktiv ? "#334155" : "#e2e8f0"}`, borderRadius: "6px",
+                            background: aktiv ? "#1e293b" : "#f8fafc", color: aktiv ? "#f59e0b" : "#64748b",
+                            fontSize: "11px", fontWeight: aktiv ? 700 : 500, cursor: "pointer" }}>
+                          {opt.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {getSchrittMode(i) === "beleg"
                     ? <BelegAnzeige beleg={schritt.beleg} />
                     : <GeschaeftsfallKarte text={gfText} />
                   }
@@ -4831,14 +6665,47 @@ function KomplexKarte({ aufgabe, nr, showLoesung, globalMode, klasse = 10 }) {
           </div>
         );
       })}
+
+      {/* ── Footer: Schritt hinzufügen ── */}
+      {onSchrittHinzufuegen && verfuegbareSchritte.length > 0 && (
+        <div style={{ borderTop: "1px solid #e2e8f0", padding: "10px 18px", background: "#f8fafc", position: "relative" }}>
+          <button
+            onClick={() => setAddMenuOffen(v => !v)}
+            style={{ padding: "5px 14px", border: "1.5px dashed #64748b", borderRadius: "8px", background: "transparent",
+              color: "#64748b", fontSize: "12px", fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: "6px" }}>
+            ＋ Schritt hinzufügen
+          </button>
+          {addMenuOffen && (
+            <div style={{ position: "absolute", bottom: "calc(100% + 4px)", left: "18px", background: "#fff", border: "1.5px solid #334155",
+              borderRadius: "10px", boxShadow: "0 4px 16px rgba(0,0,0,0.12)", zIndex: 50, minWidth: "220px", overflow: "hidden" }}>
+              {verfuegbareSchritte.map(d => (
+                <button key={d.optsKey}
+                  onClick={() => { onSchrittHinzufuegen(d.optsKey); setAddMenuOffen(false); }}
+                  style={{ display: "block", width: "100%", padding: "9px 16px", border: "none", background: "transparent",
+                    textAlign: "left", fontSize: "13px", fontWeight: 600, color: "#0f172a", cursor: "pointer" }}
+                  onMouseEnter={e => e.currentTarget.style.background = "#f1f5f9"}
+                  onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                  + {d.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
 
-function AufgabeKarte({ aufgabe, nr, showLoesung, globalMode, klasse = 10 }) {
+function AufgabeKarte({ aufgabe, nr, showLoesung, globalMode, klasse = 10, onAufgabeChange }) {
   const [open, setOpen] = useState(false);
   const [localMode, setLocalMode] = useState(null);
-  const [loesungsView, setLoesungsView] = useState("buchungssatz"); // "buchungssatz" | "tkonten"
+  const [loesungsView, setLoesungsView] = useState("buchungssatz");
+  const [editMode, setEditMode] = useState(false);
+  const [editText, setEditText] = useState("");
+  const [kiLaden, setKiLaden] = useState(false);
+  const [gfEditMode, setGfEditMode] = useState(false);
+  const [gfEditText, setGfEditText] = useState("");
+  const [gfKiLaden, setGfKiLaden] = useState(false);
   const effectiveMode = localMode ?? globalMode;
 
   const punkte = berechnePunkte(aufgabe);
@@ -4847,15 +6714,54 @@ function AufgabeKarte({ aufgabe, nr, showLoesung, globalMode, klasse = 10 }) {
   const hasBeleg = !!aufgabe.beleg;
   const geschaeftsfallText = hasBeleg ? belegToGeschaeftsfall(aufgabe.beleg) : null;
 
-  const aufgabeText = anrede(klasse, effectiveMode === "text" && geschaeftsfallText
-    ? "Bilde den Buchungssatz zum folgenden Geschäftsfall."
-    : aufgabe.aufgabe);
+  // _aufgabeEdit enthält bereits den finalen Text (kein anrede() mehr nötig)
+  // Ohne Edit: anrede() auf Originaltext anwenden
+  const aufgabeText = effectiveMode === "text" && geschaeftsfallText
+    ? anrede(klasse, "Bilde den Buchungssatz zum folgenden Geschäftsfall.")
+    : (aufgabe._aufgabeEdit ?? anrede(klasse, aufgabe.aufgabe));
+
+  const originalText = anrede(klasse, aufgabe.aufgabe); // für Textarea + KI-Basis
+  const isEdited = !!aufgabe._aufgabeEdit;
+
+  function startEdit() {
+    // Textarea zeigt genau das was auch angezeigt wird
+    setEditText(aufgabe._aufgabeEdit ?? anrede(klasse, aufgabe.aufgabe ?? ""));
+    setEditMode(true);
+  }
+  function saveEdit() {
+    if (onAufgabeChange) onAufgabeChange({ ...aufgabe, _aufgabeEdit: editText.trim() || undefined });
+    setEditMode(false);
+  }
+  function resetEdit() {
+    if (onAufgabeChange) onAufgabeChange({ ...aufgabe, _aufgabeEdit: undefined });
+    setEditText(anrede(klasse, aufgabe.aufgabe ?? ""));
+    setEditMode(false);
+  }
+  async function kiNeuformulierung() {
+    setKiLaden(true);
+    try {
+      const prompt = `Du bist BwR-Lehrer an einer bayerischen Realschule (Klasse ${klasse}). Formuliere die folgende Aufgabenstellung für Schüler neu – gleicher Inhalt, andere Wortwahl. Antworte NUR mit dem neuen Aufgabentext, ohne Erklärung oder Anführungszeichen.\n\nOriginal: ${originalText}`;
+      const res = await apiFetch("/ki/buchung", "POST", { prompt, max_tokens: 300 });
+      // Anthropic API gibt { content: [{ type: "text", text: "..." }] } zurück
+      const newText = (
+        res?.content?.find?.(c => c.type === "text")?.text ||
+        res?.content?.[0]?.text || ""
+      ).trim();
+      if (newText) {
+        if (onAufgabeChange) onAufgabeChange({ ...aufgabe, _aufgabeEdit: newText });
+        setEditText(newText);
+      } else {
+        alert("KI-Antwort: " + JSON.stringify(res)?.slice(0, 200));
+      }
+    } catch(e) { alert("KI-Fehler: " + e.message); }
+    setKiLaden(false);
+  }
 
   return (
     <div style={{ border: "1px solid #e2e8f0", borderRadius: "12px", overflow: "hidden", marginBottom: "12px", background: "#fff" }}>
       {/* Task header */}
       <div style={{ background: "#f8fafc", padding: "12px 16px", display: "flex", alignItems: "center", gap: "8px", borderBottom: "1px solid #e2e8f0", flexWrap: "wrap" }}>
-        <div style={{ width: "26px", height: "26px", background: "#0f172a", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: "12px", fontWeight: 800, flexShrink: 0 }}>{nr}</div>
+        <div style={{ width: "26px", height: "26px", background: "#f59e0b", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", color: "#0f172a", fontSize: "12px", fontWeight: 900, flexShrink: 0 }}>{nr}</div>
         <span style={{ fontWeight: 700, fontSize: "14px", color: "#374151", flex: 1, minWidth: "120px" }}>{aufgabe.titel}</span>
 
         {hasBeleg && (
@@ -4881,19 +6787,99 @@ function AufgabeKarte({ aufgabe, nr, showLoesung, globalMode, klasse = 10 }) {
         <div style={{ display: "flex", alignItems: "center", background: "#0f172a", color: "#f59e0b", borderRadius: "20px", padding: "3px 12px", fontSize: "12px", fontWeight: 800, flexShrink: 0 }}>
           {punkte} P{aufgabe.nrPunkte > 0 && !isRechnung && <span style={{ color: "#fde68a", fontSize: "10px", fontWeight: 600 }}> (+{aufgabe.nrPunkte} NR)</span>}
         </div>
+        {/* Stift-Button – nur im Beleg-Modus oder ohne Beleg */}
+        {(effectiveMode !== "text" || !hasBeleg) && (
+          <button onClick={startEdit} title="Aufgabentext bearbeiten"
+            style={{ padding: "4px 8px", border: "1.5px solid " + (isEdited ? "#f59e0b" : "#e2e8f0"), borderRadius: "8px", background: isEdited ? "#fffbeb" : "#fff", cursor: "pointer", fontSize: "14px" }}>
+            ✏️{isEdited ? " ✓" : ""}
+          </button>
+        )}
         <button onClick={() => setOpen(!open)} style={{ ...S.btnSecondary, padding: "4px 10px", fontSize: "12px" }}>{open ? "▲" : "▼ Lösung"}</button>
       </div>
 
       <div style={{ padding: "16px" }}>
-        <p style={{ margin: "0 0 12px", color: "#374151", fontWeight: 600, fontSize: "14px" }}>{aufgabeText}</p>
+        {/* Inline-Editor */}
+        {editMode ? (
+          <div style={{ marginBottom: "12px" }}>
+            <textarea value={editText} onChange={e => setEditText(e.target.value)} rows={4}
+              style={{ width: "100%", padding: "10px", border: "2px solid #3b82f6", borderRadius: "8px", fontSize: "14px", fontFamily: "inherit", resize: "vertical", boxSizing: "border-box" }} />
+            <div style={{ display: "flex", gap: "8px", marginTop: "6px", flexWrap: "wrap" }}>
+              <button onClick={saveEdit} style={{ padding: "6px 14px", background: "#0f172a", color: "#fff", border: "none", borderRadius: "7px", fontWeight: 700, fontSize: "12px", cursor: "pointer" }}>💾 Speichern</button>
+              <button onClick={resetEdit} title="Zurück zur generierten Formulierung"
+                style={{ padding: "6px 14px", background: "#fee2e2", color: "#dc2626", border: "none", borderRadius: "7px", fontWeight: 700, fontSize: "12px", cursor: "pointer" }}>↺ Original</button>
+              <button onClick={kiNeuformulierung} disabled={kiLaden}
+                style={{ padding: "6px 14px", background: "#ede9fe", color: "#7c3aed", border: "none", borderRadius: "7px", fontWeight: 700, fontSize: "12px", cursor: kiLaden ? "wait" : "pointer", opacity: kiLaden ? 0.7 : 1 }}>
+                {kiLaden ? "⏳ KI…" : "🔄 KI-Neuformulierung"}
+              </button>
+              <button onClick={() => setEditMode(false)} style={{ padding: "6px 14px", background: "#f1f5f9", color: "#64748b", border: "none", borderRadius: "7px", fontSize: "12px", cursor: "pointer" }}>Abbrechen</button>
+            </div>
+          </div>
+        ) : (
+          <p style={{ margin: "0 0 12px", color: "#374151", fontWeight: 600, fontSize: "14px" }}>{aufgabeText}</p>
+        )}
 
         {hasBeleg && (
           <div style={{ marginBottom: "12px" }}>
-            {effectiveMode === "beleg" ? <BelegAnzeige beleg={aufgabe.beleg} /> : <GeschaeftsfallKarte text={geschaeftsfallText} />}
+            {effectiveMode === "beleg" ? <BelegAnzeige beleg={aufgabe.beleg} /> : (
+            <GeschaeftsfallKarte
+              text={aufgabe._geschaeftsfallEdit ?? geschaeftsfallText}
+              editText={gfEditText}
+              isEditing={gfEditMode}
+              onEdit={val => { if (typeof val === "string") { setGfEditText(val); } else { setGfEditText(aufgabe._geschaeftsfallEdit ?? geschaeftsfallText ?? ""); setGfEditMode(true); } }}
+              onSave={() => { if (onAufgabeChange) onAufgabeChange({ ...aufgabe, _geschaeftsfallEdit: gfEditText.trim() || undefined }); setGfEditMode(false); }}
+              onReset={() => { if (onAufgabeChange) onAufgabeChange({ ...aufgabe, _geschaeftsfallEdit: undefined }); setGfEditMode(false); }}
+              onCancel={() => setGfEditMode(false)}
+              kiLaden={gfKiLaden}
+              onKI={async () => {
+                setGfKiLaden(true);
+                try {
+                  const origText = geschaeftsfallText || "";
+                  const prompt = `Du bist BwR-Lehrer an einer bayerischen Realschule. Formuliere den folgenden Geschäftsfall für Schüler neu – gleicher Inhalt, andere Wortwahl. Antworte NUR mit dem neuen Text, ohne Erklärung.
+
+Original: ${origText}`;
+                  const res = await apiFetch("/ki/buchung", "POST", { prompt, max_tokens: 200 });
+                  const newText = (res?.content?.find?.(c => c.type === "text")?.text || res?.content?.[0]?.text || "").trim();
+                  if (newText) {
+                    if (onAufgabeChange) onAufgabeChange({ ...aufgabe, _geschaeftsfallEdit: newText });
+                    setGfEditText(newText);
+                  }
+                } catch(e) { alert("KI-Fehler: " + e.message); }
+                setGfKiLaden(false);
+              }}
+            />
+          )}
           </div>
         )}
 
-        {(showLoesung || open) && (
+        {/* Schaubild: immer sichtbar */}
+        {aufgabe.taskTyp === "schaubild" && aufgabe.schaubild && (
+          <div>
+            {/* Hinweis fiktive Daten */}
+            <div style={{ background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 7, padding: "6px 12px", fontSize: "11px", color: "#92400e", marginBottom: 8, fontWeight: 600 }}>
+              ⚠️ Hinweis: Die dargestellten Daten sind fiktiv und dienen ausschließlich zu Übungszwecken.
+            </div>
+            <SchaubildAnzeige schaubild={aufgabe.schaubild} />
+            <div style={{ marginTop: 12 }}>
+              {(aufgabe.teilaufgaben || []).map((ta, ti) => (
+                <div key={ti} style={{ marginBottom: 10 }}>
+                  <p style={{ margin: "0 0 6px", color: "#374151", fontWeight: 600, fontSize: "13px" }}>
+                    <span style={{ fontWeight: 800, color: "#0ea5e9" }}>{ta.nr})</span> {ta.text}
+                    <span style={{ marginLeft: 8, fontSize: "11px", color: "#94a3b8" }}>[{ta.punkte} P]</span>
+                  </p>
+                  {(showLoesung || open) ? (
+                    <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 7, padding: "8px 12px", fontSize: "13px", color: "#15803d" }}>
+                      {ta.loesung}
+                    </div>
+                  ) : (
+                    <div style={{ height: 32, border: "1px solid #e2e8f0", borderRadius: 6, background: "#f8fafc" }} />
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {(showLoesung || open) && aufgabe.taskTyp !== "schaubild" && (
           <div style={{ background: isRechnung ? "#faf5ff" : "#f0fdf4", border: `1px solid ${isRechnung ? "#ddd6fe" : "#bbf7d0"}`, borderRadius: "10px", padding: "14px 16px", marginTop: "8px" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px", flexWrap: "wrap", gap: "8px" }}>
               {/* Ansicht-Toggle für Buchungslösungen */}
@@ -5047,7 +7033,7 @@ function PunktePanel({ aufgaben, typ }) {
 // ══════════════════════════════════════════════════════════════════════════════
 // SCHRITT 1 — Konfiguration
 // ══════════════════════════════════════════════════════════════════════════════
-function SchrittTyp({ onWeiter, onBelegEditor, onEigeneBelege, initialConfig }) {
+function SchrittTyp({ onWeiter, onBelegEditor, onEigeneBelege, onSimulation, initialConfig }) {
   // Wenn initialConfig gesetzt → Vorauswahl aus bestehendem config
   const ic = initialConfig;
   const [typ, setTyp] = useState(ic?.typ ?? null);
@@ -5085,6 +7071,10 @@ function SchrittTyp({ onWeiter, onBelegEditor, onEigeneBelege, initialConfig }) 
   const [abschlussOpts, setAbschlussOpts] = useState({
     ara: true, rst: true, afa: true, ewb: false, ewbPct: 50, guv: true, kennzahlen: false,
   });
+  const [pctOpts, setPctOpts] = useState(ic?.pctOpts ?? {
+    typen: ["prozentwert","grundwert","prozentsatz","erhoeht","vermindert","veraenderung","kombiniert"],
+    schwierigkeit: "gemischt", // "einfach" | "gemischt" | "schwer"
+  });
   const [forderungOpts, setForderungOpts] = useState({
     ewb: false,
     ewbPct: 50,
@@ -5121,12 +7111,8 @@ function SchrittTyp({ onWeiter, onBelegEditor, onEigeneBelege, initialConfig }) 
   function onKlasseChange(k) { setKlasse(k); setSelectedThemen({}); setExpandedLBs({}); }
 
   function toggleLB(lb) {
-    setSelectedThemen(prev => {
-      const next = { ...prev };
-      next[lb] = (next[lb] && next[lb].size > 0) ? new Set() : new Set(AUFGABEN_POOL[klasse][lb].map(t => t.id));
-      return next;
-    });
-    setExpandedLBs(prev => ({ ...prev, [lb]: true }));
+    // Nur Auf-/Zuklappen – keine automatische Auswahl aller Themen
+    setExpandedLBs(prev => ({ ...prev, [lb]: !prev[lb] }));
   }
 
   function toggleThema(lb, id) {
@@ -5143,35 +7129,58 @@ function SchrittTyp({ onWeiter, onBelegEditor, onEigeneBelege, initialConfig }) 
   const canProceed = typ && klasse && totalThemen > 0 && (typ === "Übung" || pruefungsart);
 
   return (
-    <div style={S.card}>
-      <div style={S.label}>Schritt 1 von 3</div>
-      <div style={S.h2}>Aufgabe erstellen</div>
+    <div style={{ background: "#f8fafc" }}>
 
-      {/* Modus: Übung oder Prüfung */}
-      <div style={{ display: "flex", gap: "14px", marginBottom: "20px", marginTop: "16px" }}>
-        {["Übung", "Prüfung"].map(t => (
+      {/* ── HERO ── */}
+      <div style={{ background: "linear-gradient(160deg,#0f172a 0%,#1e293b 100%)", padding: "32px 20px 36px" }}>
+        <div style={{ maxWidth: "860px", margin: "0 auto" }}>
+          <div style={{ fontSize: "12px", fontWeight: 700, letterSpacing: "0.15em", textTransform: "uppercase", color: "#f59e0b", marginBottom: "6px" }}>BwR Bayern · ISB LehrplanPLUS</div>
+          <div style={{ fontSize: "26px", fontWeight: 900, color: "#fff", letterSpacing: "-0.03em", marginBottom: "24px" }}>Was möchtest du erstellen?</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "12px" }}>
+        {[["Übung","📝","Aufgaben üben","#0f172a","#fff"],["Prüfung","📋","Schulaufgabe erstellen","#1e40af","#eff6ff"]].map(([t,icon,desc,bg,bgLight]) => (
           <button key={t} onClick={() => { setTyp(t); if (t === "Übung") setPruefungsart(null); }}
-            style={{ flex: 1, padding: "18px", border: "2px solid", cursor: "pointer", textAlign: "center", borderRadius: "12px",
-              borderColor: typ === t ? "#0f172a" : "#e2e8f0", background: typ === t ? "#0f172a" : "#fff", color: typ === t ? "#fff" : "#475569" }}>
-            <div style={{ fontSize: "26px", marginBottom: "6px" }}>{t === "Übung" ? "📝" : "📋"}</div>
-            <div style={{ fontWeight: 700, fontSize: "15px" }}>{t}</div>
+            style={{ flex: 1, padding: "20px 16px", border: "2.5px solid", cursor: "pointer", textAlign: "center", borderRadius: "16px", transition: "all 0.15s",
+              borderColor: typ === t ? bg : "#e2e8f0",
+              background: typ === t ? bg : "#fff",
+              color: typ === t ? "#fff" : "#475569",
+              boxShadow: typ === t ? `0 4px 20px ${bg}44` : "none" }}>
+            <div style={{ fontSize: "32px", marginBottom: "8px" }}>{icon}</div>
+            <div style={{ fontWeight: 800, fontSize: "16px", marginBottom: "3px" }}>{t}</div>
+            <div style={{ fontSize: "11px", opacity: 0.7 }}>{desc}</div>
           </button>
         ))}
+        <button onClick={() => onSimulation && onSimulation()}
+          style={{ flex: 1, padding: "20px 16px", border: "2.5px solid #7c3aed", cursor: "pointer", textAlign: "center", borderRadius: "16px",
+            background: "linear-gradient(135deg,#4c1d95,#7c3aed)", color: "#fff",
+            boxShadow: "0 4px 20px #7c3aed44", transition: "all 0.15s" }}>
+          <div style={{ fontSize: "32px", marginBottom: "8px" }}>🏭</div>
+          <div style={{ fontWeight: 800, fontSize: "16px", marginBottom: "3px" }}>Simulation</div>
+          <div style={{ fontSize: "11px", color: "#c4b5fd" }}>Firma führen</div>
+        </button>
+          </div>
+        </div>
       </div>
+
+      {/* ── MAIN CONTENT ── */}
+      <div style={{ maxWidth: "860px", margin: "0 auto", padding: "20px 16px" }}>
 
       {/* Beleg-Werkzeuge */}
       <div style={{ display: "flex", gap: "10px", marginBottom: "20px" }}>
         <button onClick={onBelegEditor}
-          style={{ flex: 1, padding: "11px 14px", border: "1.5px solid #e2e8f0", borderRadius: "10px", background: "#fff", cursor: "pointer", display: "flex", alignItems: "center", gap: "8px", color: "#374151", fontWeight: 700, fontSize: "13px" }}>
-          <span style={{ fontSize: "18px" }}>✏️</span>
-          <span>Beleg-Editor</span>
-          <span style={{ marginLeft: "auto", fontSize: "10px", color: "#94a3b8", fontWeight: 500 }}>Beleg erstellen</span>
+          style={{ flex: 1, padding: "14px 16px", border: "1.5px solid #e2e8f0", borderRadius: "14px", background: "#fff", cursor: "pointer", display: "flex", alignItems: "center", gap: "10px", color: "#374151", fontWeight: 700, fontSize: "14px", minHeight: "56px" }}>
+          <span style={{ fontSize: "22px" }}>✏️</span>
+          <div style={{ textAlign: "left" }}>
+            <div style={{ fontWeight: 700 }}>Beleg-Editor</div>
+            <div style={{ fontSize: "11px", color: "#94a3b8", fontWeight: 500 }}>Beleg erstellen</div>
+          </div>
         </button>
         <button onClick={onEigeneBelege}
-          style={{ flex: 1, padding: "11px 14px", border: "1.5px solid #fde68a", borderRadius: "10px", background: "#fffbeb", cursor: "pointer", display: "flex", alignItems: "center", gap: "8px", color: "#374151", fontWeight: 700, fontSize: "13px" }}>
-          <span style={{ fontSize: "18px" }}>📂</span>
-          <span>Eigene Belege</span>
-          <span style={{ marginLeft: "auto", fontSize: "10px", color: "#92400e", fontWeight: 500 }}>Aufgabe aus Beleg</span>
+          style={{ flex: 1, padding: "14px 16px", border: "1.5px solid #fde68a", borderRadius: "14px", background: "#fffbeb", cursor: "pointer", display: "flex", alignItems: "center", gap: "10px", color: "#374151", fontWeight: 700, fontSize: "14px", minHeight: "56px" }}>
+          <span style={{ fontSize: "22px" }}>📂</span>
+          <div style={{ textAlign: "left" }}>
+            <div style={{ fontWeight: 700 }}>Eigene Belege</div>
+            <div style={{ fontSize: "11px", color: "#92400e", fontWeight: 500 }}>Aufgabe aus Beleg</div>
+          </div>
         </button>
       </div>
 
@@ -5227,8 +7236,8 @@ function SchrittTyp({ onWeiter, onBelegEditor, onEigeneBelege, initialConfig }) 
                 const isActive = selSet.size > 0;
                 const isExpanded = expandedLBs[lb];
                 return (
-                  <div key={lb} style={{ border: `2px solid ${isActive ? meta.farbe : "#e2e8f0"}`, borderRadius: "10px", overflow: "hidden", background: isActive ? meta.farbe + "08" : "#fff" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "10px 14px", cursor: "pointer" }} onClick={() => toggleLB(lb)}>
+                  <div key={lb} style={{ border: `2px solid ${isActive ? meta.farbe : "#e2e8f0"}`, borderRadius: "16px", overflow: "hidden", background: isActive ? meta.farbe + "08" : "#fff" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "14px 16px", cursor: "pointer" }} onClick={() => toggleLB(lb)}>
                       <div style={{ width: "18px", height: "18px", borderRadius: "5px", border: `2px solid ${isActive ? meta.farbe : "#cbd5e1"}`, background: isActive ? meta.farbe : "#fff", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                         {isActive && <span style={{ color: "#fff", fontSize: "11px" }}>✓</span>}
                       </div>
@@ -5272,7 +7281,8 @@ function SchrittTyp({ onWeiter, onBelegEditor, onEigeneBelege, initialConfig }) 
                           const isKomplexVK = task.id === "8_komplex_verkauf_kette";
                           const isKomplexFO  = task.id === "9_komplex_forderungskette";
                           const isKomplexABS = task.id === "10_komplex_abschlusskette";
-                          const showConfig = (isKomplexEK || isKomplexVK || isKomplexFO || isKomplexABS) && checked;
+                          const isPct = task.id.startsWith("7_pct_");
+                          const showConfig = (isKomplexEK || isKomplexVK || isKomplexFO || isKomplexABS || isPct) && checked;
                           const hasAnteil = isKomplexVK
                             ? (verkaufOpts.ruecksendung || verkaufOpts.nachlass)
                             : (komplexOpts.ruecksendung || komplexOpts.nachlass);
@@ -5307,7 +7317,7 @@ function SchrittTyp({ onWeiter, onBelegEditor, onEigeneBelege, initialConfig }) 
                                     <span style={{ background: "#f0fdf4", color: "#15803d", border: "1px solid #bbf7d0", borderRadius: "6px", padding: "2px 7px", fontWeight: 700 }}>🏦 {komplexOpts.skonto ? "Zahlung+Skonto" : "Zahlung"}</span>
                                   </div>
 
-                                  {/* Schritt 1: Kalkulation */}
+                                  {/* Schritt 1: Kalkulation + Sofortrabatt */}
                                   <div style={{ marginBottom: "8px" }}>
                                     <div style={{ fontSize: "11px", fontWeight: 700, color: "#374151", marginBottom: "4px" }}>Schritt 1 – Kalkulation</div>
                                     <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
@@ -5324,7 +7334,58 @@ function SchrittTyp({ onWeiter, onBelegEditor, onEigeneBelege, initialConfig }) 
                                       })}
                                     </div>
                                     {(komplexOpts.kalkulation || komplexOpts.angebotsvergleich) && (
-                                      <div style={{ fontSize: "10px", color: "#0369a1", marginTop: "4px" }}>⚠️ Buchungsbasis = <strong>Zieleinkaufspreis</strong></div>
+                                      <div style={{ marginTop: "8px", background: "#fffbeb", border: "1.5px solid #fde68a", borderRadius: "8px", padding: "8px 10px" }}>
+                                        <div style={{ fontSize: "10px", fontWeight: 700, color: "#92400e", marginBottom: "6px" }}>
+                                          💡 Sofortrabatt (auf Rechnung ausgewiesen, kein eigenes Konto – wird direkt vom LEP abgezogen)
+                                        </div>
+                                        {/* Rabattart */}
+                                        <div style={{ display: "flex", flexWrap: "wrap", gap: "3px", marginBottom: "6px" }}>
+                                          {["Sofortrabatt","Mengenrabatt","Treuerabatt","Wiederverkäuferrabatt","Sonderrabatt","Jubiläumsrabatt"].map(rt => {
+                                            const active = (komplexOpts.rabattTyp || "Sofortrabatt") === rt;
+                                            return (
+                                              <button key={rt} onClick={() => setKomplexOpts(o => ({ ...o, rabattTyp: rt }))}
+                                                style={{ padding: "2px 8px", borderRadius: "12px", cursor: "pointer", fontSize: "10px", fontWeight: active ? 700 : 400,
+                                                  border: "1.5px solid " + (active ? "#f59e0b" : "#e5e7eb"),
+                                                  background: active ? "#fef3c7" : "#fff", color: active ? "#92400e" : "#6b7280" }}>
+                                                {rt}
+                                              </button>
+                                            );
+                                          })}
+                                        </div>
+                                        {/* Rabatthöhe: % oder € */}
+                                        <div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap" }}>
+                                          <div style={{ fontSize: "10px", color: "#374151", fontWeight: 600 }}>Höhe:</div>
+                                          {[["pct","in %"],["euro","in €"]].map(([v, l]) => (
+                                            <button key={v} onClick={() => setKomplexOpts(o => ({ ...o, rabattArt: v }))}
+                                              style={{ padding: "2px 8px", borderRadius: "10px", cursor: "pointer", fontSize: "10px", fontWeight: (komplexOpts.rabattArt||"pct") === v ? 700 : 400,
+                                                border: "1.5px solid " + ((komplexOpts.rabattArt||"pct") === v ? "#0ea5e9" : "#e5e7eb"),
+                                                background: (komplexOpts.rabattArt||"pct") === v ? "#e0f2fe" : "#fff", color: (komplexOpts.rabattArt||"pct") === v ? "#0c4a6e" : "#6b7280" }}>
+                                              {l}
+                                            </button>
+                                          ))}
+                                          {(komplexOpts.rabattArt || "pct") === "pct" ? (
+                                            <label style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "10px" }}>
+                                              <input type="number" min="1" max="40" step="0.5"
+                                                value={komplexOpts.rabattPct || ""}
+                                                placeholder="zuf."
+                                                onChange={e => setKomplexOpts(o => ({ ...o, rabattPct: e.target.value ? parseFloat(e.target.value) : null }))}
+                                                style={{ width: "52px", padding: "2px 5px", border: "1.5px solid #cbd5e1", borderRadius: "5px", fontSize: "11px", fontWeight: 700, textAlign: "right" }} />
+                                              <span style={{ color: "#6b7280" }}>%</span>
+                                            </label>
+                                          ) : (
+                                            <label style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "10px" }}>
+                                              <input type="number" min="1" step="0.01"
+                                                value={komplexOpts.rabattEuro || ""}
+                                                placeholder="Betrag"
+                                                onChange={e => setKomplexOpts(o => ({ ...o, rabattEuro: e.target.value ? parseFloat(e.target.value) : null }))}
+                                                style={{ width: "80px", padding: "2px 5px", border: "1.5px solid #cbd5e1", borderRadius: "5px", fontSize: "11px" }} />
+                                              <span style={{ color: "#6b7280" }}>€ (netto)</span>
+                                            </label>
+                                          )}
+                                          <span style={{ fontSize: "10px", color: "#9ca3af" }}>Leer = zufällig</span>
+                                        </div>
+                                        <div style={{ fontSize: "10px", color: "#0369a1", marginTop: "6px" }}>⚠️ Buchungsbasis = <strong>Zieleinkaufspreis</strong> (nach Sofortrabatt, vor Skonto)</div>
+                                      </div>
                                     )}
                                   </div>
 
@@ -5727,6 +7788,50 @@ function SchrittTyp({ onWeiter, onBelegEditor, onEigeneBelege, initialConfig }) 
                                 );
                               })()}
 
+                              {/* ── Inline-Konfigurator Prozentrechnung ── */}
+                              {showConfig && isPct && (
+                                <div style={{ margin: "4px 0 6px 22px", background: "#fefce8", border: "1.5px solid #fde047", borderRadius: "10px", padding: "12px 14px" }}>
+                                  <div style={{ fontSize: "11px", fontWeight: 800, color: "#713f12", marginBottom: "10px", letterSpacing: "0.04em", textTransform: "uppercase" }}>⚙️ Prozentrechnung konfigurieren</div>
+
+                                  {/* Schwierigkeit */}
+                                  <div style={{ marginBottom: "8px" }}>
+                                    <div style={{ fontSize: "11px", fontWeight: 700, color: "#374151", marginBottom: "4px" }}>Schwierigkeitsgrad</div>
+                                    <div style={{ display: "flex", gap: "4px" }}>
+                                      {[["einfach","🟢 Einfach","runde Zahlen, einfache %"],["gemischt","🟡 Gemischt","variiert"],["schwer","🔴 Schwer","unrunde Zahlen, krumme %"]].map(([v, l, desc]) => {
+                                        const active = (pctOpts.schwierigkeit || "gemischt") === v;
+                                        return (
+                                          <button key={v} onClick={() => setPctOpts(o => ({ ...o, schwierigkeit: v }))}
+                                            style={{ flex: 1, padding: "5px 6px", borderRadius: "8px", cursor: "pointer", fontSize: "10px", fontWeight: active ? 700 : 400, textAlign: "center",
+                                              border: "1.5px solid " + (active ? "#eab308" : "#e5e7eb"),
+                                              background: active ? "#fefce8" : "#fff", color: active ? "#713f12" : "#6b7280" }}>
+                                            <div>{l}</div>
+                                            <div style={{ fontSize: "9px", color: active ? "#92400e" : "#9ca3af", marginTop: "2px" }}>{desc}</div>
+                                          </button>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+
+                                  {/* Skonto bei kombinierter Aufgabe */}
+                                  {task.id === "7_pct_kombiniert" && (
+                                    <div>
+                                      <div style={{ fontSize: "11px", fontWeight: 700, color: "#374151", marginBottom: "4px" }}>Optionen</div>
+                                      <label style={{ display: "inline-flex", alignItems: "center", gap: "5px", cursor: "pointer", fontSize: "11px",
+                                        fontWeight: pctOpts.mitSkonto !== false ? 700 : 400,
+                                        padding: "4px 10px", borderRadius: "14px",
+                                        border: "1.5px solid " + (pctOpts.mitSkonto !== false ? "#22c55e" : "#e5e7eb"),
+                                        background: pctOpts.mitSkonto !== false ? "#f0fdf4" : "#fff",
+                                        color: pctOpts.mitSkonto !== false ? "#15803d" : "#64748b" }}>
+                                        <input type="checkbox" checked={pctOpts.mitSkonto !== false}
+                                          onChange={e => setPctOpts(o => ({ ...o, mitSkonto: e.target.checked }))}
+                                          style={{ width: "12px", height: "12px" }} />
+                                        Mit Skonto (ZEP + BEP)
+                                      </label>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+
                             </div>
                           );
                         })}
@@ -5804,11 +7909,15 @@ function SchrittTyp({ onWeiter, onBelegEditor, onEigeneBelege, initialConfig }) 
           if (!canProceed) return;
           const themenMap = {};
           activeLBs.forEach(lb => { themenMap[lb] = [...selectedThemen[lb]]; });
-          onWeiter({ typ, pruefungsart, klasse, datum, anzahl: punkteModus === "punkte" ? null : anzahl, maxPunkte: punkteModus === "punkte" ? maxPunkte : null, selectedThemen: themenMap, werkstoffId, komplexOpts: {...komplexOpts, werkstoffId}, verkaufOpts, forderungOpts, abschlussOpts });
-        }} disabled={!canProceed} style={{ ...S.btnPrimary, opacity: canProceed ? 1 : 0.4, cursor: canProceed ? "pointer" : "not-allowed" }}>
+          onWeiter({ typ, pruefungsart, klasse, datum, anzahl: punkteModus === "punkte" ? null : anzahl, maxPunkte: punkteModus === "punkte" ? maxPunkte : null, selectedThemen: themenMap, werkstoffId, komplexOpts: {...komplexOpts, werkstoffId}, verkaufOpts, forderungOpts, abschlussOpts, pctOpts });
+        }} disabled={!canProceed} style={{ ...S.btnPrimary, width: "100%", padding: "16px", fontSize: "16px", borderRadius: "14px",
+            opacity: canProceed ? 1 : 0.35, cursor: canProceed ? "pointer" : "not-allowed",
+            background: canProceed ? "#0f172a" : "#94a3b8",
+            boxShadow: canProceed ? "0 4px 16px rgba(15,23,42,0.35)" : "none" }}>
           Weiter: Unternehmen wählen →
         </button>
       </>)}
+      </div>
     </div>
   );
 }
@@ -5816,29 +7925,39 @@ function SchrittTyp({ onWeiter, onBelegEditor, onEigeneBelege, initialConfig }) 
 function SchrittFirma({ config, onWeiter, onZurueck }) {
   const [selected, setSelected] = useState(null);
   return (
-    <div style={S.card}>
-      <div style={S.label}>Schritt 2 von 3</div>
-      <div style={S.h2}>Modellunternehmen wählen</div>
-      <p style={{ color: "#64748b", marginTop: 0, marginBottom: "18px" }}>
-        {config.typ}{config.pruefungsart ? ` · ${config.pruefungsart}` : ""} · Klasse {config.klasse} · {Object.values(config.selectedThemen).reduce((s, ids) => s + ids.length, 0)} Themen{config.anzahl ? ` · ${config.anzahl} Aufgaben` : ` · Ziel: ${config.maxPunkte} P`}
-      </p>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "20px" }}>
-        {UNTERNEHMEN.map(u => (
-          <button key={u.id} onClick={() => setSelected(u.id)} style={{ padding: 0, border: "2px solid", cursor: "pointer", textAlign: "left", overflow: "hidden", borderRadius: "12px", borderColor: selected === u.id ? u.farbe : "#e2e8f0", background: selected === u.id ? u.farbe + "0a" : "#fff" }}>
-            <div style={{ background: u.farbe, padding: "10px 16px", display: "flex", alignItems: "center", gap: "8px" }}>
-              <span style={{ fontSize: "20px" }}>{u.icon}</span>
-              <span style={{ fontWeight: 800, fontSize: "14px", color: "#fff" }}>{u.name}</span>
-            </div>
-            <div style={{ padding: "12px 16px" }}>
-              <div style={{ fontSize: "13px", color: "#374151", fontWeight: 600 }}>{u.ort} · {u.rechtsform}</div>
-              <div style={{ fontSize: "12px", color: "#64748b" }}>{u.branche}</div>
-            </div>
-          </button>
-        ))}
+    <div style={{ background: "#f8fafc", minHeight: "calc(100vh - 56px)" }}>
+      <div style={{ background: "linear-gradient(160deg,#0f172a,#1e293b)", padding: "28px 20px 36px" }}>
+        <div style={{ maxWidth: "860px", margin: "0 auto" }}>
+          <div style={{ fontSize: "12px", fontWeight: 700, letterSpacing: "0.15em", textTransform: "uppercase", color: "#f59e0b", marginBottom: "6px" }}>Schritt 2 von 3</div>
+          <div style={{ fontSize: "26px", fontWeight: 900, color: "#fff", letterSpacing: "-0.03em" }}>Modellunternehmen wählen</div>
+          <p style={{ color: "#94a3b8", marginTop: "6px", marginBottom: 0, fontSize: "14px" }}>
+            {config.typ}{config.pruefungsart ? ` · ${config.pruefungsart}` : ""} · Klasse {config.klasse} · {Object.values(config.selectedThemen).reduce((s, ids) => s + ids.length, 0)} Themen{config.anzahl ? ` · ${config.anzahl} Aufgaben` : ` · Ziel: ${config.maxPunkte} P`}
+          </p>
+        </div>
       </div>
-      <div style={{ display: "flex", gap: "10px" }}>
-        <button onClick={onZurueck} style={S.btnSecondary}>← Zurück</button>
-        <button onClick={() => selected && onWeiter(UNTERNEHMEN.find(u => u.id === selected))} disabled={!selected} style={{ ...S.btnPrimary, opacity: selected ? 1 : 0.4, cursor: selected ? "pointer" : "not-allowed" }}>Aufgaben generieren →</button>
+      <div style={{ maxWidth: "860px", margin: "0 auto", padding: "24px 16px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "20px" }}>
+          {UNTERNEHMEN.map(u => (
+            <button key={u.id} onClick={() => setSelected(u.id)} style={{ padding: 0, border: "2px solid", cursor: "pointer", textAlign: "left", overflow: "hidden", borderRadius: "12px", borderColor: selected === u.id ? u.farbe : "#e2e8f0", background: selected === u.id ? u.farbe + "0a" : "#fff" }}>
+              <div style={{ background: u.farbe, padding: "10px 16px", display: "flex", alignItems: "center", gap: "8px" }}>
+                <span style={{ fontSize: "20px" }}>{u.icon}</span>
+                <span style={{ fontWeight: 800, fontSize: "14px", color: "#fff" }}>{u.name}</span>
+              </div>
+              <div style={{ padding: "12px 16px" }}>
+                <div style={{ fontSize: "13px", color: "#374151", fontWeight: 600 }}>{u.ort} · {u.rechtsform}</div>
+                <div style={{ fontSize: "12px", color: "#64748b" }}>{u.branche}</div>
+              </div>
+            </button>
+          ))}
+        </div>
+        <div style={{ display: "flex", gap: "10px" }}>
+          <button onClick={onZurueck} style={S.btnSecondary}>← Zurück</button>
+          <button onClick={() => selected && onWeiter(UNTERNEHMEN.find(u => u.id === selected))} disabled={!selected}
+            style={{ ...S.btnPrimary, flex: 1, opacity: selected ? 1 : 0.4, cursor: selected ? "pointer" : "not-allowed",
+              boxShadow: selected ? "0 4px 16px rgba(15,23,42,0.3)" : "none" }}>
+            Aufgaben generieren →
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -5899,7 +8018,7 @@ function exportKomplexHTML(aufgabe, mitLoesung) {
   const labels = "abcdefghij";
   aufgabe.schritte.forEach((st, si) => {
     html += `<div class="schritt-block">
-      <div class="schritt-header"><span class="schritt-label">${labels[si]})</span> ${st.aufgabe || ""} <span class="punkte-badge">${st.punkte} P</span></div>`;
+      <div class="schritt-header"><span class="schritt-label">${labels[si]})</span> ${st._aufgabeEdit || st.aufgabe || ""} <span class="punkte-badge">${st.punkte} P</span></div>`;
     if (mitLoesung && st.soll?.length) {
       html += `<div class="loesung-block">` + exportBuchungssatzHTML(st.soll, st.haben) + `</div>`;
       if (st.nebenrechnungen?.length) html += exportNrHTML(st.nebenrechnungen);
@@ -5912,9 +8031,8 @@ function exportKomplexHTML(aufgabe, mitLoesung) {
 
 // Firmen-Vorspann-HTML
 function exportFirmaHTML(config, firma) {
-  const intro = config.klasse <= 9
-    ? "Du bist als Auszubildende/r im Unternehmen tätig und mit Aufgaben des betrieblichen Rechnungswesens betraut."
-    : "Als Mitarbeiterin bzw. Mitarbeiter im Unternehmen sind Sie mit Aufgaben des betrieblichen Rechnungswesens betraut.";
+  const introSie = `Als Mitarbeiter/in im Unternehmen ${firma.name}, ${firma.ort || ""}, bearbeiten Sie verschiedene betriebswirtschaftliche Aufgaben.`;
+  const intro = anrede(config.klasse, introSie);
   const wtLabels = [
     ["Rohstoffe", firma.rohstoffe],
     ["Hilfsstoffe", firma.hilfsstoffe],
@@ -5935,7 +8053,47 @@ function exportFirmaHTML(config, firma) {
 }
 
 // Haupt-Generator: erzeugt komplettes HTML-Dokument für Druck / Word
-function generateExportHTML({ aufgaben, config, firma, modus, kiHistorie, format = "pdf" }) {
+
+// ── Kopfzeile HTML für PDF-Export ─────────────────────────────────────────────
+function buildKopfzeilenHTML(k, gesamtP, klasse) {
+  if (!k) return "";
+  const datumStr = k.datum ? new Date(k.datum + "T00:00:00").toLocaleDateString("de-DE", {day:"2-digit",month:"2-digit",year:"numeric"}) : "";
+  const pruefArt = k.pruefungsart || "";
+  const schulName = k.schulName || "";
+  return `<div style="border:1.5px solid #333;margin-bottom:18px;font-family:Arial,sans-serif;font-size:11px">
+    <div style="display:flex;align-items:stretch;border-bottom:2px solid #333">
+      <div style="flex:1;padding:10px 14px;border-right:1.5px solid #333">
+        ${schulName ? `<div style="font-size:10px;color:#666;margin-bottom:4px">${schulName}</div>` : ""}
+        <div style="font-size:15px;font-weight:900">${pruefArt}</div>
+      </div>
+      <div style="width:110px;display:flex;flex-direction:column;text-align:center">
+        <div style="flex:1;border-bottom:1.5px solid #333;padding:10px 8px">
+          <div style="font-size:28px;font-weight:900;line-height:1">&nbsp;</div>
+          <div style="font-size:10px;color:#555;margin-top:4px">Note</div>
+        </div>
+        <div style="flex:1;padding:8px">
+          <div style="font-size:26px;font-weight:900;line-height:1">${gesamtP}</div>
+          <div style="font-size:10px;color:#555;margin-top:2px">Punkte gesamt</div>
+          <div style="font-size:10px;margin-top:4px">Erreicht: _____ P</div>
+        </div>
+      </div>
+    </div>
+    <div style="padding:8px 14px;border-bottom:1.5px solid #ccc;font-size:12px">
+      <strong>Name:</strong> <span style="display:inline-block;border-bottom:1px solid #333;min-width:200px">&nbsp;</span>
+      &nbsp;&nbsp;&nbsp;<strong>Datum:</strong> ${datumStr || '<span style="display:inline-block;border-bottom:1px solid #333;min-width:100px">&nbsp;</span>'}
+      &nbsp;&nbsp;&nbsp;<strong>Klasse:</strong> ${k.klasse || ""}
+    </div>
+    ${k.zeigeUnterschrift !== false ? `<div style="background:#f3f4f6;padding:6px 14px;border-bottom:1.5px solid #ccc;font-size:10px;font-weight:700">
+      Ich/Wir habe/n von diesem Leistungsnachweis beziehungsweise von der Note Kenntnis genommen.
+    </div>
+    <div style="padding:12px 14px;min-height:38px;font-size:11px">
+      Datum &nbsp;<span style="display:inline-block;border-bottom:1px solid #333;min-width:120px">&nbsp;</span>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Unterschrift &nbsp;<span style="display:inline-block;border-bottom:1px solid #333;min-width:200px">&nbsp;</span>
+    </div>` : ""}
+  </div>`;
+}
+
+function generateExportHTML({ aufgaben, config, firma, modus, kiHistorie, kopfzeile = null, format = "pdf" }) {
   // modus: "aufgaben" | "loesungen" | "beides" | "ki"
   const mitAufgabe  = modus !== "loesungen";
   const mitLoesung  = modus !== "aufgaben";
@@ -5995,10 +8153,14 @@ function generateExportHTML({ aufgaben, config, firma, modus, kiHistorie, format
     .loesung-header { font-size: 14px; font-weight: 800; color: #16a34a; margin: 0 0 12px; padding-bottom: 7px; border-bottom: 2px solid #16a34a; }
     .ki-aufgabe-header { background: #faf5ff; border-bottom: 1px solid #e9d5ff; }
     .ki-aufg-titel { font-weight: 700; color: #6d28d9; font-size: 12px; }
+    @page { size: A4; margin: 15mm 15mm 15mm 15mm; }
     @media print {
       .print-btn { display: none !important; }
-      body { padding: 0; }
-      .aufgabe-card { page-break-inside: avoid; }
+      .no-print { display: none !important; }
+      body { padding: 0; margin: 0; max-width: 100%; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .aufgabe-card { page-break-inside: avoid; break-inside: avoid; }
+      .seitenumbruch { page-break-before: always; break-before: always; }
+      * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
     }
   `;
 
@@ -6056,7 +8218,7 @@ function generateExportHTML({ aufgaben, config, firma, modus, kiHistorie, format
     @media print { body { padding: 0; } }
   `;
 
-  const CSS = format === "word" ? CSS_WORD : CSS_PDF;
+  // CSS wird weiter unten nach isMSA-Check gesetzt
 
   // ── Aufgaben-Blöcke aufbauen ──────────────────────────────────────────────
   let aufgabenHTML = "";
@@ -6066,7 +8228,7 @@ function generateExportHTML({ aufgaben, config, firma, modus, kiHistorie, format
     const punkte = berechnePunkte(a);
     const isKomplex = a.taskTyp === "komplex";
     const isRechnung = a.taskTyp === "rechnung";
-    const aufgabeText = anrede(config.klasse, a.aufgabe || "");
+    const aufgabeText = anrede(config.klasse, (a._aufgabeEdit ?? a.aufgabe) || "");
 
     aufgabenHTML += `<div class="aufgabe-card">
       <div class="aufgabe-header">
@@ -6183,15 +8345,221 @@ function generateExportHTML({ aufgaben, config, firma, modus, kiHistorie, format
     loesungsseiteHTML += `</div>`;
   }
 
+  // ── MSA-Format für Klasse 10 ─────────────────────────────────────────────
+  const isMSA = config.klasse >= 10 && format === "pdf";
+  const CSS_MSA = `
+    * { box-sizing: border-box; }
+    body { font-family: Arial, Helvetica, sans-serif; font-size: 11pt; color: #000; margin: 0; padding: 0; }
+    /* Grauer Balken oben – wie MSA */
+    .msa-topbar { background: #595959; color: #fff; padding: 10px 28px 10px 28px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 0; }
+    .msa-topbar-left { font-size: 10pt; font-weight: 700; line-height: 1.5; }
+    .msa-topbar-right { font-size: 10pt; font-weight: 700; text-align: right; line-height: 1.5; }
+    .msa-subbar { background: #e8e8e8; padding: 6px 28px; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #595959; margin-bottom: 20px; }
+    .msa-subbar-typ { font-size: 11pt; font-weight: 700; color: #000; }
+    .msa-subbar-punkte { font-size: 10pt; color: #333; }
+    .msa-page { padding: 0 28px 28px 28px; max-width: 800px; margin: 0 auto; }
+    /* Seitenkopf auf Folgeseiten */
+    .msa-pageheader { font-size: 9pt; color: #333; border-bottom: 1px solid #999; padding-bottom: 4px; margin-bottom: 14px; display: flex; justify-content: space-between; }
+    .print-btn { display:inline-block; margin: 12px 0; padding:8px 18px; background:#595959; color:#fff; border:none; border-radius:4px; font-weight:700; font-size:12pt; cursor:pointer; }
+    /* Firmenblock */
+    .msa-firma { border: 1.5px solid #999; margin-bottom: 16px; }
+    .msa-firma-header { background: #e8e8e8; padding: 7px 12px; font-weight: 700; font-size: 11pt; border-bottom: 1px solid #999; }
+    .msa-firma-body { display: grid; grid-template-columns: 180px 1fr 180px 1fr; gap: 0; font-size: 10pt; }
+    .msa-firma-label { padding: 5px 10px 5px 12px; font-weight: 700; color: #333; border-bottom: 1px solid #e8e8e8; }
+    .msa-firma-value { padding: 5px 10px; border-bottom: 1px solid #e8e8e8; }
+    .msa-firma-wt { padding: 5px 12px; font-size: 10pt; border-top: 1px solid #ccc; }
+    .msa-firma-wt strong { font-weight: 700; }
+    .msa-vorgaben { font-size: 10pt; margin-bottom: 16px; border: 1px solid #ccc; padding: 8px 12px; background: #fafafa; }
+    .msa-vorgaben-title { font-weight: 700; margin-bottom: 5px; }
+    .msa-vorgaben ul { margin: 0; padding-left: 18px; }
+    .msa-vorgaben li { margin-bottom: 3px; line-height: 1.5; }
+    /* Aufgaben */
+    .msa-aufgabe { margin-bottom: 18px; page-break-inside: avoid; break-inside: avoid; }
+    .msa-aufgabe-header { background: #e8e8e8; border: 1.5px solid #595959; padding: 6px 12px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+    .msa-aufgabe-nr { font-size: 12pt; font-weight: 700; color: #000; }
+    .msa-aufgabe-titel { font-size: 10pt; color: #333; flex: 1; margin: 0 14px; }
+    .msa-punkte { font-size: 10pt; font-weight: 700; color: #000; white-space: nowrap; }
+    .msa-aufgabe-body { padding: 4px 0 0 14px; font-size: 11pt; line-height: 1.6; }
+    .msa-teilaufgabe { margin-bottom: 10px; }
+    .msa-ta-nr { font-weight: 700; color: #000; display: inline; }
+    .msa-ta-text { display: inline; }
+    .msa-ta-punkte { float: right; font-size: 10pt; color: #555; font-style: italic; }
+    /* Buchungssatz */
+    .msa-bs { font-family: 'Courier New', monospace; font-size: 10pt; margin: 6px 0 8px 0; }
+    .msa-bs .soll { color: #1d4ed8; font-weight: 700; }
+    .msa-bs .haben { color: #dc2626; font-weight: 700; }
+    .msa-loesung { background: #f0f0f0; border-left: 3px solid #595959; padding: 8px 12px; margin-top: 6px; font-size: 10pt; }
+    .msa-loesung-label { font-size: 8pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: #595959; margin-bottom: 4px; }
+    .msa-nr-block { background: #fff8dc; border: 1px solid #d4a; padding: 6px 10px; margin: 5px 0; font-size: 10pt; }
+    .msa-erkl { margin-top: 6px; padding: 4px 10px; border-left: 2px solid #d97706; font-size: 9pt; color: #555; font-style: italic; }
+    .seitenumbruch { page-break-before: always; break-before: always; }
+    /* Leerfelder */
+    .msa-leer { border-bottom: 1px solid #999; min-height: 28px; margin: 4px 0 10px; }
+    .msa-leer-label { font-size: 9pt; color: #666; margin-bottom: 2px; }
+    @page { size: A4; margin: 12mm 18mm 15mm 18mm; }
+    @media print {
+      .print-btn { display: none !important; }
+      body { padding: 0; margin: 0; }
+      .msa-aufgabe { page-break-inside: avoid; break-inside: avoid; }
+      * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+    }
+  `;
+
   // ── Kopfzeile für Aufgabenblatt ─────────────────────────────────────────
   const isLoesung = modus === "loesungen";
-  const headerTitel = isLoesung ? `✔ Musterlösung – ${titel}` : titel;
+  const headerTitel = isLoesung ? `Musterlösung – ${titel}` : titel;
   const headerFarbe = isLoesung ? "#16a34a" : "#0f172a";
+  const CSS = isMSA ? CSS_MSA : (format === "word" ? CSS_WORD : CSS_PDF);
 
-  const body = modus === "ki"
+  // ── MSA Body ─────────────────────────────────────────────────────────────
+  const buildMSABody = () => {
+    const year = new Date(config.datum + "T00:00:00").getFullYear();
+    const typLabel = config.pruefungsart || config.typ || "Übung";
+    const isLoesungMSA = modus === "loesungen";
+
+    // Firmenblock
+    const wtRows = [
+      ["Rohstoffe", firma.rohstoffe],
+      ["Fremdbauteile", firma.fremdbauteile],
+      ["Hilfsstoffe", firma.hilfsstoffe],
+      ["Betriebsstoffe", firma.betriebsstoffe],
+    ].filter(([,list]) => list?.length);
+
+    const firmaHTML = `
+      <div class="msa-firma">
+        <div class="msa-firma-header">Informationen zum Unternehmen: ${firma.name}</div>
+        <div class="msa-firma-body">
+          <div class="msa-firma-label">Inhaberin/Inhaber:</div>
+          <div class="msa-firma-value">${firma.inhaber || ""}</div>
+          <div class="msa-firma-label">Rechtsform:</div>
+          <div class="msa-firma-value">${firma.rechtsform || ""}</div>
+          <div class="msa-firma-label">Anschrift:</div>
+          <div class="msa-firma-value">${firma.strasse || ""}, ${firma.plz || ""} ${firma.ort || ""}</div>
+          <div class="msa-firma-label">Branche:</div>
+          <div class="msa-firma-value">${firma.branche || ""}</div>
+          <div class="msa-firma-label">Geschäftsjahr:</div>
+          <div class="msa-firma-value">1. Januar bis 31. Dezember ${year}</div>
+          <div class="msa-firma-label">Unternehmens&shy;philosophie:</div>
+          <div class="msa-firma-value">${firma.slogan || ""}</div>
+        </div>
+        ${wtRows.length ? `<div style="display:grid;grid-template-columns:1fr 1fr;border-top:1px solid #ccc;">
+          ${wtRows.map(([label, list]) => `
+            <div class="msa-firma-wt"><strong>${label}:</strong> ${list.slice(0,3).join(", ")} …</div>
+          `).join("")}
+        </div>` : ""}
+      </div>`;
+
+    const vorgabenHTML = `
+      <div class="msa-vorgaben">
+        <div class="msa-vorgaben-title">Formale Vorgaben:</div>
+        <ul>
+          <li>Bei Buchungssätzen sind stets Kontennummern, Kontennamen (abgekürzt möglich) und Beträge anzugeben.</li>
+          <li>Bei Berechnungen sind jeweils alle notwendigen Lösungsschritte und Nebenrechnungen darzustellen.</li>
+          <li>Alle Ergebnisse sind auf zwei Nachkommastellen gerundet anzugeben.</li>
+          <li>Soweit nicht anders vermerkt, gilt ein Umsatzsteuersatz von 19 %.</li>
+        </ul>
+      </div>`;
+
+    let aufgabenMSA = "";
+    aufgaben.forEach((a, i) => {
+      const pts = berechnePunkte(a);
+      const aufgNr = i + 1;
+      const aufgText = mitAufgabe ? ((a._aufgabeEdit ?? a.aufgabe) || "") : "";
+
+      // Buchungssatz HTML
+      const bsHTML = (soll, haben) => {
+        if (!soll?.length && !haben?.length) return "";
+        let rows = [];
+        const maxLen = Math.max(soll?.length || 0, haben?.length || 0);
+        soll?.forEach((s, i) => {
+          const h = haben?.[i];
+          rows.push(`<tr>
+            <td class="soll" style="padding:1px 6px;white-space:nowrap">${s.nr} ${s.name.split("(")[1]?.replace(")","") || s.name.slice(0,6)}</td>
+            <td style="padding:1px 6px;text-align:right;white-space:nowrap">${s.betrag?.toLocaleString("de-DE",{minimumFractionDigits:2,maximumFractionDigits:2})} €</td>
+            <td style="padding:1px 8px;color:#666">an</td>
+            <td class="haben" style="padding:1px 6px;white-space:nowrap">${h ? h.nr + " " + (h.name.split("(")[1]?.replace(")","") || h.name.slice(0,6)) : ""}</td>
+            <td style="padding:1px 6px;text-align:right;white-space:nowrap">${h ? h.betrag?.toLocaleString("de-DE",{minimumFractionDigits:2,maximumFractionDigits:2}) + " €" : ""}</td>
+          </tr>`);
+        });
+        if ((haben?.length || 0) > (soll?.length || 0)) {
+          haben?.slice(soll?.length || 0).forEach(h => {
+            rows.push(`<tr>
+              <td></td><td></td><td style="padding:1px 8px;color:#666">an</td>
+              <td class="haben" style="padding:1px 6px">${h.nr} ${h.name.split("(")[1]?.replace(")","") || h.name.slice(0,6)}</td>
+              <td style="padding:1px 6px;text-align:right">${h.betrag?.toLocaleString("de-DE",{minimumFractionDigits:2,maximumFractionDigits:2})} €</td>
+            </tr>`);
+          });
+        }
+        return `<table class="msa-bs" style="border-collapse:collapse">${rows.join("")}</table>`;
+      };
+
+      const loesungHTML = !mitLoesung ? "" : `
+        <div class="msa-loesung">
+          <div class="msa-loesung-label">${isLoesungMSA ? "Musterlösung" : "Lösung"}</div>
+          ${a.taskTyp === "buchung" ? bsHTML(a.soll, a.haben) : ""}
+          ${a.nebenrechnungen?.length ? `<div style="font-size:10pt;margin-top:4px">
+            ${a.nebenrechnungen.map(r => `<div>${r.label}: ${r.formel} = ${r.ergebnis}</div>`).join("")}
+          </div>` : ""}
+          ${a.schema?.length && a.taskTyp === "rechnung" ? `<table style="font-size:10pt;border-collapse:collapse;width:100%">
+            ${a.schema.map(r => typeof r.wert === "number" ? `<tr>
+              <td style="padding:2px 6px;${r.bold ? "font-weight:700" : ""}">${r.label}</td>
+              <td style="padding:2px 6px;text-align:right;font-weight:${r.bold ? "700" : "400"}">${r.wert?.toLocaleString("de-DE",{minimumFractionDigits:2,maximumFractionDigits:2})} €</td>
+            </tr>` : "").join("")}
+          </table>` : ""}
+          ${a.erklaerung ? `<div class="msa-erkl">${a.erklaerung}</div>` : ""}
+        </div>`;
+
+      const leerfelderHTML = !mitAufgabe ? "" : `
+        <div class="msa-leer-label" style="font-size:9pt;color:#666;margin-top:8px">Lösung:</div>
+        <div class="msa-leer"></div>
+        ${a.nebenrechnungen?.length ? `<div class="msa-leer-label" style="font-size:9pt;color:#666">Nebenrechnung:</div><div class="msa-leer" style="min-height:50px"></div>` : ""}
+      `;
+
+      aufgabenMSA += `
+        <div class="msa-aufgabe">
+          <div class="msa-aufgabe-header">
+            <span class="msa-aufgabe-nr">Aufgabe ${aufgNr}</span>
+            <span class="msa-aufgabe-titel">${a.titel || ""}</span>
+            <span class="msa-punkte">${pts} Punkte</span>
+          </div>
+          <div class="msa-aufgabe-body">
+            ${mitAufgabe ? `<div style="margin-bottom:8px;font-size:11pt">${aufgText}</div>` : ""}
+            ${mitAufgabe ? leerfelderHTML : ""}
+            ${loesungHTML}
+          </div>
+        </div>`;
+    });
+
+    const gesamtStr = `${gesamtP} Punkte gesamt`;
+    return `
+      <div class="msa-topbar">
+        <div class="msa-topbar-left">
+          <div style="font-size:13pt">Betriebswirtschaftslehre/Rechnungswesen</div>
+          <div>${isLoesungMSA ? "✔ Musterlösung" : typLabel} · Klasse ${config.klasse}</div>
+        </div>
+        <div class="msa-topbar-right">
+          <div>${firma.name || ""}</div>
+          <div>${datum}</div>
+        </div>
+      </div>
+      <div class="msa-subbar">
+        <div class="msa-subbar-typ">${isLoesungMSA ? "Musterlösung" : typLabel}</div>
+        <div class="msa-subbar-punkte">${gesamtStr}</div>
+      </div>
+      <div class="msa-page">
+        ${firmaHTML}
+        ${vorgabenHTML}
+        ${aufgabenMSA}
+      </div>`;
+  };
+
+  const body = isMSA
+    ? buildMSABody()
+    : modus === "ki"
     ? `<h1 class="doc-titel" style="color:#6d28d9">🤖 KI-Aufgaben · ${kiHistorie?.length || 0} Aufgaben</h1>
        <div class="doc-sub"><span>${datum}</span></div>${kiHTML}`
     : `
+      ${kopfzeile ? buildKopfzeilenHTML(kopfzeile, gesamtP, config.klasse) : ""}
       <h1 class="doc-titel" style="color:${headerFarbe}">${headerTitel}</h1>
       <div class="doc-sub">
         <span>📅 ${datum}</span>
@@ -6221,14 +8589,14 @@ function generateExportHTML({ aufgaben, config, firma, modus, kiHistorie, format
   ${autoprint}
 </head>
 <body>
-  <div class="bw-header">
+  ${isMSA ? "" : `<div class="bw-header">
     <div class="bw-logo">Buchungs<span>Werk</span></div>
     <div class="bw-meta">
-      <strong>BwR Bayern · Realschule · ISB 2025</strong><br>
+      <strong>BwR Bayern · Realschule · 2025</strong><br>
       ${firma.name || ""} · ${datum}<br>
       Klasse ${config.klasse} · ${gesamtP} Punkte
     </div>
-  </div>
+  </div>`}
   ${printBtn}
   ${body}
 </body>
@@ -6305,7 +8673,7 @@ function MaterialienModal({ onSchliessen, onLaden }) {
           {!laden && !fehler && materialien.length === 0 && (
             <div style={{ color:"#475569", textAlign:"center", padding:"28px", fontSize:"13px" }}>
               Noch keine Materialien gespeichert.<br/>
-              <span style={{ fontSize:"11px" }}>Erstelle eine Übung und klicke auf „💾 Speichern".</span>
+              <span style={{ fontSize:"11px" }}>Erstelle eine Übung und klicke auf "💾 Speichern".</span>
             </div>
           )}
           {gruppiertNachStufe.map(({ stufe: s, items }) => (
@@ -6345,9 +8713,489 @@ function MaterialienModal({ onSchliessen, onLaden }) {
   );
 }
 
+
+// ── KopfzeilenEditor ──────────────────────────────────────────────────────────
+const DEFAULT_KOPFZEILE = {
+  schulName: "", // wird aus settings.stammschule vorausgefüllt
+  klasse: "",
+  pruefungsart: "Schulaufgabe",
+  datum: new Date().toISOString().split("T")[0],
+  zeigeNote: true,
+  zeigePunkte: true,
+  zeigeUnterschrift: true,
+};
+
+function KopfzeilenEditor({ config, firma, kopfzeile, setKopfzeile }) {
+  const settings = useSettings();
+  // Auto-fill Stammschule from settings if kopfzeile.schulName is empty
+  React.useEffect(() => {
+    if (!kopfzeile.schulName && settings.stammschule) {
+      setKopfzeile(p => ({ ...p, schulName: settings.stammschule }));
+    }
+  }, [settings.stammschule]);
+  const k = kopfzeile;
+  const inp = (label, field, type="text", placeholder="") => (
+    <div style={{ display:"flex", flexDirection:"column", gap:3, flex:1 }}>
+      <label style={{ fontSize:11, fontWeight:700, color:"#64748b", textTransform:"uppercase", letterSpacing:".06em" }}>{label}</label>
+      <input type={type} value={k[field]} placeholder={placeholder}
+        onChange={e => setKopfzeile(p => ({ ...p, [field]: e.target.value }))}
+        style={{ ...S.input, fontSize:13, padding:"7px 10px" }} />
+    </div>
+  );
+  const chk = (label, field) => (
+    <label style={{ display:"flex", alignItems:"center", gap:6, fontSize:12, color:"#374151", cursor:"pointer" }}>
+      <input type="checkbox" checked={k[field]} onChange={e => setKopfzeile(p => ({ ...p, [field]: e.target.checked }))}
+        style={{ width:14, height:14 }} />
+      {label}
+    </label>
+  );
+
+  // Vorschau der Kopfzeile
+  const year = new Date(k.datum + "T00:00:00").getFullYear();
+  const datumStr = k.datum ? new Date(k.datum + "T00:00:00").toLocaleDateString("de-DE", {day:"2-digit",month:"2-digit",year:"numeric"}) : "";
+
+  return (
+    <div>
+      <div style={{ fontSize:12, fontWeight:700, color:"#94a3b8", textTransform:"uppercase", letterSpacing:".08em", marginBottom:10 }}>
+        Kopfzeile der Prüfung
+      </div>
+
+      {/* Eingabefelder */}
+      <div style={{ display:"flex", flexDirection:"column", gap:10, marginBottom:14 }}>
+        <div style={{ display:"flex", gap:10 }}>
+          {inp("Schule", "schulName", "text", "z. B. Städtische Realschule München")}
+          {inp("Klasse", "klasse", "text", `z. B. ${config.klasse}a`)}
+        </div>
+        <div style={{ display:"flex", gap:10 }}>
+          {inp("Prüfungsart", "pruefungsart", "text", "z. B. Schulaufgabe Nr. 2")}
+          {inp("Datum", "datum", "date")}
+        </div>
+        <div style={{ display:"flex", gap:16, flexWrap:"wrap", padding:"8px 0" }}>
+          {chk("Notenfeld anzeigen", "zeigeNote")}
+          {chk("Punkte-Feld anzeigen", "zeigePunkte")}
+          {chk("Unterschrift EB", "zeigeUnterschrift")}
+        </div>
+      </div>
+
+      {/* Vorschau */}
+      <div style={{ fontSize:11, fontWeight:700, color:"#94a3b8", textTransform:"uppercase", letterSpacing:".08em", marginBottom:6 }}>
+        Vorschau
+      </div>
+      <div style={{ border:"1px solid #cbd5e1", borderRadius:8, overflow:"hidden", fontFamily:"Arial,sans-serif", fontSize:11 }}>
+        {/* Obere Linie: Schule + Fach */}
+        <div style={{ background:"#f1f5f9", padding:"6px 12px", display:"flex", justifyContent:"space-between", borderBottom:"1px solid #e2e8f0" }}>
+          <span style={{ fontWeight:700 }}>{k.schulName || "Schule"}</span>
+          <span style={{ color:"#475569" }}>Betriebswirtschaftslehre/Rechnungswesen</span>
+        </div>
+        {/* Hauptkopf */}
+        <div style={{ padding:"10px 12px", display:"flex", gap:12, flexWrap:"wrap", borderBottom:"2px solid #0f172a" }}>
+          <div style={{ flex:2 }}>
+            <div style={{ fontSize:14, fontWeight:800, marginBottom:2 }}>{k.pruefungsart || "Prüfungsart"}</div>
+            <div style={{ fontSize:11, color:"#475569" }}>
+              Klasse: <strong>{k.klasse || config.klasse}</strong>
+              {datumStr && <span style={{ marginLeft:14 }}>Datum: <strong>{datumStr}</strong></span>}
+            </div>
+            <div style={{ fontSize:11, color:"#475569", marginTop:2 }}>
+              {firma.name} · {gesamtPunkteStr(config)} Punkte
+            </div>
+          </div>
+          {k.zeigePunkte && (
+            <div style={{ border:"1px solid #cbd5e1", borderRadius:6, padding:"4px 10px", textAlign:"center", minWidth:90 }}>
+              <div style={{ fontSize:9, color:"#64748b" }}>Erreichte Punkte</div>
+              <div style={{ borderTop:"1px solid #cbd5e1", marginTop:2, paddingTop:2, fontSize:11, color:"#94a3b8" }}>____ / ? P</div>
+            </div>
+          )}
+          {k.zeigeNote && (
+            <div style={{ border:"2px solid #0f172a", borderRadius:6, padding:"4px 10px", textAlign:"center", minWidth:70 }}>
+              <div style={{ fontSize:9, color:"#64748b" }}>Note</div>
+              <div style={{ fontSize:20, fontWeight:900, color:"#0f172a", lineHeight:1.2 }}>&nbsp;</div>
+            </div>
+          )}
+        </div>
+        {/* Name + Unterschrift */}
+        <div style={{ padding:"8px 12px", display:"flex", gap:14, fontSize:11 }}>
+          <div style={{ flex:2 }}>
+            Name: <span style={{ display:"inline-block", borderBottom:"1px solid #0f172a", minWidth:160 }}>&nbsp;</span>
+          </div>
+          {k.zeigeUnterschrift && (
+            <div style={{ flex:1 }}>
+              Unterschrift EB: <span style={{ display:"inline-block", borderBottom:"1px solid #0f172a", minWidth:110 }}>&nbsp;</span>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function gesamtPunkteStr(config) { return config.maxPunkte ? config.maxPunkte + "" : "?"; }
+
+// ══════════════════════════════════════════════════════════════════════════════
+// BELEG-EXPORT FACTORY – Modulebene (außerhalb ExportModal)
+// ══════════════════════════════════════════════════════════════════════════════
+function makeBelegDocx({ Table, TableRow, TableCell, Paragraph, TextRun,
+                         WidthType, BorderStyle, AlignmentType, ShadingType }) {
+
+  const PW = 9638; // A4, 2 cm Ränder in DXA
+
+  // ── Rahmen ──────────────────────────────────────────────────────────────────
+  const bNo  = { style: BorderStyle.NONE,   size: 0,  color: "FFFFFF" };
+  const bTh  = { style: BorderStyle.SINGLE, size: 4,  color: "CCCCCC" };
+  const bOut = { style: BorderStyle.SINGLE, size: 20, color: "111111" }; // schwarzer Außenrahmen
+  const noB  = { top: bNo, bottom: bNo, left: bNo, right: bNo };
+  const allTh = { top: bTh, bottom: bTh, left: bTh, right: bTh };
+  const botTh = { top: bNo, bottom: bTh, left: bNo, right: bNo };
+  const empty = () => new Paragraph({ spacing: { after: 0 }, children: [] });
+
+  // ── Text-Helfer ──────────────────────────────────────────────────────────────
+  const run = (text, o) => new TextRun({
+    text: String(text || ""), size: (o&&o.sz)||20, bold: !!(o&&o.b),
+    italic: !!(o&&o.i), color: (o&&o.col)||"000000", font: "Arial",
+  });
+  const para = (runs, o) => new Paragraph({
+    spacing: { after: (o&&o.sp)||0 },
+    keepNext: !!(o&&o.kn),
+    alignment: (o&&o.r) ? AlignmentType.RIGHT : (o&&o.c) ? AlignmentType.CENTER : AlignmentType.LEFT,
+    children: Array.isArray(runs) ? runs : [runs],
+  });
+  const p = (text, o) => para(run(text, o), o);
+
+  // ── Zellen-Helfer ────────────────────────────────────────────────────────────
+  // Zellen-Helfer: bg wird aus belegToDocx-Scope per Closure übergeben
+  // da cell() im äußeren Scope lebt, braucht bg eine andere Lösung:
+  // Wir machen cell() zu einer curried Funktion die bg akzeptiert.
+  const makeCell = (bg) => (content, w, o) => new TableCell({
+    width: { size: w, type: WidthType.DXA },
+    borders: (o&&o.brd) || noB,
+    shading: { fill: (o&&o.fill) ? o.fill : "FFFFFF", type: ShadingType.CLEAR },
+    columnSpan: (o&&o.span) || undefined,
+    margins: { top: (o&&o.mt!=null)?o.mt:80, bottom: (o&&o.mb!=null)?o.mb:80, left: (o&&o.ml)||140, right: (o&&o.mr)||140 },
+    children: Array.isArray(content) ? content : [content],
+  });
+  const row = (cells) => new TableRow({ cantSplit: true, children: cells });
+  const makeHrRow = (cell) => (w, col) => row([cell(empty(), w, {
+    brd: { top: bNo, bottom: { style: BorderStyle.SINGLE, size: 6, color: col||"CCCCCC" }, left: bNo, right: bNo },
+    mt: 0, mb: 0,
+  })]);
+
+  // Gesamttabelle – in 1-Zellen-Wrapper für garantierten Außenrahmen
+  const bOut2 = { style: BorderStyle.SINGLE, size: 8, color: "000000" }; // 1pt schwarz
+  const belegTable = (rows, colWidths) => {
+    const innerTable = new Table({
+      width: { size: PW, type: WidthType.DXA },
+      columnWidths: colWidths,
+      borders: { top: bNo, bottom: bNo, left: bNo, right: bNo, insideH: bNo, insideV: bNo },
+      rows,
+    });
+    // Wrapper: Zell-Rahmen setzen (Zell-Rahmen haben in Word Vorrang vor Tabellen-Rahmen)
+    return new Table({
+      width: { size: PW, type: WidthType.DXA },
+      columnWidths: [PW],
+      borders: { top: bNo, bottom: bNo, left: bNo, right: bNo, insideH: bNo, insideV: bNo },
+      rows: [new TableRow({ cantSplit: true, children: [new TableCell({
+        width: { size: PW, type: WidthType.DXA },
+        borders: { top: bOut2, bottom: bOut2, left: bOut2, right: bOut2 },
+        margins: { top: 0, bottom: 0, left: 0, right: 0 },
+        children: [innerTable],
+      })] })],
+    });
+  };
+
+  // Unterschrift-Zeile: Vorname abgekürzt, einzeilig
+  const makeSignRow = (cell) => (name, titel, w) => {
+    // "Josef Brandl" → "J. Brandl" für Handschrift
+    const parts = (name || "").trim().split(" ");
+    const short = parts.length > 1 ? parts[0][0] + ". " + parts.slice(1).join(" ") : name;
+    return row([cell([
+      // Zeile 1: Kursive Handschrift (Initiale + Nachname) – tintenblau
+      new Paragraph({ spacing: { after: 2 }, children: [
+        new TextRun({ text: short, size: 24, italic: true, color: "1a3a6b", font: "Segoe Script" }),
+      ]}),
+      // Zeile 2: Horizontale Linie (etwas Abstand zur Unterschrift)
+      new Paragraph({ spacing: { after: 2 },
+        border: { bottom: { style: BorderStyle.SINGLE, size: 4, color: "AAAAAA" } },
+        children: [new TextRun({ text: "\u00a0", size: 8, font: "Arial" })],
+      }),
+      // Zeile 3: i. A. Vorname Nachname (voller Name)
+      new Paragraph({ spacing: { after: 2 }, children: [
+        new TextRun({ text: "i.\u202fA.\u2002" + name, size: 17, color: "222222", font: "Arial" }),
+      ]}),
+      // Zeile 4: Abteilung/Branche
+      new Paragraph({ spacing: { after: 0 }, children: [
+        new TextRun({ text: titel, size: 15, color: "666666", font: "Arial" }),
+      ]}),
+    ], w, { mt: 40, mb: 60, ml: 120 })]);
+  };
+
+  // ── HAUPTFUNKTION ────────────────────────────────────────────────────────────
+  return function belegToDocx(beleg, firma) {
+    if (!beleg) return [];
+    const fc = ((firma&&firma.farbe)||"#1e293b").replace("#","").toUpperCase();
+    // Hintergrundfarbe: Firmenfarbe 6% + 94% Weiß
+    const rv = parseInt(fc.slice(0,2),16), gv = parseInt(fc.slice(2,4),16), bv2 = parseInt(fc.slice(4,6),16);
+    const nr = Math.round(rv+(255-rv)*0.94), ng = Math.round(gv+(255-gv)*0.94), nb3 = Math.round(bv2+(255-bv2)*0.94);
+    const bg = (nr<16?"0":"")+nr.toString(16).toUpperCase()+(ng<16?"0":"")+ng.toString(16).toUpperCase()+(nb3<16?"0":"")+nb3.toString(16).toUpperCase();
+    // cell und hrRow mit bg erzeugen
+    const cell = makeCell(bg);
+    const hrRow = makeHrRow(cell);
+    const signRow = makeSignRow(cell);
+    const bAkz = { style: BorderStyle.SINGLE, size: 20, color: fc };
+    const hdrBrd = { top: bNo, bottom: bAkz, left: bNo, right: bNo };
+
+    // ══════════════════════════════════════════════════════
+    // EINGANGS- / AUSGANGSRECHNUNG
+    // ══════════════════════════════════════════════════════
+    if (beleg.typ === "eingangsrechnung" || beleg.typ === "ausgangsrechnung") {
+      // Für Rechnungen: Zellen ohne Hintergrundfarbe (nur Titelzeile hat Firmenfarbe)
+      const isEin = beleg.typ === "eingangsrechnung";
+      const abs   = isEin ? (beleg.lief||{}) : (beleg.firma||firma||{});
+      const empf  = isEin ? (beleg.empfaenger||{}) : (beleg.kunde||{});
+      const absFc = (abs.farbe||"#1e293b").replace("#","").toUpperCase();
+      const rgnr  = beleg.rgnr || beleg.belegnr || "–";
+      const dat   = beleg.datum || "";
+      const ziel  = beleg.zahlungsziel || "";
+      const gf    = abs.gf || ""; // Geschäftsführer für Unterschrift
+      const icon  = abs.icon || "";
+
+      // 5-Spalten-Raster: Art-Nr. | Gegenstand | Menge | Einzelpr. | Betrag
+      const c1=867, c2=3662, c3=1156, c4=1638, c5=2315; // Summe=9638
+      const wL=c1+c2+c3, wR=c4+c5;
+      const empfAdr = empf.plz_ort || ((empf.plz||"")+" "+(empf.ort||"")).trim();
+      const rows = [];
+
+      // Block 1: Firmen-Kopf
+      rows.push(row([cell([
+        para([
+          ...(icon ? [run(icon+" ", { sz: 26 })] : []),
+          run(abs.name||"", { sz: 30, b: true, col: absFc }),
+        ], { sp: 10 }),
+        ...(abs.slogan ? [p(abs.slogan, { sz: 15, i: true, col: "666666", sp: 6 })] : []),
+        p([abs.strasse, (abs.plz||"")+" "+(abs.ort||"")].filter(Boolean).join("  ·  "), { sz: 16, col: "555555", sp: 4 }),
+        ...(abs.tel   ? [p("Tel.: "+abs.tel,  { sz: 14, col: "777777", sp: 2 })] : []),
+        ...(abs.email ? [p(abs.email,          { sz: 14, col: "777777" })] : []),
+      ], PW, { brd: hdrBrd, mt: 100, mb: 100, fill: "F9F7F4", span: 5 })]));
+
+      // Block 2: Empfänger | Bankverbindung + HRB
+      rows.push(row([
+        cell([
+          p("An:", { sz: 14, col: "999999", sp: 8 }),
+          p(empf.name||"", { sz: 20, b: true, sp: 6 }),
+          ...(empf.strasse ? [p(empf.strasse,  { sz: 18 })] : []),
+          ...(empfAdr      ? [p(empfAdr,        { sz: 18 })] : []),
+        ], wL, { mt: 90, mb: 80 }),
+        cell([
+          ...(abs.bank&&abs.iban ? [
+            p("Bankverbindung:", { sz: 14, col: "777777", sp: 4, r: true }),
+            p(abs.bank,          { sz: 14, col: "444444", sp: 2, r: true }),
+            p("IBAN: "+abs.iban,  { sz: 14, col: "444444", sp: 12, r: true }),
+          ] : []),
+          ...(abs.hrb ? [p(abs.hrb, { sz: 14, col: "888888", r: true })] : []),
+        ], wR, { mt: 90, mb: 80 }),
+      ]));
+
+      rows.push(hrRow(PW, absFc));
+
+      // Block 3: Dokumenttitel + Nr/Datum
+      rows.push(row([
+        cell([
+          para([run("Rechnung", { sz: 34, b: true, col: "111111" })], { sp: 10 }),
+          p("Nr. "+rgnr+"   ·   "+dat, { sz: 18, col: "444444" }),
+        ], wL, { mt: 80, mb: 80 }),
+        cell([
+          ...(beleg.lieferdatum ? [p("Lieferdatum: "+beleg.lieferdatum, { sz: 15, col: "555555", sp: 6, r: true })] : []),
+          ...(empf.kundennr ? [p("Kunden-Nr.: "+empf.kundennr, { sz: 15, col: "555555", r: true })] : []),
+        ], wR, { mt: 80, mb: 80 }),
+      ]));
+
+      // Block 4: Positions-Tabelle Header
+      const hF = "E8E8E8";
+      rows.push(row([
+        cell(p("Art-Nr.",    {sz:16,b:true}), c1, {brd:allTh,fill:hF}),
+        cell(p("Gegenstand", {sz:16,b:true}), c2, {brd:allTh,fill:hF}),
+        cell(p("Menge",      {sz:16,b:true}), c3, {brd:allTh,fill:hF}),
+        cell(p("Einzelpr.",  {sz:16,b:true}), c4, {brd:allTh,fill:hF}),
+        cell(p("Betrag",     {sz:16,b:true,r:true}), c5, {brd:allTh,fill:hF,mr:120}),
+      ]));
+
+      // Block 5: Positionen (Sofortrabatt als eigene Zeile grün)
+      (beleg.positionen||[]).forEach(pos => {
+        const isRab = !!pos.isRabatt;
+        const ep2 = pos.ep!=null ? pos.ep : null;
+        const betragFmt = pos.netto!=null ? (isRab ? "− "+fmt(Math.abs(pos.netto)) : fmt(pos.netto))+" €" : "";
+        rows.push(row([
+          cell(p(pos.artnr||"",                                                           {sz:18}), c1, {brd:allTh}),
+          cell(p(pos.beschr||"",                                                          {sz:18, b:isRab}), c2, {brd:allTh}),
+          cell(p(isRab||!pos.menge ? "" : String(pos.menge)+" "+(pos.einheit||""),        {sz:18}), c3, {brd:allTh}),
+          cell(p(isRab||ep2==null ? "" : fmt(ep2)+" €",                                  {sz:18,r:true}), c4, {brd:allTh,mr:120}),
+          cell(p(betragFmt,                                                               {sz:18,r:true, b:isRab}), c5, {brd:allTh,mr:120}),
+        ]));
+      });
+
+      // Leerzeile
+      rows.push(row([
+        cell(empty(),c1,{brd:allTh,mt:20,mb:20}),
+        cell(empty(),c2,{brd:allTh,mt:20,mb:20}),
+        cell(empty(),c3,{brd:allTh,mt:20,mb:20}),
+        cell(empty(),c4,{brd:allTh,mt:20,mb:20}),
+        cell(empty(),c5,{brd:allTh,mt:20,mb:20}),
+      ]));
+
+      // USt
+      rows.push(row([
+        cell(empty(), c1+c2+c3, {brd:allTh,mt:30,mb:30,span:3}),
+        cell(p("+ "+(beleg.ustPct||19)+" % Umsatzsteuer", {sz:17,r:true}), c4, {brd:allTh,mr:120}),
+        cell(p(fmt(beleg.ustBetrag)+" €", {sz:17,r:true}), c5, {brd:allTh,mr:120}),
+      ]));
+
+      // Rechnungsbetrag (fett)
+      const sF = "F0F0F0";
+      rows.push(row([
+        cell(empty(), c1+c2+c3, {brd:allTh,fill:sF,mt:60,mb:60,span:3}),
+        cell(p("Rechnungsbetrag:", {sz:18,b:true,r:true}), c4, {brd:allTh,fill:sF,mr:120}),
+        cell(p(fmt(beleg.brutto)+" €", {sz:22,b:true,r:true}), c5, {brd:allTh,fill:sF,mr:120}),
+      ]));
+
+      // Block 6: Zahlungsziel + Bank
+      if (ziel) {
+        rows.push(hrRow(PW));
+        rows.push(row([cell([
+          p("Zahlungsbedingung: "+ziel, {sz:17,i:true,col:"333333",sp:8}),
+          ...(abs.iban ? [p((abs.bank||"")+"   ·   IBAN: "+abs.iban, {sz:14,col:"666666"})] : []),
+        ], PW, {mt:60,mb:50,span:5})]));
+      }
+
+      // Block 7: Unterschrift
+      if (gf) {
+        rows.push(hrRow(PW, "DDDDDD"));
+        rows.push(signRow(gf, abs.branche||"Buchhaltung", PW));
+      }
+
+      return [belegTable(rows, [c1,c2,c3,c4,c5], absFc)];
+
+    // ══════════════════════════════════════════════════════
+    // ÜBERWEISUNG
+    // ══════════════════════════════════════════════════════
+    } else if (beleg.typ === "ueberweisung") {
+      const abs  = beleg.absender   || {};
+      const empf = beleg.empfaenger || {};
+      const cL   = 3200, cR = PW-cL;
+      const rows = [
+        row([cell([
+          p("ONLINE-ÜBERWEISUNG", {sz:22,b:true,col:fc}),
+          p(beleg.bank||"Online Banking", {sz:15,col:"888888"}),
+        ], PW, {brd:hdrBrd,mt:80,mb:80,fill:"EDF7EE",span:2})]),
+        row([
+          cell(p("Auftraggeber:", {sz:17,b:true}), cL, {brd:botTh}),
+          cell([p(abs.name||"", {sz:19,b:true,sp:6}), p("IBAN: "+(abs.iban||""), {sz:16,col:"555555"})], cR, {brd:botTh}),
+        ]),
+        row([
+          cell(p("Empfänger:", {sz:17,b:true}), cL, {brd:botTh}),
+          cell([p(empf.name||"", {sz:19,b:true,sp:6}), p("IBAN: "+(empf.iban||""), {sz:16,col:"555555"})], cR, {brd:botTh}),
+        ]),
+        row([
+          cell(p("Betrag:", {sz:17,b:true}), cL, {brd:botTh}),
+          cell(para([
+            run(fmt(beleg.betrag)+" €", {sz:28,b:true,col:fc}),
+            ...(beleg.skontoBetrag>0 ? [run("  (Skonto: "+fmt(beleg.skontoBetrag)+" €)", {sz:16,col:"777777"})] : []),
+          ]), cR, {brd:botTh}),
+        ]),
+        row([
+          cell(p("Verwendungszweck:", {sz:17,b:true}), cL, {brd:botTh}),
+          cell(p(beleg.verwendungszweck||"", {sz:18,i:true}), cR, {brd:botTh}),
+        ]),
+        row([
+          cell(p("Datum:", {sz:17,b:true}), cL),
+          cell(p(beleg.ausfuehrungsdatum||"", {sz:18}), cR, {mb:100}),
+        ]),
+      ];
+      return [belegTable(rows, [cL,cR], fc)];
+
+    // ══════════════════════════════════════════════════════
+    // KONTOAUSZUG
+    // ══════════════════════════════════════════════════════
+    } else if (beleg.typ === "kontoauszug") {
+      const cD=1100, cA=1500, cTx=4538, cB=1300, cSl=1200; // Summe=9638
+      const hFill="DDDDDD";
+      const rows = [
+        row([cell([
+          para([run(beleg.bank||"Bank", {sz:26,b:true,col:fc})], {sp:10}),
+          p(beleg.kontoinhaber||"", {sz:18,sp:4}),
+          p("IBAN: "+(beleg.iban||""), {sz:15,col:"666666"}),
+        ], PW, {brd:hdrBrd,mt:80,mb:80,fill:"F0F4FA",span:5})]),
+        row([
+          cell(p("Datum",     {sz:16,b:true}), cD,  {brd:allTh,fill:hFill}),
+          cell(p("Umsatzart", {sz:16,b:true}), cA,  {brd:allTh,fill:hFill}),
+          cell(p("Buchungstext / Verwendungszweck", {sz:16,b:true}), cTx, {brd:allTh,fill:hFill}),
+          cell(p("Betrag",    {sz:16,b:true,r:true}), cB,  {brd:allTh,fill:hFill,mr:100}),
+          cell(p("Saldo",     {sz:16,b:true,r:true}), cSl, {brd:allTh,fill:hFill,mr:100}),
+        ]),
+      ];
+      (beleg.buchungen||[]).forEach(b => {
+        const hl  = !!b.highlight;
+        const hlF = hl ? "FFFBEB" : undefined;
+        const hlBrd = hl ? {top:{style:BorderStyle.SINGLE,size:8,color:fc},bottom:{style:BorderStyle.SINGLE,size:8,color:fc},left:bTh,right:bTh} : allTh;
+        const pos = (b.betrag||0) > 0;
+        rows.push(row([
+          cell(p(b.datum||"",       {sz:17,b:hl}), cD,  {brd:hlBrd,fill:hlF}),
+          cell(p(b.art||"Buchung",  {sz:17,b:hl}), cA,  {brd:hlBrd,fill:hlF}),
+          cell([p(b.text||"",{sz:17,b:hl}), ...(b.iban?[p(b.iban,{sz:14,col:"888888"})]:[])], cTx, {brd:hlBrd,fill:hlF}),
+          cell(p((pos?"+":"")+fmt(b.betrag)+" €", {sz:17,b:hl,r:true,col:pos?"005500":"AA0000"}), cB, {brd:hlBrd,fill:hlF,mr:100}),
+          cell(p(b.saldo!=null?fmt(b.saldo)+" €":"", {sz:17,r:true}), cSl, {brd:hlBrd,fill:hlF,mr:100}),
+        ]));
+      });
+      return [belegTable(rows, [cD,cA,cTx,cB,cSl], fc)];
+
+    // ══════════════════════════════════════════════════════
+    // E-MAIL
+    // ══════════════════════════════════════════════════════
+    } else if (beleg.typ === "email") {
+      const cL=1900, cR=PW-cL;
+      const bodyText = beleg.text||beleg.body||beleg.nachricht||"";
+      const rows = [
+        row([cell(p("E-MAIL", {sz:22,b:true,col:fc}), PW, {brd:hdrBrd,mt:80,mb:80,fill:"FFF8ED",span:2})]),
+        row([cell(p("Von:",     {sz:16,b:true}),cL,{brd:botTh}), cell([p(beleg.vonName||"",{sz:18,b:true,sp:6}), p(beleg.von||"",{sz:15,col:"555555"})],cR,{brd:botTh})]),
+        row([cell(p("An:",      {sz:16,b:true}),cL,{brd:botTh}), cell(p(beleg.an||"",{sz:18}),cR,{brd:botTh})]),
+        row([cell(p("Betreff:", {sz:16,b:true}),cL,{brd:botTh}), cell(p(beleg.betreff||"",{sz:18,b:true}),cR,{brd:botTh})]),
+        row([cell(p("Datum:",   {sz:16,b:true}),cL),              cell(p((beleg.datum||"")+(beleg.uhrzeit?"  ·  "+beleg.uhrzeit:""),{sz:17}),cR,{mb:60})]),
+        row([cell(empty(), PW, {brd:{top:bNo,bottom:bTh,left:bNo,right:bNo},mt:0,mb:0,span:2})]),
+        // E-Mail Inhalt – alle Zeilen in EINER Zelle
+        row([cell(
+          bodyText.split("\n").map(line => p(line||" ", {sz:18,sp:line?40:0})),
+          PW, {mt:80,mb:80,span:2}
+        )]),
+      ];
+      return [belegTable(rows, [cL,cR], fc)];
+    }
+
+    return [];
+  };
+}
+
+
+// ── Gemeinsame DOCX-Blob-Erzeugung (für Word, PDF und Pages) ──────────────
+async function buildDocxBlob({ aufgaben, config, firma, modus, kopfzeile, kiHistorie }) {
+  const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
+          WidthType, BorderStyle, AlignmentType, ShadingType, LevelFormat,
+          VerticalAlign } = await import("docx");
+  // Wiederverwendung der exportWord-Logik: wir rufen sie als Funktion auf
+  // Da exportWord eine Closure in ExportModal ist, übergeben wir alles als
+  // Argument an eine eigenständige Hilfsfunktion:
+  return buildDocxBlobCore({ aufgaben, config, firma, modus, kopfzeile, kiHistorie,
+    Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
+    WidthType, BorderStyle, AlignmentType, ShadingType, LevelFormat, VerticalAlign });
+}
+
+// ── Print-HTML (für PDF via Browser-Druckdialog) ──────────────────────────
+function generatePrintHTML({ aufgaben, config, firma, modus, kopfzeile }) {
+  // Vorhandene generateExportHTML-Funktion nutzen, aber mit Print-CSS
+  return generateExportHTML({ aufgaben, config, firma, modus, kiHistorie: [], kopfzeile, format: "print" });
+}
+
 // ── ExportModal ───────────────────────────────────────────────────────────
 function ExportModal({ aufgaben, config, firma, kiHistorie, onSchliessen }) {
   const [modus, setModus] = useState("aufgaben");
+  const [kopfzeile, setKopfzeile] = useState({ ...DEFAULT_KOPFZEILE, klasse: config.klasse + "", pruefungsart: config.pruefungsart || config.typ || "Schulaufgabe", datum: config.datum || new Date().toISOString().split("T")[0] });
+  const [zeigeKopfEditor, setZeigeKopfEditor] = useState(false);
 
   const modusOpts = [
     { key: "aufgaben",  icon: "📝", label: "Aufgabenblatt",   desc: "Ohne Lösung (für Schüler)" },
@@ -6357,138 +9205,476 @@ function ExportModal({ aufgaben, config, firma, kiHistorie, onSchliessen }) {
   ];
 
   // PDF: öffnet HTML in neuem Tab → Drucken / Als PDF speichern
-  const exportPDF = () => {
+  // PDF: identisches Format wie Word → DOCX erzeugen, im iframe drucken
+  const exportPDF = async () => {
     try {
-      const html = generateExportHTML({ aufgaben, config, firma, modus, kiHistorie });
-      const blob = new Blob([html], { type: "text/html;charset=utf-8" });
-      const url  = URL.createObjectURL(blob);
-      const a    = document.createElement("a");
-      a.href = url; a.target = "_blank"; a.rel = "noopener";
-      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      const docxBlob = await exportWord("blob");
+      if (!docxBlob) return;
+      const arrayBuf = await docxBlob.arrayBuffer();
+      const res = await fetch(API_URL + "/convert/pdf", {
+        method: "POST",
+        headers: { "Content-Type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document" },
+        body: arrayBuf,
+      });
+      if (!res.ok) throw new Error("Server: " + res.status + " – " + await res.text());
+      const pdfBlob = await res.blob();
+      const kl = kopfzeile || {};
+      const pruefArt  = (kl.pruefungsart || config.typ || "Übung").replace(/[^a-zA-Z0-9äöüÄÖÜß_ -]/g, "");
+      const klasseStr = kl.klasse || String(config.klasse);
+      const url = URL.createObjectURL(pdfBlob);
+      const el  = document.createElement("a");
+      el.href = url; el.download = `${pruefArt}_Kl${klasseStr}_${kl.datum || config.datum || "2025"}.pdf`;
+      document.body.appendChild(el); el.click(); document.body.removeChild(el);
       setTimeout(() => URL.revokeObjectURL(url), 15000);
     } catch(err) {
-      alert("Export-Fehler (PDF): " + err.message);
+      alert("PDF-Export Fehler: " + err.message);
     }
   };
 
-  // Word: echtes DOCX via docx-Library
-  const exportWord = async () => {
+  const exportWordGetBlob = () => exportWord("blob");
+  const exportPages = () => exportWord("pages");
+
+  // Word: echtes DOCX via docx-Library – Format nach Vorgabe Erich-Kästner-RS
+  const exportWord = async (ext = "docx") => {
     try {
-      const { Document, Packer, Paragraph, TextRun, HeadingLevel, Table, TableRow, TableCell,
-              WidthType, BorderStyle, AlignmentType, ShadingType } = await import("docx");
+      const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
+              WidthType, BorderStyle, AlignmentType, ShadingType, LevelFormat,
+              VerticalAlign } = await import("docx");
 
       const mitAufgabe = modus !== "loesungen";
       const mitLoesung = modus !== "aufgaben";
-      const datum = new Date(config.datum + "T00:00:00").toLocaleDateString("de-DE",
-        { day:"2-digit", month:"long", year:"numeric" });
-      const gesamtP = aufgaben.reduce((s,a) => s + berechnePunkte(a), 0);
+      const isLoesung  = modus === "loesungen";
+      const kl = kopfzeile || {};
+      const schulName   = kl.schulName   || "";
+      const pruefArt    = kl.pruefungsart || config.typ || "Übung";
+      const klasseStr   = kl.klasse      || String(config.klasse);
+      const datumStr    = kl.datum
+        ? new Date(kl.datum + "T00:00:00").toLocaleDateString("de-DE", { day:"2-digit", month:"2-digit", year:"numeric" })
+        : "";
+      const gesamtP     = aufgaben.reduce((s, a) => s + berechnePunkte(a), 0);
+      const stripHtml   = t => (t || "").replace(/<[^>]*>/g, "");
 
-      const stripHtml = t => (t||"").replace(/<[^>]*>/g,"");
+      // ── A4, 2 cm Ränder ────────────────────────────────────────────────────
+      // A4 = 11906 × 16838 DXA  |  2 cm = 1134 DXA  |  Textbreite = 9638 DXA
+      const PW = 9638;
 
-      const grau = { fill:"F1F5F9", type:ShadingType.CLEAR, color:"auto" };
-      const gruenBorder = { style:BorderStyle.SINGLE, size:6, color:"16A34A" };
-      const noBorder = { style:BorderStyle.NONE, size:0, color:"FFFFFF" };
+      // ── Border-Helfer ──────────────────────────────────────────────────────
+      const nb = { style: BorderStyle.NONE,   size: 0, color: "FFFFFF" };
+      const sb = { style: BorderStyle.SINGLE, size: 4, color: "000000" };
+      const lb = { style: BorderStyle.SINGLE, size: 2, color: "AAAAAA" };
 
-      const para = (text, opts={}) => new Paragraph({
-        children:[new TextRun({ text, size: opts.size||22, bold:opts.bold||false,
-          color: opts.color||"000000", font:"Arial" })],
-        spacing:{ after: opts.after||80 },
+      // ── Absatz-Helfer ──────────────────────────────────────────────────────
+      const p = (text, opts = {}) => new Paragraph({
+        children: [new TextRun({
+          text: text || "",
+          size:   opts.size   || 22,
+          bold:   opts.bold   || false,
+          italic: opts.italic || false,
+          color:  opts.color  || "000000",
+          font:   "Arial",
+        })],
+        spacing:   { before: opts.before || 0, after: opts.after || 80 },
         alignment: opts.align || AlignmentType.LEFT,
+        keepNext:  opts.keepNext || false,
+        shading:   opts.fill ? { fill: opts.fill, type: ShadingType.CLEAR } : undefined,
+        indent:    opts.indent ? { left: opts.indent } : undefined,
+      });
+      const ep = (h = 80) => new Paragraph({ children: [], spacing: { after: h } });
+
+      // ── Buchungssatz-Tabelle ───────────────────────────────────────────────
+      const bsTable = (sollArr, habenArr) => {
+        const maxR = Math.max(sollArr.length, habenArr.length);
+        const cw = [900, 3000, 1200, 360, 900, 3000, 1200];
+        const tw = PW - 240;
+        const rows = [];
+        for (let r = 0; r < maxR; r++) {
+          const s = sollArr[r];
+          const h = habenArr[r];
+          const showAn = r === sollArr.length - 1;
+          const cell = (txt, w, opts = {}) => new TableCell({
+            width: { size: w, type: WidthType.DXA },
+            borders: { top: nb, bottom: nb, left: nb, right: nb },
+            margins: { top: 40, bottom: 40, left: 80, right: 80 },
+            children: [new Paragraph({
+              alignment: opts.right ? AlignmentType.RIGHT : opts.center ? AlignmentType.CENTER : AlignmentType.LEFT,
+              spacing: { after: 0 },
+              children: [new TextRun({ text: txt || "", size: 20, bold: opts.bold || false, font: "Arial" })],
+            })],
+          });
+          rows.push(new TableRow({ children: [
+            cell(s ? s.nr   : "", cw[0], { bold: true }),
+            cell(s ? s.name : "", cw[1]),
+            cell(s && s.betrag != null ? s.betrag.toLocaleString("de-DE", { minimumFractionDigits: 2 }) + " \u20ac" : "", cw[2], { right: true }),
+            cell(showAn ? "an" : "", cw[3], { center: true, bold: true }),
+            cell(h ? h.nr   : "", cw[0], { bold: true }),
+            cell(h ? h.name : "", cw[1]),
+            cell(h && h.betrag != null ? h.betrag.toLocaleString("de-DE", { minimumFractionDigits: 2 }) + " \u20ac" : "", cw[2], { right: true }),
+          ]}));
+        }
+        return new Table({
+          width: { size: tw, type: WidthType.DXA },
+          columnWidths: cw,
+          borders: { top: lb, bottom: lb, left: nb, right: nb, insideH: nb, insideV: nb },
+          rows,
+          indent: { size: 240, type: WidthType.DXA },
+        });
+      };
+
+      // ── Aufgabenzeile: Text links, Punkte rechtsbündig per Tab-Stop ───────
+      const aufgZeile = (numText, aufgText, pkte, keepNext) => new Paragraph({
+        spacing: { before: 120, after: 60 },
+        keepNext: !!keepNext,
+        tabStops: [{ type: "right", position: PW - 200 }],
+        children: [
+          new TextRun({ text: numText, size: 22, bold: true, font: "Arial" }),
+          new TextRun({ text: aufgText, size: 22, font: "Arial" }),
+          new TextRun({ text: "\t[" + pkte + "\u202fP]", size: 20, color: "555555", font: "Arial" }),
+        ],
       });
 
+      const belegToDocx = makeBelegDocx({ Table, TableRow, TableCell, Paragraph, TextRun, WidthType, BorderStyle, AlignmentType, ShadingType, VerticalAlign });
       const children = [];
 
-      // ── Kopfzeile ──
-      children.push(new Paragraph({
-        children:[
-          new TextRun({ text:"BuchungsWerk", bold:true, size:32, font:"Arial", color:"0F172A" }),
-          new TextRun({ text:"  ·  BwR Bayern · Realschule · ISB 2025", size:18, color:"64748B", font:"Arial" }),
-        ], spacing:{ after:120 }
+      // ══════════════════════════════════════════════════════════════════════
+      // 1. KOPFZEILE
+      // ══════════════════════════════════════════════════════════════════════
+      // Tabelle A: Prüfungsart-Titel  |  Note + Punkte (gestapelt)
+      // Kompakte Kopfzeile: Titel links, Note+Punkte einzeilig rechts
+      const noteW = 1800; // Breite Note-Box
+      const pktW  = 2000; // Breite Punkte-Box
+      const titW  = PW - noteW - pktW;
+      children.push(new Table({
+        width: { size: PW, type: WidthType.DXA },
+        columnWidths: [titW, noteW, pktW],
+        rows: [new TableRow({ height: { value: 900, rule: "atLeast" }, children: [
+          // Titel: Schulname + Prüfungsart, zentriert
+          new TableCell({
+            width: { size: titW, type: WidthType.DXA },
+            borders: { top: sb, bottom: sb, left: sb, right: nb },
+            margins: { top: 80, bottom: 80, left: 120, right: 60 },
+            verticalAlign: VerticalAlign.CENTER,
+            children: [
+              ...(schulName ? [new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 16 }, children: [
+                new TextRun({ text: schulName, size: 16, color: "666666", font: "Arial" }),
+              ]})] : []),
+              new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 0 }, children: [
+                new TextRun({ text: (isLoesung ? "Musterl\u00f6sung \u2013 " : "") + pruefArt, size: 30, bold: true, font: "Arial" }),
+              ]}),
+            ],
+          }),
+          // Note: einzeilig
+          new TableCell({
+            width: { size: noteW, type: WidthType.DXA },
+            borders: { top: sb, bottom: sb, left: sb, right: nb },
+            verticalAlign: VerticalAlign.BOTTOM,
+            margins: { top: 80, bottom: 80, left: 80, right: 40 },
+            children: [new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 0 }, children: [
+              new TextRun({ text: "_______", size: 22, font: "Arial" }),
+              new TextRun({ text: " Note", size: 18, color: "666666", font: "Arial" }),
+            ]})],
+          }),
+          // Punkte: einzeilig
+          new TableCell({
+            width: { size: pktW, type: WidthType.DXA },
+            borders: { top: sb, bottom: sb, left: sb, right: sb },
+            verticalAlign: VerticalAlign.BOTTOM,
+            margins: { top: 80, bottom: 80, left: 40, right: 80 },
+            children: [new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 0 }, children: [
+              new TextRun({ text: "______ / " + String(gesamtP) + "\u202fP", size: 22, font: "Arial" }),
+            ]})],
+          }),
+        ]}),],
       }));
 
-      // ── Titel ──
-      const isLoesung = modus === "loesungen";
-      children.push(new Paragraph({
-        children:[new TextRun({
-          text: (isLoesung ? "✔ Musterlösung – " : "") + config.typ + (config.pruefungsart ? ` · ${config.pruefungsart}` : ""),
-          bold:true, size:28, font:"Arial", color: isLoesung ? "16A34A" : "0F172A"
-        })],
-        spacing:{ after:80 }
+      // Tabelle B: Name / Datum / Klasse
+      children.push(new Table({
+        width: { size: PW, type: WidthType.DXA },
+        columnWidths: [PW],
+        rows: [
+          new TableRow({ children: [
+            new TableCell({
+              width: { size: PW, type: WidthType.DXA },
+              borders: { top: nb, bottom: sb, left: sb, right: sb },
+              margins: { top: 160, bottom: 160, left: 120, right: 120 },
+              children: [new Paragraph({ spacing: { after: 0 }, children: [
+                new TextRun({ text: "Name: ", size: 22, bold: true, font: "Arial" }),
+                new TextRun({ text: "___________________________          ", size: 22, font: "Arial" }),
+                new TextRun({ text: "Datum: ", size: 22, bold: true, font: "Arial" }),
+                new TextRun({ text: (datumStr || "___________") + "          ", size: 22, font: "Arial" }),
+                new TextRun({ text: "Klasse: ", size: 22, bold: true, font: "Arial" }),
+                new TextRun({ text: klasseStr || "____", size: 22, bold: true, font: "Arial" }),
+              ]})],
+            }),
+          ]}),
+        ],
       }));
-      children.push(para(`${datum}  ·  Klasse ${config.klasse}  ·  ${gesamtP} Punkte`, { color:"475569", size:18, after:160 }));
 
-      // ── Firma ──
-      if (firma?.name) {
-        children.push(para(`${firma.icon||"🏢"} ${firma.name}  ·  ${firma.ort||""}`, { bold:true, size:22, after:60 }));
-        if (firma.rohstoffe?.length) children.push(para(`Rohstoffe: ${firma.rohstoffe.join(", ")}`, { size:18, color:"374151", after:40 }));
-        if (firma.hilfsstoffe?.length) children.push(para(`Hilfsstoffe: ${firma.hilfsstoffe.join(", ")}`, { size:18, color:"374151", after:40 }));
-        if (firma.fremdbauteile?.length) children.push(para(`Fremdbauteile: ${firma.fremdbauteile.join(", ")}`, { size:18, color:"374151", after:40 }));
-        children.push(para("📐 Formale Vorgaben: Kontonummer, Kontoabkürzung und Betrag angeben. Auf zwei Nachkommastellen runden. USt 19 %.", { size:16, color:"92400E", after:200 }));
+      // Tabelle C: Elternkenntnisnahme + Unterschrift
+      if (kl.zeigeUnterschrift !== false) {
+        children.push(new Table({
+          width: { size: PW, type: WidthType.DXA },
+          columnWidths: [PW],
+          rows: [
+            new TableRow({ children: [
+              new TableCell({
+                width: { size: PW, type: WidthType.DXA },
+                shading: { fill: "F1F5F9", type: ShadingType.CLEAR },
+                borders: { top: nb, bottom: nb, left: sb, right: sb },
+                margins: { top: 60, bottom: 20, left: 120, right: 120 },
+                children: [new Paragraph({ spacing: { after: 0 }, children: [
+                  new TextRun({ text: "Ich/Wir habe/n von diesem Leistungsnachweis beziehungsweise von der Note Kenntnis genommen.", size: 18, bold: true, font: "Arial" }),
+                ]})],
+              }),
+            ]}),
+            new TableRow({ children: [
+              new TableCell({
+                width: { size: PW, type: WidthType.DXA },
+                borders: { top: nb, bottom: sb, left: sb, right: sb },
+                margins: { top: 360, bottom: 120, left: 120, right: 120 },
+                children: [new Paragraph({ spacing: { after: 0 }, children: [
+                  new TextRun({ text: "Datum  __________________               Unterschrift  _______________________________", size: 20, font: "Arial" }),
+                ]})],
+              }),
+            ]}),
+          ],
+        }));
       }
 
-      // ── Aufgaben ──
-      aufgaben.forEach((a, i) => {
-        const punkte = berechnePunkte(a);
-        const aufgTxt = stripHtml(anrede(config.klasse, a.aufgabe || ""));
+      children.push(ep(200));
 
-        // Aufgaben-Header
-        children.push(new Paragraph({
-          children:[
-            new TextRun({ text:`${i+1}. `, bold:true, size:22, font:"Arial", color:"0F172A" }),
-            new TextRun({ text: a.titel||"", bold:true, size:22, font:"Arial", color:"0F172A" }),
-            new TextRun({ text:`  [${punkte} P]`, size:18, font:"Arial", color:"64748B" }),
-          ],
-          spacing:{ before:160, after:80 },
-          shading: grau,
+      // ══════════════════════════════════════════════════════════════════════
+      // 2. SZENARIO-BOX
+      // ══════════════════════════════════════════════════════════════════════
+      if (firma?.name) {
+        const szenarioRaw = `Als Mitarbeiter/in im Unternehmen ${firma.name}${firma.ort ? ", " + firma.ort : ""}, bearbeiten Sie verschiedene betriebswirtschaftliche Aufgaben.`;
+        const szenario = anrede(config.klasse, szenarioRaw);
+
+        // ── Unternehmensvorstellung ──────────────────────────────────────────
+        const wt = [
+          firma.rohstoffe?.length     ? `Rohstoffe: ${firma.rohstoffe.join(", ")}`         : null,
+          firma.hilfsstoffe?.length   ? `Hilfsstoffe: ${firma.hilfsstoffe.join(", ")}`     : null,
+          firma.fremdbauteile?.length ? `Fremdbauteile: ${firma.fremdbauteile.join(", ")}` : null,
+          firma.betriebsstoffe?.length? `Betriebsstoffe: ${firma.betriebsstoffe.join(", ")}`:null,
+          firma.fertigerzeugnisse?.length ? `Fertigerzeugnisse: ${firma.fertigerzeugnisse.join(", ")}` : null,
+        ].filter(Boolean);
+        const firmaFarbe = (firma.farbe||"#1e293b").replace("#","").toUpperCase();
+        const firmaAkz = { style: BorderStyle.SINGLE, size: 16, color: firmaFarbe };
+        children.push(new Table({
+          width: { size: PW, type: WidthType.DXA },
+          columnWidths: [PW],
+          borders: { top: { style: BorderStyle.SINGLE, size: 6, color: "CCCCCC" }, bottom: { style: BorderStyle.SINGLE, size: 6, color: "CCCCCC" }, left: { style: BorderStyle.SINGLE, size: 16, color: firmaFarbe }, right: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" }, insideH: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" }, insideV: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" } },
+          rows: [new TableRow({ children: [new TableCell({
+            width: { size: PW, type: WidthType.DXA },
+            shading: { fill: "F8F9FA", type: ShadingType.CLEAR },
+            borders: { top: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" }, bottom: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" }, left: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" }, right: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" } },
+            margins: { top: 100, bottom: 100, left: 180, right: 140 },
+            children: [
+              new Paragraph({ spacing: { after: 16 }, children: [
+                new TextRun({ text: (firma.icon ? firma.icon + "  " : "") + firma.name, size: 24, bold: true, color: firmaFarbe, font: "Arial" }),
+                // rechtsform nicht separat – bereits im Firmennamen enthalten
+                ...(firma.ort ? [new TextRun({ text: "  ·  " + firma.plz + " " + firma.ort, size: 18, color: "555555", font: "Arial" })] : []),
+                ...(firma.slogan ? [new TextRun({ text: "  |  ", size: 18, color: "BBBBBB", font: "Arial" }), new TextRun({ text: firma.slogan, size: 20, italic: true, bold: false, color: "555555", font: "Georgia" })] : []),
+              ]}),
+              ...(firma.inhaber ? [new Paragraph({ spacing: { after: wt.length ? 16 : 0 }, children: [
+                new TextRun({ text: (() => {
+                  // Geschlecht aus Vornamen ableiten (typisch deutsche Vornamen)
+                  const fn = (firma.inhaber || "").replace(/^Dr\.\s+|^Prof\.\s+/i, "").split(" ")[0];
+                  const femaleEndings = ["a", "e", "ine", "tte", "lie", "ia", "ra", "ika", "ita"];
+                  const isFemale = femaleEndings.some(end => fn.toLowerCase().endsWith(end));
+                  return isFemale ? "Inhaberin: " : "Inhaber: ";
+                })(), size: 20, bold: true, color: "444444", font: "Arial" }),
+                new TextRun({ text: firma.inhaber, size: 20, color: "444444", font: "Arial" }),
+              ]})] : []),
+              ...wt.map((line, idx) => {
+                const colonIdx = line.indexOf(":");
+                const label = colonIdx >= 0 ? line.slice(0, colonIdx + 1) : line;
+                const rest  = colonIdx >= 0 ? line.slice(colonIdx + 1) : "";
+                return new Paragraph({
+                  spacing: { after: idx === wt.length - 1 ? 0 : 8 },
+                  indent: { left: 320 },
+                  children: [
+                    new TextRun({ text: label, size: 20, bold: true, color: "333333", font: "Arial" }),
+                    ...(rest ? [new TextRun({ text: rest, size: 20, bold: false, color: "555555", font: "Arial" })] : []),
+                  ],
+                });
+              }),
+            ],
+          })]})]
         }));
+        children.push(ep(160));
 
-        if (mitAufgabe && aufgTxt) {
-          children.push(para(aufgTxt, { size:22, after:80 }));
-          if (!mitLoesung) {
-            children.push(new Paragraph({ children:[], spacing:{ after:400 }, border:{ bottom:{ style:BorderStyle.SINGLE, size:2, color:"CBD5E1" } } }));
+        // ── Szenario + Formale Vorgaben ──────────────────────────────────────
+        children.push(new Table({
+          width: { size: PW, type: WidthType.DXA },
+          columnWidths: [PW],
+          rows: [new TableRow({ children: [
+            new TableCell({
+              width: { size: PW, type: WidthType.DXA },
+              shading: { fill: "F3F4F6", type: ShadingType.CLEAR },
+              borders: { top: sb, bottom: sb, left: sb, right: sb },
+              margins: { top: 120, bottom: 120, left: 160, right: 160 },
+              children: [
+                new Paragraph({ spacing: { after: 80 }, children: [
+                  new TextRun({ text: szenario, size: 20, italic: true, font: "Arial" }),
+                ]}),
+                new Paragraph({ spacing: { after: 60 }, children: [
+                  new TextRun({ text: "Formale Vorgaben:", size: 20, bold: true, font: "Arial" }),
+                ]}),
+                ...[
+                  "Bei Buchungss\u00e4tzen sind stets Kontonummern, Kontennamen (abgek\u00fcrzt m\u00f6glich) und Betr\u00e4ge anzugeben.",
+                  "Bei Berechnungen sind jeweils alle notwendigen L\u00f6sungsschritte und Nebenrechnungen darzustellen.",
+                  "Alle Ergebnisse sind in der Regel auf zwei Nachkommastellen gerundet anzugeben.",
+                  "Soweit nicht anders vermerkt, gilt ein Umsatzsteuersatz von 19\u00a0%.",
+                ].map(txt => new Paragraph({
+                  spacing: { after: 40 },
+                  numbering: { reference: "bw-bullets", level: 0 },
+                  children: [new TextRun({ text: txt, size: 20, font: "Arial" })],
+                })),
+              ],
+            }),
+          ]})],
+        }));
+        children.push(ep(240));
+      }
+
+      aufgaben.forEach((a, i) => {
+        const punkte  = berechnePunkte(a);
+        const aufgTxt = stripHtml(anrede(config.klasse, (a._aufgabeEdit ?? a.aufgabe) || ""));
+
+        // ── Aufgaben-Titel (grauer Balken, Seitenumbruch wenn nötig) ──
+        children.push(new Table({
+          width: { size: PW, type: WidthType.DXA },
+          columnWidths: [PW],
+          rows: [new TableRow({ children: [
+            new TableCell({
+              width: { size: PW, type: WidthType.DXA },
+              shading: { fill: "E5E7EB", type: ShadingType.CLEAR },
+              borders: { top: nb, bottom: nb, left: nb, right: nb },
+              margins: { top: 80, bottom: 80, left: 120, right: 120 },
+              children: [new Paragraph({
+                spacing: { after: 0, before: i > 0 ? 0 : 0 },
+                pageBreakBefore: i > 0,
+                children: [
+                  new TextRun({ text: `Aufgabe ${i + 1} (${punkte} Punkte)`, size: 26, bold: true, font: "Arial" }),
+                ],
+              })],
+            }),
+          ]})],
+        }));
+        children.push(ep(80));
+
+        // ── Komplex-Aufgabe (Kettenbuchung) ──────────────────────────────
+        if (a.taskTyp === "komplex" && a.schritte?.length) {
+          // kontext wird im Export bewusst weggelassen – die Teilaufgaben
+          // entwickeln das Szenario selbst aus den Aufgabenstellungen
+          a.schritte.forEach((s, si) => {
+            children.push(si === 0 ? ep(120) : ep(80));
+            const hasBeleg = mitAufgabe && !!s.beleg;
+            if (hasBeleg) {
+              // Aufgabenzeile + Freizeile + Beleg in einem Container → kein Seitenumbruch
+              const aufgPara = aufgZeile(`${i + 1}.${si + 1}  `, stripHtml(anrede(config.klasse, (s._aufgabeEdit ?? s.aufgabe) || "")), s.punkte, false);
+              const belegElems = belegToDocx(s.beleg, firma);
+              const containerRows = [
+                new TableRow({ cantSplit: true, children: [new TableCell({
+                  width: { size: PW, type: WidthType.DXA },
+                  borders: { top: nb, bottom: nb, left: nb, right: nb },
+                  margins: { top: 0, bottom: 0, left: 0, right: 0 },
+                  children: [aufgPara, ep(60)],
+                })] }),
+                new TableRow({ cantSplit: true, children: [new TableCell({
+                  width: { size: PW, type: WidthType.DXA },
+                  borders: { top: nb, bottom: nb, left: nb, right: nb },
+                  margins: { top: 0, bottom: 0, left: 0, right: 0 },
+                  children: belegElems,
+                })] }),
+              ];
+              children.push(new Table({
+                width: { size: PW, type: WidthType.DXA },
+                columnWidths: [PW],
+                borders: { top: nb, bottom: nb, left: nb, right: nb, insideH: nb, insideV: nb },
+                rows: containerRows,
+              }));
+              children.push(ep(80));
+            } else {
+              children.push(aufgZeile(`${i + 1}.${si + 1}  `, stripHtml(anrede(config.klasse, (s._aufgabeEdit ?? s.aufgabe) || "")), s.punkte, false));
+            }
+            if (mitLoesung && s.soll?.length) {
+              children.push(bsTable(s.soll, s.haben || []));
+              children.push(ep(60));
+              if (s.erklaerung) children.push(p(s.erklaerung, { size: 18, italic: true, color: "374151", after: 40 }));
+            } else if (mitAufgabe && !mitLoesung) {
+            }
+          });
+
+        // ── Einfache Aufgabe ─────────────────────────────────────────────
+        } else {
+          if (mitAufgabe && a.beleg) { children.push(ep(80)); children.push(...belegToDocx(a.beleg, firma)); children.push(ep(80)); }
+          if (mitAufgabe && aufgTxt) {
+            children.push(p(aufgTxt, { size: 22, after: 80, align: AlignmentType.JUSTIFIED, keepNext: !!(mitAufgabe && a.beleg) }));
+          }
+          // Nebenrechnungen
+          if (mitAufgabe && a.nebenrechnungen?.length) {
+            a.nebenrechnungen.forEach(nr => {
+              children.push(new Paragraph({ spacing: { after: 40 }, indent: { left: 360 }, children: [
+                new TextRun({ text: nr.label + ": ", size: 20, bold: true, font: "Arial" }),
+                new TextRun({ text: nr.formel + " = " + nr.ergebnis, size: 20, font: "Arial" }),
+              ]}));
+            });
+            children.push(ep(60));
+          }
+          if (mitLoesung && a.soll?.length) {
+            children.push(bsTable(a.soll, a.haben || []));
+            children.push(ep(80));
+            if (a.erklaerung) children.push(p(a.erklaerung, { size: 18, italic: true, color: "374151", after: 60 }));
+          } else if (mitAufgabe && !mitLoesung) {
           }
         }
 
-        if (mitLoesung && a.soll?.length) {
-          // Buchungssatz-Tabelle
-          const sollHabenRows = [];
-          const maxRows = Math.max(a.soll.length, a.haben?.length||0);
-          for (let r=0; r<maxRows; r++) {
-            const s = a.soll[r];
-            const h = (a.haben||[])[r - (a.soll.length-1)] ;
-            const showAn = r === a.soll.length-1;
-            sollHabenRows.push(new TableRow({ children:[
-              new TableCell({ children:[para(s?s.nr:"",{size:20,bold:true,color:"1D4ED8"})], width:{size:10,type:WidthType.PERCENTAGE}, borders:{top:noBorder,bottom:noBorder,left:noBorder,right:noBorder} }),
-              new TableCell({ children:[para(s?getKonto(s.nr)?.kuerzel||s.nr:"",{size:20,bold:true,color:"1D4ED8"})], width:{size:12,type:WidthType.PERCENTAGE}, borders:{top:noBorder,bottom:noBorder,left:noBorder,right:noBorder} }),
-              new TableCell({ children:[para(s&&s.betrag!=null?s.betrag.toLocaleString("de-DE",{minimumFractionDigits:2})+" €":"",{size:20,color:"1D4ED8",align:AlignmentType.RIGHT})], width:{size:16,type:WidthType.PERCENTAGE}, borders:{top:noBorder,bottom:noBorder,left:noBorder,right:noBorder} }),
-              new TableCell({ children:[para(showAn?"an":"",{size:20,bold:true,color:"64748B",align:AlignmentType.CENTER})], width:{size:8,type:WidthType.PERCENTAGE}, borders:{top:noBorder,bottom:noBorder,left:noBorder,right:noBorder} }),
-              new TableCell({ children:[para(h?h.nr:"",{size:20,bold:true,color:"DC2626"})], width:{size:10,type:WidthType.PERCENTAGE}, borders:{top:noBorder,bottom:noBorder,left:noBorder,right:noBorder} }),
-              new TableCell({ children:[para(h?getKonto(h.nr)?.kuerzel||h.nr:"",{size:20,bold:true,color:"DC2626"})], width:{size:12,type:WidthType.PERCENTAGE}, borders:{top:noBorder,bottom:noBorder,left:noBorder,right:noBorder} }),
-              new TableCell({ children:[para(h&&h.betrag!=null?h.betrag.toLocaleString("de-DE",{minimumFractionDigits:2})+" €":"",{size:20,color:"DC2626",align:AlignmentType.RIGHT})], width:{size:16,type:WidthType.PERCENTAGE}, borders:{top:noBorder,bottom:noBorder,left:noBorder,right:noBorder} }),
-              new TableCell({ children:[para("✓",{size:20,bold:true,color:"16A34A",align:AlignmentType.CENTER})], width:{size:8,type:WidthType.PERCENTAGE}, borders:{top:noBorder,bottom:noBorder,left:noBorder,right:noBorder} }),
-            ]}));
+        // ── Theorie-Aufgabe ──────────────────────────────────────────────
+        if (a.taskTyp === "theorie") {
+          if (mitAufgabe && (a._aufgabeEdit ?? a.aufgabe)) {
+            children.push(p(stripHtml(anrede(config.klasse, (a._aufgabeEdit ?? a.aufgabe))), { size: 22, after: 80, align: AlignmentType.JUSTIFIED }));
           }
-          children.push(new Table({ rows:sollHabenRows, width:{size:100,type:WidthType.PERCENTAGE},
-            borders:{ top:gruenBorder, bottom:gruenBorder, left:gruenBorder, right:gruenBorder, insideH:noBorder, insideV:noBorder } }));
-          children.push(new Paragraph({ spacing:{ after:80 } }));
-          if (a.erklaerung) children.push(para("💡 " + a.erklaerung, { size:18, color:"92400E", after:80 }));
+          if (mitLoesung && a.loesung) {
+            children.push(p(stripHtml(a.loesung), { size: 20, italic: true, color: "166534", after: 80 }));
+          } else if (mitAufgabe && !mitLoesung) {
+          }
         }
       });
 
+      // ══════════════════════════════════════════════════════════════════════
+      // 4. DOKUMENT BAUEN
+      // ══════════════════════════════════════════════════════════════════════
       const doc = new Document({
-        sections:[{ children }],
-        styles:{ default:{ document:{ run:{ font:"Arial", size:22 } } } },
+        numbering: {
+          config: [{
+            reference: "bw-bullets",
+            levels: [{ level: 0, format: LevelFormat.BULLET, text: "\u2022", alignment: AlignmentType.LEFT,
+              style: { paragraph: { indent: { left: 480, hanging: 240 } } } }],
+          }],
+        },
+        styles: { default: { document: { run: { font: "Arial", size: 22 } } } },
+        sections: [{
+          properties: {
+            page: {
+              size: { width: 11906, height: 16838 },
+              margin: { top: 1134, right: 1134, bottom: 1134, left: 1134 },
+            },
+          },
+          children,
+        }],
       });
 
       const blob = await Packer.toBlob(doc);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `BuchungsWerk_${modus}_Kl${config.klasse}_${config.datum||"2025"}.docx`;
-      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      if (ext === "blob") return blob; // interner Aufruf → Blob zurückgeben
+      const url  = URL.createObjectURL(blob);
+      const el   = document.createElement("a");
+      el.href    = url;
+      el.download = `${pruefArt.replace(/[^a-zA-Z0-9äöüÄÖÜß_\- ]/g, "")}_Kl${klasseStr}_${kl.datum || config.datum || "2025"}.${ext}`;
+      document.body.appendChild(el); el.click(); document.body.removeChild(el);
       setTimeout(() => URL.revokeObjectURL(url), 15000);
-    } catch(err) {
-      alert("Export-Fehler (Word): " + err.message);
+    } catch (err) {
+      alert("Word-Export Fehler: " + err.message);
     }
   };
 
@@ -6525,26 +9711,42 @@ function ExportModal({ aufgaben, config, firma, kiHistorie, onSchliessen }) {
             })}
           </div>
 
+          {/* Kopfzeile */}
+          <div style={{ marginBottom:"14px" }}>
+            <button onClick={() => setZeigeKopfEditor(p => !p)}
+              style={{ width:"100%", padding:"9px 14px", borderRadius:"8px", border:"1px solid #334155",
+                background: zeigeKopfEditor ? "#1e3a5f" : "#1e293b", color: zeigeKopfEditor ? "#f59e0b" : "#94a3b8",
+                fontWeight:700, fontSize:12, cursor:"pointer", textAlign:"left", display:"flex", justifyContent:"space-between" }}>
+              <span>📋 Kopfzeile bearbeiten</span>
+              <span>{zeigeKopfEditor ? "▲" : "▼"}</span>
+            </button>
+            {zeigeKopfEditor && (
+              <div style={{ background:"#fff", borderRadius:"0 0 8px 8px", padding:"14px", border:"1px solid #334155", borderTop:"none" }}>
+                <KopfzeilenEditor config={config} firma={firma} kopfzeile={kopfzeile} setKopfzeile={setKopfzeile} />
+              </div>
+            )}
+          </div>
+
           {/* Export-Buttons */}
           <div style={{ fontSize:"11px", fontWeight:700, letterSpacing:"0.08em", textTransform:"uppercase", color:"#64748b", marginBottom:"10px" }}>Format</div>
-          <div style={{ display:"flex", gap:"10px" }}>
-            <button onClick={exportPDF}
-              style={{ flex:1, padding:"14px 16px", borderRadius:"10px", border:"none",
-                background:"#dc2626", color:"#fff", fontWeight:800, fontSize:"14px", cursor:"pointer",
-                display:"flex", alignItems:"center", justifyContent:"center", gap:"8px",
-                boxShadow:"0 2px 8px rgba(220,38,38,0.3)" }}>
-              🖨 PDF / Drucken
-            </button>
+          <div style={{ display:"flex", gap:"8px", flexWrap:"wrap" }}>
             <button onClick={exportWord}
-              style={{ flex:1, padding:"14px 16px", borderRadius:"10px", border:"none",
-                background:"#2563eb", color:"#fff", fontWeight:800, fontSize:"14px", cursor:"pointer",
-                display:"flex", alignItems:"center", justifyContent:"center", gap:"8px",
+              style={{ flex:1, minWidth:"120px", padding:"12px 14px", borderRadius:"10px", border:"none",
+                background:"#2563eb", color:"#fff", fontWeight:800, fontSize:"13px", cursor:"pointer",
+                display:"flex", alignItems:"center", justifyContent:"center", gap:"6px",
                 boxShadow:"0 2px 8px rgba(37,99,235,0.3)" }}>
-              📝 Word (.docx)
+              📝 Word / Pages
+            </button>
+            <button onClick={exportPDF}
+              style={{ flex:1, minWidth:"120px", padding:"12px 14px", borderRadius:"10px", border:"none",
+                background:"#dc2626", color:"#fff", fontWeight:800, fontSize:"13px", cursor:"pointer",
+                display:"flex", alignItems:"center", justifyContent:"center", gap:"6px",
+                boxShadow:"0 2px 8px rgba(220,38,38,0.3)" }}>
+              📄 PDF
             </button>
           </div>
-          <div style={{ marginTop:"12px", fontSize:"11px", color:"#475569", textAlign:"center" }}>
-            PDF: Im neuen Tab → Drucken → „Als PDF speichern" · Word: .doc direkt herunterladen
+          <div style={{ marginTop:"10px", fontSize:"10px", color:"#64748b", textAlign:"center" }}>
+            Word/Pages: .docx herunterladen, dann "Öffnen mit Pages" · PDF: identisches Layout via Server
           </div>
         </div>
       </div>
@@ -6558,8 +9760,9 @@ function ExportModal({ aufgaben, config, firma, kiHistorie, onSchliessen }) {
 const fmt_datum = iso => new Date(iso + "T00:00:00").toLocaleDateString("de-DE", { day: "2-digit", month: "long", year: "numeric" });
 
 function SchrittAufgaben({ config, firma, onNeu, onMaterialLaden, onThemen, onFirma }) {
-  const [showLoesungen, setShowLoesungen] = useState(false);
-  const [globalMode, setGlobalMode] = useState("beleg"); // "beleg" | "text"
+  const settings = useSettings();
+  const [showLoesungen, setShowLoesungen] = useState(!!settings.loesungenStandardAn);
+  const [globalMode, setGlobalMode] = useState(settings.belegModus || "beleg"); // "beleg" | "text"
   const [exportOffen, setExportOffen] = useState(false);
   const [h5pOffen, setH5pOffen] = useState(false);
   const [materialienOffen, setMaterialienOffen] = useState(false);
@@ -6571,7 +9774,7 @@ function SchrittAufgaben({ config, firma, onNeu, onMaterialLaden, onThemen, onFi
     (AUFGABEN_POOL[config.klasse][lb] || []).forEach(t => { if (taskIds.includes(t.id)) pool.push(t); });
   });
 
-  const [aufgaben] = useState(() => {
+  const [aufgaben, setAufgaben] = useState(() => {
     if (pool.length === 0) return [];
     const result = [];
     let punkteSum = 0;
@@ -6587,22 +9790,31 @@ function SchrittAufgaben({ config, firma, onNeu, onMaterialLaden, onThemen, onFi
         ...(typ.id === "8_komplex_verkauf_kette"    ? (config.verkaufOpts    || {}) : {}),
         ...(typ.id === "9_komplex_forderungskette"  ? (config.forderungOpts  || {}) : {}),
         ...(typ.id === "10_komplex_abschlusskette" ? (config.abschlussOpts || {}) : {}),
+        ...(typ.id.startsWith("7_pct_") ? (config.pctOpts || {}) : {}),
       };
-      const gen = typ.taskTyp === "theorie" ? typ.generate() : typ.generate(firma, opts);
+      let gen;
+      try {
+        gen = typ.taskTyp === "theorie" ? typ.generate() : typ.generate(firma, opts);
+      } catch(e) {
+        console.warn("BuchungsWerk: Fehler in generate() für", typ.id, e.message);
+        continue;
+      }
+      if (!gen) continue;
       const pts = typ.taskTyp === "komplex"
         ? (gen.schritte || []).reduce((s, st) => s + st.punkte, 0)
         : typ.taskTyp === "theorie"
           ? (gen.nrPunkte || 4)
-          : typ.taskTyp === "rechnung"
-          ? (gen.nrPunkte || 3)
+          : typ.taskTyp === "rechnung" || typ.taskTyp === "schaubild"
+          ? (gen.punkte || gen.nrPunkte || 3)
           : (gen.soll?.length || 0) + (gen.haben?.length || 0) + (gen.nrPunkte || 0);
       // Komplex-Aufgabe zählt als so viele Teilaufgaben wie sie Schritte hat
-      const teilaufgaben = typ.taskTyp === "komplex" ? (gen.schritte || []).length : 1;
+      const schrittAnzahl = typ.taskTyp === "komplex" ? (gen.schritte || []).length : 1;
       if (config.maxPunkte && punkteSum + pts > config.maxPunkte) break;
-      if (!config.maxPunkte && teilaufgabenSum + teilaufgaben > zielAnzahl) break;
-      result.push({ ...gen, titel: typ.titel, id: `${typ.id}_${i}`, taskTyp: typ.taskTyp || "buchung", themenTyp: typ.themenTyp, teilaufgaben });
+      if (!config.maxPunkte && teilaufgabenSum + schrittAnzahl > zielAnzahl) break;
+      result.push({ ...gen, titel: typ.titel, id: `${typ.id}_${i}`, taskTyp: typ.taskTyp || "buchung", themenTyp: typ.themenTyp,
+        _baseTypId: typ.id, _typ: typ, _opts: opts, _firma: firma });
       punkteSum += pts;
-      teilaufgabenSum += teilaufgaben;
+      teilaufgabenSum += schrittAnzahl;
     }
     return result;
   });
@@ -6643,7 +9855,7 @@ function SchrittAufgaben({ config, firma, onNeu, onMaterialLaden, onThemen, onFi
               {config.typ}{config.pruefungsart ? ` · ${config.pruefungsart}` : ""} · Klasse {config.klasse}
             </div>
             <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginTop: "8px" }}>
-              <span style={S.tag(firma.farbe)}>{firma.icon} {firma.name}</span>
+              <span style={{ display:"inline-flex", alignItems:"center", gap:6, ...S.tag(firma.farbe) }}><FirmaLogoSVG firma={firma} size={18}/>{firma.name}</span>
               {config.pruefungsart && <span style={S.tag("#0f172a")}>📋 {config.pruefungsart}</span>}
               {activeLBs.map(lb => { const m = LB_INFO[lb] || { icon: "📌", farbe: "#475569" }; return <span key={lb} style={S.tag(m.farbe)}>{m.icon} {lb.split("·")[0].trim()}</span>; })}
               <span style={S.tag("#475569")}>📅 {fmt_datum(config.datum)}</span>
@@ -6729,25 +9941,25 @@ function SchrittAufgaben({ config, firma, onNeu, onMaterialLaden, onThemen, onFi
             ["Betriebsstoffe", firma.betriebsstoffe],
           ].filter(([, list]) => list?.length);
           return (
-            <div style={{ marginTop: "18px", padding: "14px 18px", background: firma.farbe + "0d", border: `1px solid ${firma.farbe}33`, borderLeft: `4px solid ${firma.farbe}`, borderRadius: "10px" }}>
-              <div style={{ fontSize: "13px", color: "#374151", marginBottom: "8px" }}>
+            <div style={{ marginTop: "18px", padding: "14px 18px", background: firma.farbe + "0d", border: `1px solid ${firma.farbe}33`, borderLeft: `4px solid ${firma.farbe}`, borderRadius: "10px", textAlign: "left" }}>
+              <div style={{ fontSize: "13px", color: "#374151", marginBottom: "8px", textAlign: "left" }}>
                 <strong>{firma.icon} {firma.name}</strong>, {firma.plz} {firma.ort} – {firma.slogan} {intro}
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(200px,1fr))", gap: "5px", fontSize: "12px", color: "#374151", marginBottom: "8px" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(200px,1fr))", gap: "5px", fontSize: "12px", color: "#374151", marginBottom: "8px", textAlign: "left" }}>
                 <div><strong>Rechtsform:</strong> {firma.rechtsform}</div>
                 <div><strong>Inhaber/in:</strong> {firma.inhaber}</div>
                 <div><strong>Branche:</strong> {firma.branche}</div>
                 <div><strong>IBAN:</strong> {fmtIBAN(firma.iban).slice(0, 18)}…</div>
               </div>
               {/* Werkstoffe */}
-              <div style={{ display: "flex", flexDirection: "column", gap: "3px", marginBottom: "8px" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: "3px", marginBottom: "8px", textAlign: "left" }}>
                 {wtLabels.map(([label, list]) => (
                   <div key={label} style={{ fontSize: "12px", color: "#374151" }}>
                     <strong>{label}:</strong> {list.join(", ")}
                   </div>
                 ))}
               </div>
-              <div style={{ padding: "6px 10px", background: "rgba(255,255,255,0.6)", borderRadius: "6px", fontSize: "11px", color: "#475569" }}>
+              <div style={{ padding: "6px 10px", background: "rgba(255,255,255,0.6)", borderRadius: "6px", fontSize: "11px", color: "#475569", textAlign: "left" }}>
                 <strong>Formale Vorgaben:</strong> Bei Buchungssätzen sind Kontonummer, Kontobezeichnung und Betrag anzugeben. Ergebnisse auf zwei Nachkommastellen runden. Sofern nicht anders angegeben: USt-Satz 19 %.
               </div>
             </div>
@@ -6759,10 +9971,44 @@ function SchrittAufgaben({ config, firma, onNeu, onMaterialLaden, onThemen, onFi
 
       {aufgaben.map((a, i) =>
         a.taskTyp === "komplex"
-          ? <KomplexKarte  key={a.id} aufgabe={a} nr={i + 1} showLoesung={showLoesungen} globalMode={globalMode} klasse={config.klasse} />
+          ? <KomplexKarte key={a.id} aufgabe={a} nr={i + 1} showLoesung={showLoesungen} globalMode={globalMode} klasse={config.klasse}
+              onAufgabeChange={updated => setAufgaben(prev => prev.map((x, xi) => xi === i ? updated : x))}
+              onSchrittEntfernen={schrittIdx => {
+                setAufgaben(prev => prev.map((aufg, ai) => {
+                  if (ai !== i) return aufg;
+                  const optsKey = (aufg.schritte || [])[schrittIdx]?._optsKey;
+                  // Wenn kein optsKey → einfaches Filtern (Schritt ist immer vorhanden)
+                  if (!optsKey || !aufg._typ) {
+                    const neuSchritte = (aufg.schritte || [])
+                      .filter((_, si) => si !== schrittIdx)
+                      .map((s, ni) => ({ ...s, nr: ni + 1 }));
+                    return { ...aufg, schritte: neuSchritte };
+                  }
+                  // Mit optsKey → Neugeneration mit deaktiviertem Schritt
+                  const newOpts = { ...aufg._opts, [optsKey]: false };
+                  try {
+                    const gen = aufg._typ.generate(aufg._firma, newOpts);
+                    if (!gen) return aufg;
+                    return { ...aufg, ...gen, _opts: newOpts };
+                  } catch { return aufg; }
+                }));
+              }}
+              onSchrittHinzufuegen={optsKey => {
+                setAufgaben(prev => prev.map((aufg, ai) => {
+                  if (ai !== i || !aufg._typ) return aufg;
+                  const newOpts = { ...aufg._opts, [optsKey]: true };
+                  try {
+                    const gen = aufg._typ.generate(aufg._firma, newOpts);
+                    if (!gen) return aufg;
+                    return { ...aufg, ...gen, _opts: newOpts };
+                  } catch { return aufg; }
+                }));
+              }}
+            />
           : a.taskTyp === "theorie"
           ? <TheorieKarte  key={a.id} aufgabe={a} nr={i + 1} showLoesung={showLoesungen} klasse={config.klasse} />
-          : <AufgabeKarte  key={a.id} aufgabe={a} nr={i + 1} showLoesung={showLoesungen} globalMode={globalMode} klasse={config.klasse} />
+          : <AufgabeKarte  key={a.id} aufgabe={a} nr={i + 1} showLoesung={showLoesungen} globalMode={globalMode} klasse={config.klasse}
+              onAufgabeChange={updated => setAufgaben(prev => prev.map((x, xi) => xi === i ? updated : x))} />
       )}
 
       <div style={{ display: "flex", gap: "10px", marginTop: "8px", flexWrap: "wrap", alignItems:"center" }}>
@@ -7658,7 +10904,7 @@ function BelegEditorModal({ onSchliessen }) {
               {typ === "quittung"         && <BeFormQuittung         data={dataQU} setData={setDataQU} />}
             </div>
             <div className="be-action-bar">
-              <input className="be-field-input" placeholder={`Titel (z. B. „${typLabel} mit Mengenrabatt, Kl. 9")`}
+              <input className="be-field-input" placeholder={`Titel (z. B. "${typLabel} mit Mengenrabatt, Kl. 9")`}
                 value={belegTitel} onChange={e => setBelegTitel(e.target.value)} style={{fontSize:12}} />
               <div style={{ display:"flex", gap:8 }}>
                 <button className="be-btn-save"
@@ -7760,54 +11006,161 @@ function EigeneBelege({ onSchliessen }) {
     setVorschlaegeStatus(null);
     const belegText = belegZuText(selected);
     const varianteZusatz = varianteHinweis ? `\n\nVariante / Fokus: ${varianteHinweis}` : "";
-    const prompt = `Du bist BwR-Lehrer an einer bayerischen Realschule (Klasse ${klasse}).
-Erstelle auf Basis des folgenden Belegs eine vollständige Buchungsaufgabe im bayerischen BwR-Stil (ISB-Kontenplan).
+    const prompt = `Du bist BwR-Fachlehrer an einer bayerischen Realschule (Klasse ${klasse}, ISB LehrplanPLUS Bayern).
+Erstelle auf Basis des folgenden Belegs eine korrekte Buchungsaufgabe.
 
 BELEG: ${belegText}${varianteZusatz}
 
-Punktevergabe nach ISB-Standard (überarbeitete Handreichung 2025 – exakt anwenden!):
+══════════════════════════════════════════════
+ISB-KONTENPLAN BAYERN – NUR DIESE KONTEN VERWENDEN!
+══════════════════════════════════════════════
+AKTIVKONTEN:
+0500 GR     | Grundstücke
+0700 MA     | Maschinen und Anlagen
+0840 FP     | Fuhrpark
+0860 BM     | Büromaschinen
+0870 BGA    | Büromöbel und Geschäftsausstattung
+0890 GWG    | Geringwertige Wirtschaftsgüter
+2000 R      | Rohstoffe
+2010 F      | Fremdbauteile
+2020 H      | Hilfsstoffe
+2030 B      | Betriebsstoffe
+2400 FO     | Forderungen aus Lieferungen und Leistungen
+2470 ZWFO   | Zweifelhafte Forderungen
+2600 VORST  | Vorsteuer
+2800 BK     | Bank (Kontokorrentkonto)
+2880 KA     | Kasse
+2900 ARA    | Aktive Rechnungsabgrenzung
 
+PASSIVKONTEN:
+3000 EK     | Eigenkapital
+3001 P      | Privatkonto
+3670 EWB    | Einzelwertberichtigung
+3680 PWB    | Pauschalwertberichtigung
+3900 RST    | Rückstellungen
+4200 KBKV   | Kurzfristige Bankverbindlichkeiten
+4250 LBKV   | Langfristige Bankverbindlichkeiten
+4400 VE     | Verbindlichkeiten aus Lieferungen und Leistungen
+4800 UST    | Umsatzsteuer
+4900 PRA    | Passive Rechnungsabgrenzung
+
+ERTRAGSKONTEN:
+5000 UEFE   | Umsatzerlöse für eigene Erzeugnisse
+5430 ASBE   | Andere sonstige betriebliche Erträge
+5495 EFO    | Erträge aus abgeschriebenen Forderungen
+5710 ZE     | Zinserträge
+
+AUFWANDSKONTEN:
+6000 AWR    | Aufwendungen für Rohstoffe
+6001 BZKR   | Bezugskosten für Rohstoffe
+6010 AWF    | Aufwendungen für Fremdbauteile
+6020 AWH    | Aufwendungen für Hilfsstoffe
+6030 AWB    | Aufwendungen für Betriebsstoffe
+6140 AFR    | Ausgangsfrachten
+6200 LG     | Löhne und Gehälter
+6400 AGASV  | Arbeitgeberanteil zur Sozialversicherung
+6520 ABSA   | Abschreibungen auf Sachanlagen
+6700 AWMP   | Mieten, Pachten
+6750 KGV    | Kosten des Geldverkehrs
+6800 BMK    | Büromaterial und Kleingüter
+6870 WER    | Werbung
+6900 VBEI   | Versicherungsbeiträge
+6950 ABFO   | Abschreibungen auf Forderungen
+7510 ZAW    | Zinsaufwendungen
+
+══════════════════════════════════════════════
+BUCHUNGSSTRUKTUR-REGELN (ISB LehrplanPLUS Bayern)
+══════════════════════════════════════════════
+
+AUSGANGSRECHNUNG (Verkauf auf Ziel):
+  Buchungssatz: 2400 FO an 5000 UEFE (Nettobetrag) + 4800 UST (Umsatzsteuerbetrag)
+  → IMMER als zusammengesetzter Buchungssatz mit 3 Posten im JSON!
+  → Jede Teilbuchung = 1 Punkt (2400 FO an 5000 UEFE = Punkt 1; 2400 FO an 4800 UST = Punkt 2)
+  → Bei Sofortrabatt auf Rechnung: Nettobetrag NACH Rabatt verwenden, kein eigenes Rabattkonto!
+
+EINGANGSRECHNUNG (Kauf auf Ziel):
+  Buchungssatz: 6000 AWR (o.ä.) + 2600 VORST an 4400 VE
+  → IMMER zusammengesetzt! Jede Teilbuchung = 1 Punkt
+  → Bei Bezugskosten: 6001 BZKR als eigene Zeile
+  → Bei Sofortrabatt: Nettobetrag nach Abzug, kein Rabattkonto
+  → Bei GWG (≤800 € netto): 0890 GWG + 2600 VORST an 4400 VE
+
+BARZAHLUNG (Kassenbeleg):
+  Kauf bar:    Aufwandskonto + 2600 VORST an 2880 KA
+  Verkauf bar: 2880 KA an 5000 UEFE + 4800 UST
+
+RECHNUNGSAUSGLEICH ÜBERWEISUNG:
+  Ausgangsrechnung beglichen: 2800 BK an 2400 FO (Bruttobetrag)
+  Eingangsrechnung bezahlt:   4400 VE an 2800 BK (Bruttobetrag)
+  Mit Skonto (Klasse 8+): zusätzlich 6750 KGV (Käufer) bzw. 5430 ASBE (Verkäufer) buchen
+
+ANLAGEVERMÖGEN (Kauf auf Ziel):
+  0700 MA (o.ä.) + 2600 VORST an 4400 VE
+
+ABSCHREIBUNG:
+  6520 ABSA an 0700 MA (o.ä.)  – kein USt-Vorgang!
+
+══════════════════════════════════════════════
+KONTOANGABE nach Klassenstufe:
+══════════════════════════════════════════════
+Klasse 7:    NUR Kürzel (z. B. "FO", "UEFE", "UST") – soll_nr und haben_nr = ""
+Klasse 8–10: Nummer + Kürzel (z. B. "2400 FO", "5000 UEFE", "4800 UST")
+
+══════════════════════════════════════════════
+PUNKTEVERGABE (ISB Handreichung BwR 2025)
+══════════════════════════════════════════════
 BUCHUNGSSÄTZE:
-- 1 Punkt pro Konto-Betrag-Block (Kontonr. + Kontobezeichnung + Betrag = Einheit)
-- Bei zusammengesetzten Buchungssätzen: 1 Punkt pro Teilbuchung
+- 1 Punkt pro Konto-Betrag-Block (Teilbuchung im zusammengesetzten Satz)
+- Reine USt-Berechnung = KEIN eigener Punkt
 
-NEBENRECHNUNGEN (§ 2.3.3 Handreichung):
-Jeder gesondert zu berechnende Betrag erhält 1 Punkt, z. B.:
-- Skonto-Berechnung beim Eingangs- oder Ausgangsrechnungsausgleich (BwR 8.2, 8.4)
-- Ermittlung der Anschaffungskosten oder Abschreibungshöhe (BwR 9.2)
-- Ermittlung zeitanteiliger Abschreibungsmonate (BwR 9.2) → 1 eigener Punkt
-- Auszahlungsbetrag / Disagio-Berechnung (BwR 9.3)
-- Berechnung bei Forderungsausfall, EWB, PWB (BwR 9.5)
-- Periodenrichtige Aufwands-/Ertragsabgrenzung (BwR 10.1)
-KEIN eigener Punkt: reine Rabattberechnung oder reine USt-Berechnung ohne weiteren Gedankenschritt; Kalkulationsschemata bekommen keinen Punkt für das Schema selbst
+NEBENRECHNUNGEN (1 Punkt je wenn echter betriebswirtschaftlicher Gedankenschritt):
+- Skonto-Berechnung beim Rechnungsausgleich: 1 Punkt
+- Anschaffungskosten / Abschreibungshöhe: 1 Punkt
+- Zeitanteilige Abschreibung (Monatszahl): 1 Punkt
+- EWB / PWB / Forderungsausfall-Berechnung: 1 Punkt
+- Disagio / Auszahlungsbetrag Darlehen: 1 Punkt
+- Periodenrichtige Abgrenzung: 1 Punkt
+KEIN Punkt: reine USt-Berechnung, reine Rabattrechnung
 
-BRUTTO → NETTO-UMRECHNUNG (§ 2.2.11 / 2.3.2 Handreichung – besondere Regel!):
-- Klasse 7: 1 Punkt für Brutto→Netto-Umrechnung
-- Ab Klasse 8: KEIN eigener Punkt für Brutto→Netto – außer bei diesen betriebswirtschaftlich relevanten Gedankenschritten:
-  * Netto-Skonto als Vergleichsgröße zum Zinsaufwand (BwR 9.3 Lieferantenkredit)
-  * Nettoforderung als Grundlage für EWB oder PWB (BwR 9.5)
-  * Netto-Mietbetrag als Grundlage für Abgrenzungsbuchung (BwR 10.1)
+BRUTTO→NETTO:
+- Klasse 7: 1 Punkt
+- Klasse 8+: kein Punkt (außer als Basis für EWB/PWB, Skonto-Nettovergleich, Abgrenzung)
 
-Setze nebenrechnung_punkte nur dann > 0, wenn die Nebenrechnung nach obigen Regeln einen echten Punkt verdient.
+Setze nebenrechnung_punkte nur dann > 0, wenn ein echter Punkt nach obigen Regeln vorliegt.
 
-Antworte NUR mit einem JSON-Objekt (kein Markdown, keine Erklärung davor/danach):
+══════════════════════════════════════════════
+AUSGABE: NUR JSON (kein Markdown, kein Text davor/danach)
+══════════════════════════════════════════════
 {
-  "aufgabe": "vollständige Aufgabenstellung für Schüler (1-3 Sätze, Du-Anrede wenn Klasse ≤9)",
+  "aufgabe": "Aufgabenstellung für Schüler (1-3 Sätze; Klasse ≤9: Du-Form; Klasse 10: Sie-Form)",
   "buchungssatz": [
-    { "soll_nr": "XXXX", "soll_name": "Kontoname (KÜRZEL)", "haben_nr": "XXXX", "haben_name": "Kontoname (KÜRZEL)", "betrag": 0.00, "punkte": 1, "erklaerung": "kurze Begründung" }
+    {
+      "gruppe": 1,
+      "soll_nr": "XXXX", "soll_name": "Kontoname (KÜRZEL)",
+      "haben_nr": "XXXX", "haben_name": "Kontoname (KÜRZEL)",
+      "betrag": 0.00, "punkte": 1, "erklaerung": "Begründung"
+    }
   ],
-  "nebenrechnung": "Rechenweg falls nötig mit Schrittangabe, sonst leer",
+  "nebenrechnung": "Rechenweg mit Schrittangabe, sonst leer",
   "nebenrechnung_punkte": 0,
   "punkte_gesamt": 2,
-  "erklaerung": "didaktische Erklärung für den Lehrer (2-3 Sätze)"
-}`;
+  "erklaerung": "Didaktischer Kommentar für den Lehrer (2-3 Sätze)"
+}
+
+ZUSAMMENGESETZTER BUCHUNGSSATZ – PFLICHT-REGELN FÜR DAS JSON:
+- Alle Zeilen, die zum selben buchhalterischen Vorgang gehören, erhalten dieselbe "gruppe"-Zahl (z. B. alle 1).
+- Verschiedene Vorgänge (z. B. Einkauf UND Abschreibung in derselben Aufgabe) erhalten verschiedene gruppe-Zahlen (1, 2, ...).
+- Bei Ausgangsrechnung (Verkauf auf Ziel): gruppe=1 für BEIDE Zeilen:
+    { "gruppe":1, "soll_nr":"2400", "soll_name":"Forderungen aus L+L (FO)", "haben_nr":"5000", "haben_name":"Umsatzerlöse f. eig. Erzeugnisse (UEFE)", "betrag":4500.00, "punkte":1, "erklaerung":"Forderung gegen Kunden" }
+    { "gruppe":1, "soll_nr":"2400", "soll_name":"Forderungen aus L+L (FO)", "haben_nr":"4800", "haben_name":"Umsatzsteuer (UST)", "betrag":855.00, "punkte":1, "erklaerung":"USt-Schuld gegenüber Finanzamt" }
+- Bei Eingangsrechnung (Kauf auf Ziel): gruppe=1 für BEIDE Zeilen:
+    { "gruppe":1, "soll_nr":"6000", "soll_name":"Aufwendungen f. Rohstoffe (AWR)", "haben_nr":"4400", "haben_name":"Verbindlichkeiten aus L+L (VE)", "betrag":1000.00, "punkte":1, "erklaerung":"Materialaufwand" }
+    { "gruppe":1, "soll_nr":"2600", "soll_name":"Vorsteuer (VORST)", "haben_nr":"4400", "haben_name":"Verbindlichkeiten aus L+L (VE)", "betrag":190.00, "punkte":1, "erklaerung":"Vorsteuer aus Eingangsrechnung" }
+- NIEMALS nur eine Zeile für einen zusammengesetzten Vorgang ausgeben!
+- Die punkte_gesamt-Zahl muss der Summe aller punkte-Felder (+ nebenrechnung_punkte) entsprechen.`;
     try {
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 1000, messages: [{ role: "user", content: prompt }] }),
-      });
-      const json = await res.json();
+      const json = await apiFetch("/ki/buchung", "POST", { prompt, max_tokens: 1000 });
+      if (!json) throw new Error("Keine Antwort vom KI-Proxy");
       const text = json.content?.find(c => c.type === "text")?.text || "";
       const parsed = JSON.parse(text.replace(/```json|```/g, "").trim());
       const eintrag = { ...parsed, _label: varianteTitel || "Aufgabe", _ts: Date.now() };
@@ -7833,12 +11186,8 @@ Schlage 3 weitere didaktisch sinnvolle Aufgabenvarianten oder Folgethemen vor.
 Antworte NUR mit JSON (kein Markdown):
 { "vorschlaege": [ { "titel": "Kurzer Titel", "beschreibung": "1 Satz was geübt wird", "variante": "Präziser Hinweis für Aufgabengenerierung (1-2 Sätze)" } ] }`;
     try {
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 600, messages: [{ role: "user", content: prompt }] }),
-      });
-      const json = await res.json();
+      const json = await apiFetch("/ki/buchung", "POST", { prompt, max_tokens: 600 });
+      if (!json) throw new Error("Keine Antwort vom KI-Proxy");
       const text = json.content?.find(c => c.type === "text")?.text || "";
       const parsed = JSON.parse(text.replace(/```json|```/g, "").trim());
       setVorschlaege(parsed.vorschlaege);
@@ -7847,17 +11196,45 @@ Antworte NUR mit JSON (kein Markdown):
   };
 
   const exportText = (result, idx) => {
-    const bs = result.buchungssatz?.map(b =>
-      `  ${b.soll_nr} ${b.soll_name}  an  ${b.haben_nr} ${b.haben_name}  ${typeof b.betrag === "number" ? b.betrag.toLocaleString("de-DE",{minimumFractionDigits:2}) : b.betrag} €  [${b.punkte ?? 1} P]`
-    ).join("\n") || "";
+    const buchungen = result.buchungssatz || [];
+    const gruppen = [...new Set(buchungen.map(b => b.gruppe ?? 0))];
+    const bs = gruppen.map(g => {
+      const zeilen = buchungen.filter(b => (b.gruppe ?? 0) === g);
+      const sollSeite = [...new Map(zeilen.map(z => [z.soll_nr, z])).values()];
+      const gesamtBetrag = zeilen.reduce((s, z) => s + (typeof z.betrag === "number" ? z.betrag : 0), 0);
+      const sollStr = sollSeite.map(z => `${z.soll_nr} ${z.soll_name}`).join(" + ");
+      if (zeilen.length === 1) {
+        const z = zeilen[0];
+        const b = typeof z.betrag === "number" ? z.betrag.toLocaleString("de-DE",{minimumFractionDigits:2}) : z.betrag;
+        return `  ${z.soll_nr} ${z.soll_name}  an  ${z.haben_nr} ${z.haben_name}  ${b} €  [${z.punkte ?? 1} P]`;
+      }
+      const habenZeilen = zeilen.map(z => {
+        const b = typeof z.betrag === "number" ? z.betrag.toLocaleString("de-DE",{minimumFractionDigits:2}) : z.betrag;
+        return `    an  ${z.haben_nr} ${z.haben_name}  ${b} €  [${z.punkte ?? 1} P]`;
+      }).join("\n");
+      return `  ${sollStr}  ${gesamtBetrag.toLocaleString("de-DE",{minimumFractionDigits:2})} €\n${habenZeilen}`;
+    }).join("\n") || "";
     const text = `AUFGABE (${result.punkte_gesamt ?? "?"} Punkte)\n${"─".repeat(50)}\n${result.aufgabe}\n\n${result.nebenrechnung ? `NEBENRECHNUNG (${result.nebenrechnung_punkte ?? 0} P)\n${"─".repeat(50)}\n${result.nebenrechnung}\n\n` : ""}BUCHUNGSSATZ\n${"─".repeat(50)}\n${bs}\n\n${result.erklaerung ? `DIDAKTIK (Lehrer)\n${"─".repeat(50)}\n${result.erklaerung}` : ""}`;
     navigator.clipboard.writeText(text).then(() => { setKopiert(idx); setTimeout(() => setKopiert(null), 2000); });
   };
 
   const exportDruck = (result) => {
-    const bs = result.buchungssatz?.map(b =>
-      `<tr><td style="padding:7px 10px;font-weight:700">${b.soll_nr} ${b.soll_name}</td><td style="padding:7px 10px;color:#64748b;text-align:center">an</td><td style="padding:7px 10px;font-weight:700">${b.haben_nr} ${b.haben_name}</td><td style="padding:7px 10px;text-align:right;font-family:monospace;color:#059669;font-weight:700">${typeof b.betrag === "number" ? b.betrag.toLocaleString("de-DE",{minimumFractionDigits:2}) : b.betrag} €</td><td style="padding:7px 10px;text-align:center;font-size:11px;font-weight:800;color:#fff;background:#0f172a;border-radius:4px">${b.punkte ?? 1} P</td></tr>`
-    ).join("") || "";
+    const buchungen = result.buchungssatz || [];
+    const gruppen = [...new Set(buchungen.map(b => b.gruppe ?? 0))];
+    const bs = gruppen.map(g => {
+      const zeilen = buchungen.filter(b => (b.gruppe ?? 0) === g);
+      const sollSeite = [...new Map(zeilen.map(z => [z.soll_nr, z])).values()];
+      const gesamtBetrag = zeilen.reduce((s, z) => s + (typeof z.betrag === "number" ? z.betrag : 0), 0);
+      const btFmt = n => typeof n === "number" ? n.toLocaleString("de-DE",{minimumFractionDigits:2}) : n;
+      if (zeilen.length === 1) {
+        const z = zeilen[0];
+        return `<tr><td style="padding:7px 10px;font-weight:700;color:#1d4ed8">${z.soll_nr} ${z.soll_name}</td><td style="padding:7px 10px;color:#94a3b8;text-align:center;font-weight:400">an</td><td style="padding:7px 10px;font-weight:700;color:#dc2626">${z.haben_nr} ${z.haben_name}</td><td style="padding:7px 10px;text-align:right;font-family:monospace;color:#059669;font-weight:700">${btFmt(z.betrag)} €</td><td style="padding:7px 10px;text-align:center;font-size:11px;font-weight:800;color:#fff;background:#0f172a;border-radius:4px">${z.punkte ?? 1} P</td></tr>`;
+      }
+      const sollStr = sollSeite.map(z => `${z.soll_nr} ${z.soll_name}`).join("<br>");
+      const firstRow = `<tr><td rowspan="${zeilen.length}" style="padding:7px 10px;font-weight:700;color:#1d4ed8;vertical-align:middle;border-right:1px solid #e2e8f0">${sollStr}<br><span style='font-family:monospace;color:#059669;font-size:12px'>${btFmt(gesamtBetrag)} €</span></td><td style="padding:7px 10px;color:#94a3b8;text-align:center;font-weight:400">an</td><td style="padding:7px 10px;font-weight:700;color:#dc2626">${zeilen[0].haben_nr} ${zeilen[0].haben_name}</td><td style="padding:7px 10px;text-align:right;font-family:monospace;color:#059669;font-weight:700">${btFmt(zeilen[0].betrag)} €</td><td style="padding:7px 10px;text-align:center;font-size:11px;font-weight:800;color:#fff;background:#0f172a;border-radius:4px">${zeilen[0].punkte ?? 1} P</td></tr>`;
+      const restRows = zeilen.slice(1).map(z => `<tr><td style="padding:7px 10px;color:#94a3b8;text-align:center;font-weight:400">an</td><td style="padding:7px 10px;font-weight:700;color:#dc2626">${z.haben_nr} ${z.haben_name}</td><td style="padding:7px 10px;text-align:right;font-family:monospace;color:#059669;font-weight:700">${btFmt(z.betrag)} €</td><td style="padding:7px 10px;text-align:center;font-size:11px;font-weight:800;color:#fff;background:#0f172a;border-radius:4px">${z.punkte ?? 1} P</td></tr>`).join("");
+      return firstRow + restRows;
+    }).join("") || "";
     const html = `<!DOCTYPE html><html lang="de"><head><meta charset="utf-8"><title>BuchungsWerk – Aufgabe</title><style>body{font-family:'Segoe UI',sans-serif;max-width:720px;margin:40px auto;color:#0f172a}.lbl{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:#94a3b8;margin:0 0 5px}.badge{display:inline-block;background:#0f172a;color:#f59e0b;padding:3px 10px;border-radius:4px;font-size:12px;font-weight:800;margin-left:8px}p{font-size:15px;line-height:1.7;margin:0 0 20px}table{width:100%;border-collapse:collapse;margin-bottom:20px;border:1px solid #e2e8f0}td{font-size:13px;border-bottom:1px solid #f1f5f9}.nr{font-family:monospace;font-size:12px;background:#f8fafc;padding:12px 14px;border-radius:6px;white-space:pre-wrap;margin-bottom:20px;border:1px solid #e2e8f0}.erkl{background:#fffbeb;border-left:4px solid #f59e0b;padding:12px 16px;font-size:12px;color:#92400e}@media print{.erkl{display:none}}</style></head><body><div class="lbl">Aufgabenstellung <span class="badge">${result.punkte_gesamt ?? "?"} Punkte</span></div><p>${result.aufgabe}</p>${result.nebenrechnung ? `<div class="lbl">Nebenrechnung <span class="badge">${result.nebenrechnung_punkte ?? 0} P</span></div><div class="nr">${result.nebenrechnung.replace(/\n/g,"<br>")}</div>` : ""}<div class="lbl">Buchungssatz</div><table>${bs}</table>${result.erklaerung ? `<div class="erkl"><strong>💡 Didaktik (Lehrer):</strong> ${result.erklaerung}</div>` : ""}</body></html>`;
     const w = window.open("", "_blank"); w.document.write(html); w.document.close(); w.print();
   };
@@ -7892,8 +11269,8 @@ Antworte NUR mit JSON (kein Markdown):
             <div style={{ fontSize:10, fontWeight:700, letterSpacing:".1em", textTransform:"uppercase", color:"#92400e" }}>📐 Nebenrechnung</div>
             <div style={{ display:"flex", gap:3, alignItems:"center" }}>
               {nrPunkte > 0
-                ? Array.from({ length: nrPunkte }).map((_, i) => <ISBHaken key={i} title={`ISB ✓ = 1 Punkt (Nebenrechnung Schritt ${i+1})`} />)
-                : <span style={{ fontSize:9, color:"#92400e", fontStyle:"italic" }}>kein eigener Punkt (ISB-Regel)</span>
+                ? Array.from({ length: nrPunkte }).map((_, i) => <ISBHaken key={i} title={`✓ = 1 Punkt (Nebenrechnung Schritt ${i+1})`} />)
+                : <span style={{ fontSize:9, color:"#92400e", fontStyle:"italic" }}>kein eigener Punkt (Handreichung)</span>
               }
             </div>
           </div>
@@ -7901,30 +11278,65 @@ Antworte NUR mit JSON (kein Markdown):
         </div>
       )}
 
-      {/* Buchungssätze mit ISB-Haken pro Block */}
+      {/* Buchungssätze – gruppe-basiert, ISB-Format: "an" nur einmal */}
       <div style={{ background:"#fff", border:"1px solid #e2e8f0", borderRadius:8, padding:14 }}>
         <div style={{ fontSize:10, fontWeight:700, letterSpacing:".1em", textTransform:"uppercase", color:"#94a3b8", marginBottom:10 }}>Buchungssatz</div>
-        {result.buchungssatz?.map((bs, i) => {
-          const p = bs.punkte ?? 1;
-          return (
-            <div key={i} style={{ padding:"9px 12px", background:"#f8fafc", borderRadius:6, marginBottom:5, borderLeft:"3px solid #e2e8f0" }}>
-              <div style={{ display:"flex", alignItems:"center", gap:6, flexWrap:"wrap", fontSize:13, fontWeight:600 }}>
-                {/* Soll-Block: Nr  Name  ✓  Betrag */}
-                <span style={{ color:"#1d4ed8" }}>{bs.soll_nr} <KürzelSpan nr={bs.soll_nr} style={{ color:"#1d4ed8", fontWeight:600, fontSize:13 }} /></span>
-                <ISBHaken />
-                <span style={{ color:"#94a3b8", fontWeight:400, fontSize:12, margin:"0 2px" }}>an</span>
-                {/* Haben-Block: Nr  Name  ✓  Betrag */}
-                <span style={{ color:"#dc2626" }}>{bs.haben_nr} <KürzelSpan nr={bs.haben_nr} style={{ color:"#dc2626", fontWeight:600, fontSize:13 }} /></span>
-                <ISBHaken />
-                <span style={{ marginLeft:"auto", fontFamily:"monospace", color:"#059669", fontWeight:700 }}>
-                  {typeof bs.betrag === "number" ? bs.betrag.toLocaleString("de-DE",{minimumFractionDigits:2,maximumFractionDigits:2}) : bs.betrag} €
-                </span>
-                <span style={{ background:"#0f172a", color:"#f59e0b", borderRadius:4, padding:"1px 7px", fontSize:10, fontWeight:800 }}>{(bs.punkte ?? 1) * 2} P</span>
+        {(() => {
+          const buchungen = result.buchungssatz || [];
+          const gruppen = [...new Set(buchungen.map(b => b.gruppe ?? 0))];
+          const btFmt = n => typeof n === "number" ? n.toLocaleString("de-DE",{minimumFractionDigits:2,maximumFractionDigits:2}) : n;
+          return gruppen.map(g => {
+            const zeilen = buchungen.filter(b => (b.gruppe ?? 0) === g);
+            const sollSeite = [...new Map(zeilen.map(z => [z.soll_nr, z])).values()];
+            const isMehrfach = zeilen.length > 1;
+            // ISB-Buchungssatzformat:
+            // Einfach:      SOLL ✓  an  HABEN ✓  Betrag  P
+            // Zusammenges.: SOLL ✓  an  HABEN1 ✓  Betrag1  P
+            //                           HABEN2 ✓  Betrag2  P
+            return (
+              <div key={g} style={{ padding:"10px 12px", background:"#f8fafc", borderRadius:6, marginBottom:6, borderLeft:"3px solid #3b82f6", fontFamily:"inherit" }}>
+                {zeilen.map((z, zi) => (
+                  <div key={zi} style={{ display:"flex", alignItems:"center", gap:6, flexWrap:"wrap", fontSize:13, fontWeight:600, marginBottom: zi < zeilen.length-1 ? 4 : 0 }}>
+                    {/* Soll – nur in erster Zeile */}
+                    {zi === 0 ? (
+                      <span style={{ color:"#1d4ed8", minWidth:0 }}>
+                        {sollSeite.map((s, si) => (
+                          <span key={si}>{s.soll_nr && <>{s.soll_nr} </>}<KürzelSpan nr={s.soll_nr} style={{ color:"#1d4ed8", fontWeight:600, fontSize:13 }} /></span>
+                        ))}
+                      </span>
+                    ) : (
+                      /* Platzhalter gleicher Breite für Folgezeilen */
+                      <span style={{ visibility:"hidden", color:"#1d4ed8", userSelect:"none", minWidth:0 }}>
+                        {sollSeite.map((s, si) => (
+                          <span key={si}>{s.soll_nr && <>{s.soll_nr} </>}<KürzelSpan nr={s.soll_nr} style={{ color:"#1d4ed8", fontWeight:600, fontSize:13 }} /></span>
+                        ))}
+                      </span>
+                    )}
+                    {/* ISBHaken nach Soll – nur in erster Zeile sichtbar */}
+                    {zi === 0 ? <ISBHaken /> : <span style={{ visibility:"hidden" }}><ISBHaken /></span>}
+                    {/* "an" – nur in erster Zeile */}
+                    {zi === 0
+                      ? <span style={{ color:"#94a3b8", fontWeight:400, fontSize:12, flexShrink:0 }}>an</span>
+                      : <span style={{ color:"transparent", fontWeight:400, fontSize:12, flexShrink:0, userSelect:"none" }}>an</span>
+                    }
+                    {/* Haben-Konto */}
+                    <span style={{ color:"#dc2626" }}>
+                      {z.haben_nr && <>{z.haben_nr} </>}<KürzelSpan nr={z.haben_nr} style={{ color:"#dc2626", fontWeight:600, fontSize:13 }} />
+                    </span>
+                    <ISBHaken />
+                    {/* Betrag + Punkte */}
+                    <span style={{ marginLeft:"auto", fontFamily:"monospace", color:"#059669", fontWeight:700 }}>
+                      {btFmt(z.betrag)} €
+                    </span>
+                    <span style={{ background:"#0f172a", color:"#f59e0b", borderRadius:4, padding:"1px 7px", fontSize:10, fontWeight:800 }}>{z.punkte ?? 1} P</span>
+                    {/* Erklärung */}
+                    {z.erklaerung && <div style={{ width:"100%", fontSize:11, color:"#64748b", fontWeight:400, marginTop:2, paddingLeft:2 }}>{z.erklaerung}</div>}
+                  </div>
+                ))}
               </div>
-              {bs.erklaerung && <div style={{ fontSize:11, color:"#64748b", fontWeight:400, marginTop:4 }}>{bs.erklaerung}</div>}
-            </div>
-          );
-        })}
+            );
+          });
+        })()}
       </div>
 
       {/* Didaktik */}
@@ -7968,7 +11380,7 @@ Antworte NUR mit JSON (kein Markdown):
               <div style={{ padding:"32px 20px", textAlign:"center", color:"#94a3b8" }}>
                 <div style={{ fontSize:32, marginBottom:12 }}>📭</div>
                 <div style={{ fontWeight:700, marginBottom:6 }}>Noch keine Belege</div>
-                <div style={{ fontSize:12, lineHeight:1.5 }}>Erstelle im Beleg-Editor einen Beleg und klicke auf „In BuchungsWerk übernehmen".</div>
+                <div style={{ fontSize:12, lineHeight:1.5 }}>Erstelle im Beleg-Editor einen Beleg und klicke auf "In BuchungsWerk übernehmen".</div>
               </div>
             ) : belege.map(b => (
               <div key={b.id}
@@ -8415,7 +11827,7 @@ body{font-family:-apple-system,Arial,sans-serif;background:var(--bg);color:var(-
 .meta{font-size:10px;color:#94a3b8;text-align:right;line-height:1.5}
 .pb{background:#e2e8f0;border-radius:8px;height:7px;margin-bottom:13px;overflow:hidden}
 .pf{height:100%;background:var(--a);border-radius:8px;transition:width .3s}
-.card{background:#fff;border-radius:14px;padding:16px 18px;box-shadow:0 2px 12px rgba(0,0,0,.08);margin-bottom:12px}
+.card{background:#fff;border-radius:14px;padding:16px 18px;box-shadow:0 2px 12px rgba(0,0,0,.08);margin-bottom:12px;text-align:left}
 .fnr{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#94a3b8;margin-bottom:6px}
 .ftxt{font-size:15px;line-height:1.6;color:var(--dk);margin-bottom:12px}
 /* Beleg */
@@ -8635,7 +12047,7 @@ function zeigeWeiter(card,g,m){
 function showIntro(){
   introGezeigt=true;
   const c=document.getElementById("qc");c.innerHTML="";
-  const card=mk("div","card");
+  const card=mk("div","card");card.style.textAlign="left";
   // Header
   const hd=mk("div");hd.style.cssText="background:#0f172a;border-radius:10px;padding:14px 16px;margin-bottom:14px;color:#fff";
   const nm=mk("div");nm.style.cssText="font-size:18px;font-weight:900;margin-bottom:2px";nm.textContent=FIRMA.icon+" "+FIRMA.name;
@@ -8686,10 +12098,12 @@ function renderBeleg(card, belegData) {
     });
     tbl.appendChild(hdr);
     belegData.positionen.forEach(p=>{
+      if (p.isRabatt) return; // Sofortrabatt-Zeile nicht in BelegEditor anzeigen
       const tr=mk("tr");
-      const cells=[p.pos||"1",p.beschr,p.menge+" "+p.einheit,
-        p.ep.toLocaleString("de-DE",{minimumFractionDigits:2})+" \u20ac",
-        p.netto.toLocaleString("de-DE",{minimumFractionDigits:2})+" \u20ac"
+      const fmtN = v => v != null ? v.toLocaleString("de-DE",{minimumFractionDigits:2})+" \u20ac" : "–";
+      const cells=[p.pos||"1",p.beschr,(p.menge != null ? p.menge+" "+p.einheit : ""),
+        fmtN(p.ep),
+        fmtN(p.netto)
       ];
       cells.forEach((c,i)=>{const td=mk("td");td.textContent=c;if(i>=2)td.style.textAlign="right";tr.appendChild(td);});
       tbl.appendChild(tr);
@@ -9021,7 +12435,6 @@ function renderSingleChoice(card,f){
 
 // ── True/False ────────────────────────────────────────────────────────────────
 function renderTrueFalse(card,f){
-  maxP++;
   const g=mk("div","tfg");
   ["Ja \u2713","Nein \u2717"].forEach((l,i)=>{
     const b=mk("button","tfb");b.textContent=l;
@@ -9038,7 +12451,7 @@ function renderTrueFalse(card,f){
 
 // ── Drag Kalkulation ──────────────────────────────────────────────────────────
 function renderDragKalk(card,f){
-  const zMitA=f.zeilen.filter(z=>z.antwort);maxP+=zMitA.length;const dm={};
+  const zMitA=f.zeilen.filter(z=>z.antwort);const dm={};
   renderBeleg(card,f.belegData);
   const ta=mk("div","kalk-drag-area");
   f.tokens.forEach((t,ti)=>{
@@ -9073,7 +12486,7 @@ function renderDragKalk(card,f){
 
 // ── Matching ──────────────────────────────────────────────────────────────────
 function renderMatching(card,f){
-  maxP+=f.paare.length;const vb={};const lE={};
+  const vb={};const lE={};
   const rechtsShuffled=shuffleArr(f.paare.map(p=>p.rechts));
   const g=mk("div","mg");
   f.paare.forEach(p=>{
@@ -9185,6 +12598,191 @@ const QUIZ_TYPEN = [
   { key: "true_false",    icon: "⚖️",  label: "Wahr/Falsch" },
   { key: "drag_kalk",     icon: "📊",  label: "Kalkulation" },
 ];
+
+// ── Beleg → HTML (für H5P-Aufgabenbeschreibung) ──────────────────────────────
+function belegDataZuHtml(b) {
+  if (!b) return "";
+  const fmt2 = n => n != null ? Number(n).toLocaleString("de-DE",{minimumFractionDigits:2,maximumFractionDigits:2}) + " €" : "";
+  const zeile = (l, v) => v ? `<br><strong>${l}:</strong> ${v}` : "";
+  let titel = "", inhalt = "";
+  if (b.typ === "email") {
+    titel = "E-Mail";
+    inhalt = [zeile("Von", b.vonName || b.von), zeile("An", b.an), zeile("Betreff", b.betreff), zeile("Datum", b.datum), zeile("Text", b.text)].join("");
+  } else if (b.typ === "rechnung") {
+    titel = "Eingangsrechnung";
+    const pos = (b.positionen || []).filter(p => !p.isRabatt).map(p => `${p.menge ? p.menge+" "+p.einheit+" " : ""}${p.beschr}`).join(", ");
+    inhalt = [zeile("Ware", pos), zeile("Netto", fmt2(b.netto)), zeile("USt " + (b.ustPct||19)+" %", fmt2(b.ustBetrag)), zeile("Brutto", fmt2(b.brutto)), b.skonto ? zeile("Skonto", b.skonto+" %") : ""].join("");
+  } else if (b.typ === "kontoauszug") {
+    titel = "Kontoauszug";
+    inhalt = (b.buchungen || []).map(bk => `<br>${bk.datum||""} | ${bk.vz==="s"?"Soll":"Haben"} | ${fmt2(bk.betrag)} | ${bk.zweck||""}`).join("");
+  } else if (b.typ === "ueberweisung") {
+    titel = "Überweisung";
+    inhalt = [zeile("Empfänger", b.empfaenger), zeile("Betrag", fmt2(b.betrag)), zeile("Zweck", b.zweck)].join("");
+  } else {
+    titel = b.typ || "Beleg";
+  }
+  return `<p><strong>📄 ${titel}</strong>${inhalt}</p>`;
+}
+
+// ── H5P Content Generator ─────────────────────────────────────────────────────
+function h5pUuid() {
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, c => {
+    const r = Math.random() * 16 | 0;
+    return (c === "x" ? r : (r & 0x3 | 0x8)).toString(16);
+  });
+}
+
+function generiereH5PContent(fragen, config, firma) {
+  const questions = fragen.map(f => {
+    const subContentId = h5pUuid();
+
+    // ── MultiChoice: single_choice ─────────────────────────────────────────
+    if (f.typ === "single_choice") {
+      const antworten = f.antworten || [];
+      const richtigIdx = antworten.indexOf(f.richtig);
+      const answers = antworten.map((opt, i) => ({
+        correct: i === richtigIdx,
+        text: String(opt).replace(/<[^>]*>/g, ""),
+        tipsAndFeedback: { tip:"", chosenFeedback:"", notChosenFeedback:"" },
+      }));
+      return {
+        library: "H5P.MultiChoice 1.16",
+        subContentId,
+        params: {
+          question: `<p>${String(f.frage||"").replace(/<[^>]*>/g, "")}</p>${f.belegData ? belegDataZuHtml(f.belegData) : ""}`,
+          answers,
+          behaviour: { enableRetry:true, enableSolutionsButton:true, singleAnswer:true, showSolutionsRequiresInput:false, autoCheck:false },
+          UI: { checkAnswerButton:"Überprüfen", showSolutionButton:"Lösung anzeigen", tryAgainButton:"Nochmal", scoreBarLabel:"Punkte" },
+          overallFeedback: [{ from:0, to:49, feedback:"Leider falsch. Schau nochmal." },{ from:50, to:100, feedback:"Richtig!" }],
+        },
+        metadata: { contentType:"Multiple Choice", license:"U", title: String(f.frage||"").replace(/<[^>]*>/g," ").trim().slice(0,60), defaultLanguage:"de" },
+      };
+    }
+
+    // ── True/False ──────────────────────────────────────────────────────────
+    if (f.typ === "true_false") {
+      return {
+        library: "H5P.MultiChoice 1.16",
+        subContentId,
+        params: {
+          question: `<p>${String(f.frage||"").replace(/<[^>]*>/g," ").trim()}</p>`,
+          answers: [
+            { correct: f.antwort === true,  text: "Ja",  tipsAndFeedback:{ tip:"", chosenFeedback: f.antwort===true  ? "✓ "+f.begruendung : "", notChosenFeedback:"" } },
+            { correct: f.antwort === false, text: "Nein", tipsAndFeedback:{ tip:"", chosenFeedback: f.antwort===false ? "✓ "+f.begruendung : "", notChosenFeedback:"" } },
+          ],
+          behaviour: { enableRetry:true, enableSolutionsButton:true, singleAnswer:true, showSolutionsRequiresInput:false },
+          UI: { checkAnswerButton:"Überprüfen", showSolutionButton:"Lösung anzeigen", tryAgainButton:"Nochmal", scoreBarLabel:"Punkte" },
+          overallFeedback: [{ from:0, to:49, feedback:"Falsch." },{ from:50, to:100, feedback:"Richtig!" }],
+        },
+        metadata: { contentType:"Multiple Choice", license:"U", title: String(f.frage||"").replace(/<[^>]*>/g," ").trim().slice(0,60), defaultLanguage:"de" },
+      };
+    }
+
+    // ── DragText: drag_konten (Buchungssatz) ───────────────────────────────
+    if (f.typ === "drag_konten") {
+      // H5P.DragText: Zeilen mit \n trennen, Lücken mit *text*
+      // Format: "Soll:\n*Nr Kürzel*\nan\nHaben:\n*Nr Kürzel*"
+      const sollZeilen = (f.sollSlots || []).map(s => `*${s.antwort}*`).join("\n");
+      const habenZeilen = (f.habenSlots || []).map(h => `*${h.antwort}*`).join("\n");
+      const textField = "Soll:\n" + (sollZeilen || "*Konto*") + "\nan\nHaben:\n" + (habenZeilen || "*Konto*");
+      const desc = String(f.frage||"").replace(/<[^>]*>/g," ").trim();
+      // Belegs-HTML falls vorhanden
+      const belegHtml = f.belegData ? belegDataZuHtml(f.belegData) : "";
+      return {
+        library: "H5P.DragText 1.10",
+        subContentId,
+        params: {
+          taskDescription: `<p>${String(f.frage||"").replace(/<strong>/g,"").replace(/<\/strong>/g,"").replace(/<br>/g," ").replace(/<[^>]*>/g," ").trim()}</p>${belegHtml}`,
+          textField,
+          behaviour: { enableRetry:true, enableSolutionsButton:true, showSolutionsRequiresInput:false, instantFeedback:false },
+          overallFeedback: [{ from:0, to:49, feedback:"Nochmal versuchen!" },{ from:50, to:100, feedback:"Richtig!" }],
+          checkAnswer:"Überprüfen", showSolution:"Lösung anzeigen", tryAgain:"Nochmal",
+        },
+        metadata: { contentType:"Drag Text", license:"U", title: desc.slice(0,60), defaultLanguage:"de" },
+      };
+    }
+
+    // ── Blanks: fill_blanks ─────────────────────────────────────────────────
+    if (f.typ === "fill_blanks") {
+      const felder = f.felder || [];
+      // Build one cloze sentence per field
+      const questions2 = felder.length
+        ? felder.map(feld => `${feld.label ? feld.label+": " : ""}*${feld.antwort}*`)
+        : [String(f.lueckentext || f.frage || "").replace(/<[^>]*>/g," ").trim()];
+      return {
+        library: "H5P.Blanks 1.14",
+        subContentId,
+        params: {
+          text: `<p>${String(f.frage||"").replace(/<[^>]*>/g," ").trim()}</p>${f.belegData ? belegDataZuHtml(f.belegData) : ""}`,
+          questions: questions2,
+          behaviour: { enableRetry:true, enableSolutionsButton:true, showSolutionsRequiresInput:false, caseSensitive:false, showSolutionButton:"end", autoCheck:false },
+          UI: { checkAnswerButton:"Überprüfen", showSolutionButton:"Lösung", tryAgainButton:"Nochmal", scoreBarLabel:"Punkte" },
+          overallFeedback: [{ from:0, to:49, feedback:"Schau nochmal nach." },{ from:50, to:100, feedback:"Gut gemacht!" }],
+        },
+        metadata: { contentType:"Fill in the Blanks", license:"U", title: String(f.frage||"").replace(/<[^>]*>/g," ").trim().slice(0,60), defaultLanguage:"de" },
+      };
+    }
+
+    // ── Blanks: drag_kalk (Schema-Lückentext) ──────────────────────────────
+    if (f.typ === "drag_kalk") {
+      const zeilen = f.zeilen || [];
+      const questions2 = zeilen
+        .filter(z => z.antwort != null)
+        .map(z => `${z.label}: *${z.antwort}*`);
+      return {
+        library: "H5P.Blanks 1.14",
+        subContentId,
+        params: {
+          text: `<p>${String(f.frage||"").replace(/<[^>]*>/g," ").trim()}</p>`,
+          questions: questions2.length ? questions2 : ["*Wert*"],
+          behaviour: { enableRetry:true, enableSolutionsButton:true, showSolutionsRequiresInput:false, caseSensitive:false, autoCheck:false },
+          UI: { checkAnswerButton:"Überprüfen", showSolutionButton:"Lösung", tryAgainButton:"Nochmal", scoreBarLabel:"Punkte" },
+          overallFeedback: [{ from:0, to:49, feedback:"Schau nochmal nach." },{ from:50, to:100, feedback:"Richtig!" }],
+        },
+        metadata: { contentType:"Fill in the Blanks", license:"U", title: String(f.frage||"").replace(/<[^>]*>/g," ").trim().slice(0,60), defaultLanguage:"de" },
+      };
+    }
+
+    return null;
+  }).filter(Boolean);
+
+  return {
+    introPage: {
+      showIntroPage: true,
+      title: `BuchungsWerk – Klasse ${config.klasse}`,
+      introduction: `<p>Interaktive Aufgaben für ${config.typ}${firma?.name ? " · " + firma.name : ""}.<br>Bearbeite alle Aufgaben sorgfältig.</p>`,
+      startButtonText: "Starten →",
+    },
+    progressType: "dots",
+    passPercentage: 50,
+    questions,
+    endGame: {
+      showResultPage: true,
+      noResultMessage: "Du hast alle Aufgaben bearbeitet.",
+      message: "Ergebnis:",
+      overallFeedback: [
+        { from:0,  to:49,  feedback:"Noch üben – schau nochmal in deine Unterlagen!" },
+        { from:50, to:79,  feedback:"Gut gemacht! Du kennst schon vieles." },
+        { from:80, to:100, feedback:"Ausgezeichnet! Top-Leistung!" },
+      ],
+      solutionButtonText: "Lösung anzeigen",
+      retryButtonText: "Wiederholen",
+      finishButtonText: "Fertig",
+      showAnimations: false,
+      skippable: false,
+      skipButtonText: "Überspringen",
+    },
+    override: { checkButton:true },
+    texts: {
+      prevButton:"Zurück", nextButton:"Weiter", finishButton:"Beenden",
+      textualProgress:"Aufgabe @current von @total",
+      jumpToQuestion:"Frage %d von %total", questionLabel:"Frage",
+      readSpeakerProgress:"Frage @current von @total",
+      unansweredText:"Unbeantwortet", answeredText:"Beantwortet",
+      currentQuestionText:"Aktuelle Frage",
+    },
+  };
+}
 
 function H5PModal({ aufgaben, config, firma, onSchliessen }) {
   const [tab, setTab] = useState("quiz");
@@ -9370,20 +12968,884 @@ function H5PModal({ aufgaben, config, firma, onSchliessen }) {
 
           {tab==="h5p" && (
             <div>
-              <div style={{ ...S2.infoBox, borderLeft:"3px solid #f59e0b" }}>
-                <div style={{ fontSize:"13px", color:"#f59e0b", fontWeight:700, marginBottom:"7px" }}>🚧 Geplant für nächste Phase</div>
-                Nativer .h5p-Export folgt nach der Testphase. Das Quiz-HTML lässt sich in mebis bereits als URL-Ressource oder iFrame einbinden.
+              <div style={{ ...S2.infoBox, borderLeft:"3px solid #7c3aed", fontSize:"12px" }}>
+                <div style={{ fontSize:"13px", color:"#a78bfa", fontWeight:700, marginBottom:"7px" }}>🎓 H5P-Export für bycs / mebis</div>
+                Erzeugt eine echte <strong>.h5p-Datei</strong> (Question Set) die direkt in bycs hochgeladen werden kann. Jede Aufgabe wird als interaktive Frage exportiert.
               </div>
-              <div style={S2.sectionLbl}>Geplante H5P-Aktivitäten</div>
-              {["Fill in the Blanks","Drag Text","Question Set","True/False Question","Dialog Cards (Paare)"].map(name=>(
-                <div key={name} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"9px 13px", background:"#1e293b", borderRadius:"8px", marginBottom:"5px" }}>
-                  <span style={{ fontSize:"13px", color:"#e2e8f0", fontWeight:600 }}>{name}</span>
-                  <span style={{ fontSize:"10px", color:"#f59e0b", background:"#0f0800", padding:"2px 7px", borderRadius:"5px", fontWeight:700 }}>geplant</span>
-                </div>
-              ))}
+              <div style={S2.sectionLbl}>Enthaltene Aktivitäten</div>
+              <div style={{ marginBottom:14 }}>
+                {[
+                  ["Buchungssatz-Aufgaben","Drag & Drop – Soll/Haben zuordnen"],
+                  ["Rechnung / Schema","Lückentext – Werte eintragen"],
+                  ["Theorie-Aufgaben","Multiple Choice"],
+                ].map(([typ,hint]) => (
+                  <div key={typ} style={{ display:"flex", alignItems:"center", gap:10, padding:"8px 12px", background:"#1e293b", borderRadius:8, marginBottom:5 }}>
+                    <span style={{ fontSize:"12px", color:"#e2e8f0", fontWeight:600, flex:1 }}>{typ}</span>
+                    <span style={{ fontSize:"10px", color:"#94a3b8" }}>{hint}</span>
+                  </div>
+                ))}
+              </div>
+              <div style={{ display:"flex", gap:"10px" }}>
+                <button onClick={async () => {
+                  // Load JSZip
+                  try {
+                    if (!window.JSZip) {
+                      await new Promise((res, rej) => {
+                        const s = document.createElement("script");
+                        s.src = "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js";
+                        s.onload = res; s.onerror = rej; document.head.appendChild(s);
+                      });
+                    }
+                    const fragen = generiereAlleQuizFragen(aufgaben, fragenTypen);
+                    const h5pContent = generiereH5PContent(fragen, config, firma);
+                    const zip = new window.JSZip();
+                    // h5p.json
+                    zip.file("h5p.json", JSON.stringify({
+                      title: `BuchungsWerk ${config.typ} Klasse ${config.klasse}`,
+                      language: "de",
+                      mainLibrary: "H5P.QuestionSet",
+                      license: "U",
+                      embedTypes: ["div"],
+                      preloadedDependencies: [
+                        { machineName:"H5P.QuestionSet", majorVersion:1, minorVersion:20 },
+                        { machineName:"H5P.MultiChoice", majorVersion:1, minorVersion:16 },
+                        { machineName:"H5P.Blanks", majorVersion:1, minorVersion:14 },
+                        { machineName:"H5P.DragText", majorVersion:1, minorVersion:10 },
+                        { machineName:"H5P.JoubelUI", majorVersion:1, minorVersion:3 },
+                        { machineName:"H5P.FontIcons", majorVersion:1, minorVersion:0 },
+                      ],
+                    }, null, 2));
+                    // content/content.json – direkt als Pfad, kein Ordner-Eintrag
+                    zip.file("content/content.json", JSON.stringify(h5pContent, null, 2));
+                    // Alle Ordner-Einträge entfernen (H5P-Validator erlaubt nur Dateien)
+                    Object.keys(zip.files).forEach(k => { if (zip.files[k].dir) delete zip.files[k]; });
+                    // Download
+                    const blob = await zip.generateAsync({ type:"blob", createFolders: false });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url;
+                    a.download = `BuchungsWerk_Kl${config.klasse}_${config.datum || "2025"}.h5p`;
+                    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+                    setTimeout(() => URL.revokeObjectURL(url), 10000);
+                  } catch(e) { alert("H5P-Export Fehler: " + e.message); }
+                }} style={{ ...S2.bigBtn("#7c3aed") }}>
+                  ⬇️ .h5p herunterladen
+                </button>
+              </div>
+              <div style={{ marginTop:10, fontSize:"10px", color:"#475569", textAlign:"center" }}>
+                bycs → Kurse → Aktivität hinzufügen → H5P → Datei hochladen
+              </div>
             </div>
           )}
 
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SUPPORT-BUTTON (Floating)
+// ══════════════════════════════════════════════════════════════════════════════
+function SupportButton() {
+  const [offen, setOffen] = useState(false);
+  const [text, setText] = useState("");
+  const [typ, setTyp] = useState("bug"); // "bug" | "idee" | "lob"
+  const [status, setStatus] = useState(""); // "" | "sending" | "ok" | "err"
+  const [datei, setDatei] = useState(null);
+
+  async function senden() {
+    if (!text.trim()) return;
+    setStatus("sending");
+    try {
+      // Base64-Datei falls vorhanden
+      let dateiBase64 = null, dateiName = null;
+      if (datei) {
+        dateiBase64 = await new Promise(res => {
+          const r = new FileReader();
+          r.onload = () => res(r.result);
+          r.readAsDataURL(datei);
+        });
+        dateiName = datei.name;
+      }
+      await apiFetch("/support", "POST", { typ, text, dateiBase64, dateiName, ts: new Date().toISOString() });
+      setStatus("ok");
+      setTimeout(() => { setOffen(false); setText(""); setDatei(null); setStatus(""); }, 2500);
+    } catch(e) {
+      console.error("Support-Fehler:", e);
+      setStatus("err");
+    }
+  }
+
+  return (
+    <>
+      {/* Floating Button */}
+      <button onClick={() => setOffen(true)}
+        style={{ position: "fixed", bottom: "24px", right: "24px", zIndex: 900,
+          width: "52px", height: "52px", borderRadius: "50%", border: "none",
+          background: "#0f172a", color: "#f59e0b", fontSize: "22px", cursor: "pointer",
+          boxShadow: "0 4px 16px rgba(0,0,0,0.35)", display: "flex", alignItems: "center", justifyContent: "center" }}
+        title="Feedback / Support">
+        💬
+      </button>
+
+      {/* Modal */}
+      {offen && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 1100, display: "flex", alignItems: "flex-end", justifyContent: "flex-end", padding: "24px" }}>
+          <div style={{ background: "#fff", borderRadius: "16px", width: "100%", maxWidth: "420px", padding: "24px", boxShadow: "0 16px 48px rgba(0,0,0,0.3)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+              <div style={{ fontWeight: 800, fontSize: "16px", color: "#0f172a" }}>💬 Feedback & Support</div>
+              <button onClick={() => setOffen(false)} style={{ border: "none", background: "none", fontSize: "20px", cursor: "pointer", color: "#94a3b8" }}>✕</button>
+            </div>
+
+            {/* Typ-Auswahl */}
+            <div style={{ display: "flex", gap: "8px", marginBottom: "14px" }}>
+              {[["bug","🐛 Fehler"],["idee","💡 Idee"],["lob","👍 Lob"]].map(([k, l]) => (
+                <button key={k} onClick={() => setTyp(k)}
+                  style={{ flex: 1, padding: "7px", borderRadius: "8px", border: "2px solid " + (typ===k ? "#0f172a" : "#e2e8f0"),
+                    background: typ===k ? "#0f172a" : "#fff", color: typ===k ? "#fff" : "#475569",
+                    fontWeight: 700, fontSize: "12px", cursor: "pointer" }}>
+                  {l}
+                </button>
+              ))}
+            </div>
+
+            <textarea value={text} onChange={e => setText(e.target.value)} rows={5}
+              placeholder={typ === "bug" ? "Was ist passiert? Wie kann ich den Fehler reproduzieren?" : typ === "idee" ? "Welche Funktion würdest du dir wünschen?" : "Was gefällt dir besonders?"}
+              style={{ width: "100%", padding: "10px", border: "1.5px solid #e2e8f0", borderRadius: "8px", fontSize: "13px", fontFamily: "inherit", resize: "vertical", boxSizing: "border-box", marginBottom: "10px" }} />
+
+            {/* Datei-Upload */}
+            <label style={{ display: "block", marginBottom: "14px", cursor: "pointer" }}>
+              <div style={{ border: "1.5px dashed #cbd5e1", borderRadius: "8px", padding: "8px 12px", fontSize: "12px", color: "#64748b", textAlign: "center" }}>
+                {datei ? `📎 ${datei.name}` : "📎 Screenshot / Datei anhängen (optional)"}
+              </div>
+              <input type="file" accept="image/*,.pdf,.docx" onChange={e => setDatei(e.target.files[0])} style={{ display: "none" }} />
+            </label>
+
+            {status === "ok" && <div style={{ background: "#f0fdf4", color: "#15803d", padding: "10px", borderRadius: "8px", fontWeight: 700, textAlign: "center", marginBottom: "10px" }}>✅ Danke für dein Feedback!</div>}
+            {status === "err" && <div style={{ background: "#fef2f2", color: "#dc2626", padding: "10px", borderRadius: "8px", fontWeight: 700, textAlign: "center", marginBottom: "10px" }}>⚠️ Fehler beim Senden – bitte erneut versuchen.</div>}
+
+            <button onClick={senden} disabled={!text.trim() || status === "sending"}
+              style={{ width: "100%", padding: "12px", background: "#0f172a", color: "#f59e0b", border: "none", borderRadius: "10px", fontWeight: 800, fontSize: "14px", cursor: text.trim() ? "pointer" : "not-allowed", opacity: text.trim() ? 1 : 0.5 }}>
+              {status === "sending" ? "⏳ Wird gesendet…" : "📤 Feedback senden"}
+            </button>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SIMULATION – Virtuelle Firma führen
+// ══════════════════════════════════════════════════════════════════════════════
+
+const SIM_SCHWIERIGKEITEN = [
+  { id: "7", label: "Klasse 7", icon: "🟢", desc: "Einfache Buchungen, keine USt" },
+  { id: "8", label: "Klasse 8", icon: "🟡", desc: "Einkauf, Verkauf, Zahlung mit USt" },
+  { id: "9", label: "Klasse 9", icon: "🟠", desc: "Anlagen, AfA, Forderungen" },
+  { id: "10", label: "Klasse 10", icon: "🔴", desc: "Jahresabschluss, KLR" },
+];
+
+// Eröffnungsbilanz-Werte je Schwierigkeit
+function simStartKonten(klasse) {
+  const k = Number(klasse);
+  const basis = [
+    { nr:"0870", name:"BGA",         kuerzel:"BGA",   seite:"aktiv",  betrag: 15000 },
+    { nr:"2800", name:"Bank (BK)",    kuerzel:"BK",    seite:"aktiv",  betrag: 20000 },
+    { nr:"2400", name:"Ford. aus L+L (FO)", kuerzel:"FO", seite:"aktiv", betrag: 8000 },
+    { nr:"2000", name:"Rohstoffe (R)", kuerzel:"R",    seite:"aktiv",  betrag:  5000 },
+    { nr:"3000", name:"Eigenkapital (EK)", kuerzel:"EK", seite:"passiv", betrag: 35000 },
+    { nr:"4400", name:"Verb. aus L+L (VE)", kuerzel:"VE", seite:"passiv", betrag: 13000 },
+  ];
+  if (k >= 9) {
+    basis.push({ nr:"0700", name:"Maschinen und Anlagen (MA)", kuerzel:"MA", seite:"aktiv", betrag: 30000 });
+    basis.find(b => b.nr==="3000").betrag += 30000;
+  }
+  return basis;
+}
+
+// Hilfsfunktion: Ereignis-Objekt bauen
+// Klasse 7: nur Kürzel (keine Nummern), Klasse 8+: Nr + Kürzel
+function simKto(nr, name, kuerzel, betrag, klasse) {
+  return { nr: Number(klasse) >= 8 ? nr : "", name: `${name}`, kuerzel, betrag };
+}
+
+// Geschäftsvorfälle-Pool je Schwierigkeit (je 15 Ereignisse)
+function simEreignisse(klasse, firma) {
+  const k = Number(klasse);
+  const fn = firma?.name || "Unser Unternehmen";
+  const lief = (firma?.lieferanten || LIEFERANTEN)[0]?.name || "Müller GmbH";
+  const kunde = (firma?.kunden || [{ name:"Schmidt AG" }])[0]?.name || "Schmidt AG";
+  const kto = (nr, name, kuerzel, betrag) => simKto(nr, name, kuerzel, betrag, k);
+  const pool = [];
+
+  // Klasse 7+: Einfache Buchungen, nur Kürzel
+  pool.push(
+    { id:"s1", titel:"Bareinkauf Büromaterial", text:`${fn} kauft Büromaterial für 480 € bar.`,
+      soll:[kto("0870","Büromöbel/Geschäftsausstattung","BGA",480)],
+      haben:[kto("2880","Kasse","KA",480)], punkte:2, klasse:7 },
+    { id:"s2", titel:"Barverkauf Waren", text:`${fn} verkauft Waren für 1.200 € bar (ohne USt, Kl. 7).`,
+      soll:[kto("2880","Kasse","KA",1200)],
+      haben:[kto("5000","Umsatzerlöse FE","UEFE",1200)], punkte:2, klasse:7 },
+    { id:"s3", titel:"Miete überweisen", text:`${fn} überweist die Monatsmiete von 2.400 € per Bank.`,
+      soll:[kto("6700","Mieten und Pachten","AWMP",2400)],
+      haben:[kto("2800","Bank","BK",2400)], punkte:2, klasse:7 },
+    { id:"s4", titel:"Gehälter überweisen", text:`${fn} überweist Löhne und Gehälter i.H.v. 8.500 €.`,
+      soll:[kto("6200","Löhne und Gehälter","LG",8500)],
+      haben:[kto("2800","Bank","BK",8500)], punkte:2, klasse:7 },
+    { id:"s4b", titel:"Rohstoffe bar eingekauft", text:`${fn} kauft Rohstoffe für 3.200 € bar.`,
+      soll:[kto("6000","Aufwend. Rohstoffe","AWR",3200)],
+      haben:[kto("2880","Kasse","KA",3200)], punkte:2, klasse:7 },
+  );
+
+  // Klasse 8+: mit Kontonummern und USt
+  if (k >= 8) pool.push(
+    { id:"s5", titel:"Eingangsrechnung buchen", text:`${lief} liefert Rohstoffe auf Ziel. Netto 4.000 €, USt 19 % = 760 €, Brutto 4.760 €.`,
+      soll:[kto("6000","Aufwend. Rohstoffe (AWR)",   "AWR",  4000),
+            kto("2600","Vorsteuer (VORST)",           "VORST", 760)],
+      haben:[kto("4400","Verbindlichkeiten aus L+L (VE)","VE",4760)], punkte:3, klasse:8 },
+    { id:"s6", titel:"Ausgangsrechnung buchen", text:`${fn} liefert Fertigerzeugnisse an ${kunde} auf Ziel. Netto 6.000 €, USt 19 % = 1.140 €, Brutto 7.140 €.`,
+      soll:[kto("2400","Forderungen aus L+L (FO)",   "FO",   7140)],
+      haben:[kto("5000","Umsatzerlöse FE (UEFE)",     "UEFE", 6000),
+             kto("4800","Umsatzsteuer (UST)",          "UST",  1140)], punkte:3, klasse:8 },
+    { id:"s7", titel:"Lieferantenrechnung bezahlen", text:`${fn} bezahlt Verbindlichkeiten i.H.v. 4.760 € per Banküberweisung.`,
+      soll:[kto("4400","Verbindlichkeiten aus L+L (VE)","VE",4760)],
+      haben:[kto("2800","Bank (BK)",                   "BK", 4760)], punkte:2, klasse:8 },
+    { id:"s8", titel:"Forderungseingang", text:`${kunde} überweist 7.140 €.`,
+      soll:[kto("2800","Bank (BK)",                   "BK", 7140)],
+      haben:[kto("2400","Forderungen aus L+L (FO)",   "FO", 7140)], punkte:2, klasse:8 },
+    { id:"s9", titel:"Rücksendung an Lieferant", text:`${fn} sendet Rohstoffe im Wert von 500 € netto + 95 € USt (19 %) zurück.`,
+      soll:[kto("4400","Verbindlichkeiten aus L+L (VE)","VE", 595)],
+      haben:[kto("6000","Aufwend. Rohstoffe (AWR)",   "AWR", 500),
+             kto("2600","Vorsteuer (VORST)",           "VORST", 95)], punkte:3, klasse:8 },
+    { id:"s10", titel:"Zahlung mit Skonto", text:`${fn} bezahlt VE über 2.380 € unter Abzug von 2 % Skonto (= 47,60 €). Zahlung per Bank: 2.332,40 €.`,
+      soll:[kto("4400","Verbindlichkeiten aus L+L (VE)","VE",   2380)],
+      haben:[kto("2800","Bank (BK)",                   "BK",    2332.40),
+             kto("6001","Bezugskosten Rohstoffe (BZKR)","BZKR", 47.60)], punkte:4, klasse:8 },
+    { id:"s10b", titel:"Warenlieferung bar (mit USt)", text:`${fn} kauft Hilfsstoffe für 595 € brutto (19 % USt) bar.`,
+      soll:[kto("6020","Aufwend. Hilfsstoffe (AWH)","AWH",500),
+            kto("2600","Vorsteuer (VORST)",          "VORST",95)],
+      haben:[kto("2880","Kasse (KA)","KA",595)], punkte:3, klasse:8 },
+  );
+
+  // Klasse 9+: Anlagen, AfA, ZWFO
+  if (k >= 9) pool.push(
+    { id:"s11", titel:"Maschine kaufen (auf Ziel)", text:`${fn} kauft eine Maschine für 24.000 € netto + 19 % USt (= 4.560 €) auf Ziel.`,
+      soll:[kto("0700","Maschinen und Anlagen (MA)","MA",  24000),
+            kto("2600","Vorsteuer (VORST)",          "VORST",4560)],
+      haben:[kto("4400","Verbindlichkeiten aus L+L (VE)","VE",28560)], punkte:3, klasse:9 },
+    { id:"s12", titel:"Abschreibung auf Sachanlagen", text:`Die Jahres-AfA auf Maschinen und Anlagen beträgt 4.800 €.`,
+      soll:[kto("6520","Abschreibungen auf Sachanlagen (ABSA)","ABSA",4800)],
+      haben:[kto("0700","Maschinen und Anlagen (MA)","MA",4800)], punkte:2, klasse:9 },
+    { id:"s13", titel:"Zweifelhafte Forderung", text:`Die Forderung über 3.570 € brutto an ${kunde} ist gefährdet. Umbuchen auf zweifelhafte Forderungen.`,
+      soll:[kto("2470","Zweifelhafte Forderungen (ZWFO)","ZWFO",3570)],
+      haben:[kto("2400","Forderungen aus L+L (FO)",      "FO",  3570)], punkte:3, klasse:9 },
+  );
+
+  // Klasse 10: Jahresabschluss
+  if (k >= 10) pool.push(
+    { id:"s14", titel:"Rückstellung bilden", text:`${fn} bildet eine Rückstellung für Prozesskosten i.H.v. 5.000 €.`,
+      soll:[kto("6990","Rückstellungsaufwand","RST-AW",5000)],
+      haben:[kto("3900","Rückstellungen (RST)","RST",5000)], punkte:3, klasse:10 },
+    { id:"s15", titel:"Aktive Rechnungsabgrenzung", text:`${fn} hat Versicherungskosten von 1.800 € vorausgezahlt, die das Folgejahr betreffen.`,
+      soll:[kto("2900","Aktiver Rechnungsabgrenzungsposten (ARA)","ARA",1800)],
+      haben:[kto("6700","Mieten und Pachten (AWMP)","AWMP",1800)], punkte:3, klasse:10 },
+  );
+
+  const gefiltert = pool.filter(e => e.klasse <= k);
+  const gemischt = [...gefiltert].sort(() => Math.random() - 0.5);
+  return gemischt.slice(0, Math.min(15, gemischt.length));
+}
+
+function SimulationModus({ onZurueck }) {
+  const [phase, setPhase] = useState("setup"); // setup | firma | spiel | abschluss
+  const [schwierigkeit, setSchwierigkeit] = useState("8");
+  const [modus, setModus] = useState("solo"); // solo | klasse
+  const [klassenCode, setKlassenCode] = useState("");
+  const [spielerName, setSpielerName] = useState("");
+  const [firma, setFirma] = useState(null);
+  const [ereignisse, setEreignisse] = useState([]);
+  const [aktuellesIdx, setAktuellesIdx] = useState(0);
+  const [konten, setKonten] = useState([]);
+  const [punkte, setPunkte] = useState(0);
+  const [maxPunkte, setMaxPunkte] = useState(0);
+  const [antwort, setAntwort] = useState({ soll: "", haben: "", betrag: "" });
+  const [feedback, setFeedback] = useState(null); // null | "richtig" | "falsch"
+  const [verlauf, setVerlauf] = useState([]);
+  const [rangliste, setRangliste] = useState([]);
+  const [startTime, setStartTime] = useState(null);
+  const [elapsed, setElapsed] = useState(0);
+
+  // Timer
+  React.useEffect(() => {
+    if (phase !== "spiel") return;
+    const t = setInterval(() => setElapsed(Date.now() - startTime), 1000);
+    return () => clearInterval(t);
+  }, [phase, startTime]);
+
+  function startSpiel(f) {
+    const ev = simEreignisse(schwierigkeit, f);
+    const startK = simStartKonten(schwierigkeit);
+    setFirma(f);
+    setEreignisse(ev);
+    setKonten(startK);
+    setMaxPunkte(ev.reduce((s, e) => s + e.punkte, 0));
+    setPunkte(0);
+    setAktuellesIdx(0);
+    setVerlauf([]);
+    setFeedback(null);
+    setStartTime(Date.now());
+    setElapsed(0);
+    setPhase("spiel");
+  }
+
+  function pruefen() {
+    const ev = ereignisse[aktuellesIdx];
+    if (!ev) return;
+    const k = Number(schwierigkeit);
+    const normSoll = antwort.soll.trim().toUpperCase();
+    const normHaben = antwort.haben.trim().toUpperCase();
+    // Kl7: compare against kuerzel, Kl8+: compare against nr OR kuerzel
+    const matchKto = (slot, input) => {
+      if (k <= 7) return slot.kuerzel?.toUpperCase() === input;
+      return slot.nr === input || slot.kuerzel?.toUpperCase() === input;
+    };
+    const korrektSoll = ev.soll.some(s => matchKto(s, normSoll));
+    const korrektHaben = ev.haben.some(h => matchKto(h, normHaben));
+    const korrekt = korrektSoll && korrektHaben;
+    const gewPunkte = korrekt ? ev.punkte : 0;
+    setPunkte(p => p + gewPunkte);
+    setFeedback(korrekt ? "richtig" : "falsch");
+    setVerlauf(v => [...v, { ...ev, korrekt, gewPunkte }]);
+    // Konten aktualisieren
+    if (korrekt) {
+      setKonten(prev => {
+        const k = prev.map(x => ({...x}));
+        const add = (nr, name, seite, betrag) => {
+          const found = k.find(x => x.nr === nr);
+          if (found) {
+            if (found.seite === seite) found.betrag += betrag;
+            else found.betrag = Math.max(0, found.betrag - betrag);
+          } else {
+            k.push({ nr, name, seite, betrag });
+          }
+        };
+        ev.soll.forEach(s => add(s.nr, s.name, "aktiv", s.betrag));
+        ev.haben.forEach(h => add(h.nr, h.name, "passiv", h.betrag));
+        return k;
+      });
+    }
+  }
+
+  async function weiter() {
+    setFeedback(null);
+    setAntwort({ soll: "", haben: "", betrag: "" });
+    if (aktuellesIdx + 1 >= ereignisse.length) {
+      // Abschluss
+      if (modus === "klasse" && klassenCode) {
+        await apiFetch("/ergebnisse", "POST", { session_id: klassenCode, spieler: spielerName || "Anonym", punkte, max_punkte: maxPunkte, zeit: Math.round(elapsed/1000), klasse: schwierigkeit });
+        const rl = await apiFetch(`/rangliste/${klassenCode}`);
+        setRangliste(rl || []);
+      }
+      setPhase("abschluss");
+    } else {
+      setAktuellesIdx(i => i + 1);
+    }
+  }
+
+  const fmtTime = s => `${Math.floor(s/60)}:${String(s%60).padStart(2,"0")}`;
+  const aktuellesEreignis = ereignisse[aktuellesIdx];
+  const fortschritt = ereignisse.length ? (aktuellesIdx / ereignisse.length * 100) : 0;
+  const aktivUmme = konten.filter(k=>k.seite==="aktiv").reduce((s,k)=>s+k.betrag,0);
+  const passivSumme = konten.filter(k=>k.seite==="passiv").reduce((s,k)=>s+k.betrag,0);
+
+  // ── Setup ──────────────────────────────────────────────────────────────────
+  if (phase === "setup") return (
+    <div style={{ maxWidth: 520, margin: "0 auto", padding: "24px 16px" }}>
+      <button onClick={onZurueck} style={{ background:"none", border:"none", color:"#94a3b8", cursor:"pointer", fontSize:13, marginBottom:16 }}>← Zurück</button>
+      <div style={{ fontSize:28, fontWeight:900, color:"#0f172a", marginBottom:4 }}>🏭 Simulation</div>
+      <div style={{ fontSize:14, color:"#64748b", marginBottom:24 }}>Führe eine Firma durch ein Geschäftsjahr und buche alle Vorfälle korrekt.</div>
+
+      <div style={{ marginBottom:20 }}>
+        <div style={{ fontSize:12, fontWeight:700, color:"#374151", marginBottom:8 }}>Schwierigkeit</div>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
+          {SIM_SCHWIERIGKEITEN.map(s => (
+            <button key={s.id} onClick={() => setSchwierigkeit(s.id)}
+              style={{ padding:"12px", border:`2px solid ${schwierigkeit===s.id?"#7c3aed":"#e2e8f0"}`, borderRadius:10, background:schwierigkeit===s.id?"#ede9fe":"#fff", cursor:"pointer", textAlign:"left" }}>
+              <div style={{ fontWeight:700, fontSize:13, color:schwierigkeit===s.id?"#5b21b6":"#374151" }}>{s.icon} {s.label}</div>
+              <div style={{ fontSize:11, color:"#94a3b8", marginTop:2 }}>{s.desc}</div>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ marginBottom:20 }}>
+        <div style={{ fontSize:12, fontWeight:700, color:"#374151", marginBottom:8 }}>Modus</div>
+        <div style={{ display:"flex", gap:8 }}>
+          {[["solo","👤 Solo","Einzeln üben"],["klasse","👥 Klasse","Wettbewerb"]].map(([id,l,d]) => (
+            <button key={id} onClick={() => setModus(id)}
+              style={{ flex:1, padding:"12px", border:`2px solid ${modus===id?"#0f172a":"#e2e8f0"}`, borderRadius:10, background:modus===id?"#0f172a":"#fff", cursor:"pointer" }}>
+              <div style={{ fontWeight:700, fontSize:13, color:modus===id?"#fff":"#374151" }}>{l}</div>
+              <div style={{ fontSize:11, color:modus===id?"#94a3b8":"#94a3b8", marginTop:2 }}>{d}</div>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {modus === "klasse" && (
+        <div style={{ marginBottom:20, display:"flex", gap:8 }}>
+          <div style={{ flex:1 }}>
+            <div style={{ fontSize:12, fontWeight:700, color:"#374151", marginBottom:4 }}>Dein Name</div>
+            <input value={spielerName} onChange={e=>setSpielerName(e.target.value)} placeholder="Vorname"
+              style={{ width:"100%", padding:"10px", border:"1.5px solid #e2e8f0", borderRadius:8, fontSize:13, boxSizing:"border-box" }} />
+          </div>
+          <div style={{ flex:1 }}>
+            <div style={{ fontSize:12, fontWeight:700, color:"#374151", marginBottom:4 }}>Klassen-Code</div>
+            <input value={klassenCode} onChange={e=>setKlassenCode(e.target.value.toUpperCase())} placeholder="z.B. BwR8a"
+              style={{ width:"100%", padding:"10px", border:"1.5px solid #e2e8f0", borderRadius:8, fontSize:13, boxSizing:"border-box" }} />
+          </div>
+        </div>
+      )}
+
+      <button onClick={() => setPhase("firma")}
+        style={{ width:"100%", padding:"14px", background:"linear-gradient(135deg,#1e1b4b,#7c3aed)", color:"#fff", border:"none", borderRadius:12, fontWeight:800, fontSize:15, cursor:"pointer" }}>
+        Weiter: Firma wählen →
+      </button>
+    </div>
+  );
+
+  // ── Firma wählen ───────────────────────────────────────────────────────────
+  if (phase === "firma") return (
+    <div style={{ maxWidth:520, margin:"0 auto", padding:"24px 16px" }}>
+      <button onClick={() => setPhase("setup")} style={{ background:"none", border:"none", color:"#94a3b8", cursor:"pointer", fontSize:13, marginBottom:16 }}>← Zurück</button>
+      <div style={{ fontSize:22, fontWeight:800, color:"#0f172a", marginBottom:16 }}>🏢 Firma wählen</div>
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+        {UNTERNEHMEN.slice(0, 12).map(u => (
+          <button key={u.id} onClick={() => startSpiel(u)}
+            style={{ padding:"14px", border:"2px solid #e2e8f0", borderRadius:12, background:"#fff", cursor:"pointer", textAlign:"left",
+              transition:"all 0.15s" }}
+            onMouseOver={e=>e.currentTarget.style.borderColor="#7c3aed"}
+            onMouseOut={e=>e.currentTarget.style.borderColor="#e2e8f0"}>
+            <div style={{ fontWeight:700, fontSize:13, color:"#0f172a", marginBottom:2 }}>{u.name}</div>
+            <div style={{ fontSize:11, color:"#94a3b8" }}>{u.branche}</div>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+
+  // ── Spiel ──────────────────────────────────────────────────────────────────
+  if (phase === "spiel" && aktuellesEreignis) return (
+    <div style={{ maxWidth:560, margin:"0 auto", padding:"16px" }}>
+      {/* Header */}
+      <div style={{ background:"#0f172a", borderRadius:14, padding:"14px 18px", marginBottom:14, color:"#fff" }}>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
+          <div style={{ fontWeight:800, fontSize:14 }}>🏭 {firma?.name}</div>
+          <div style={{ display:"flex", gap:12, fontSize:13 }}>
+            <span>⏱ {fmtTime(Math.round(elapsed/1000))}</span>
+            <span style={{ color:"#f59e0b", fontWeight:700 }}>⭐ {punkte}/{maxPunkte} P</span>
+          </div>
+        </div>
+        {/* Fortschrittsbalken */}
+        <div style={{ height:6, background:"#1e293b", borderRadius:3, overflow:"hidden" }}>
+          <div style={{ height:"100%", width:fortschritt+"%", background:"#7c3aed", borderRadius:3, transition:"width 0.4s" }} />
+        </div>
+        <div style={{ fontSize:11, color:"#64748b", marginTop:4 }}>Ereignis {aktuellesIdx+1} von {ereignisse.length}</div>
+      </div>
+
+      {/* Ereignis-Karte */}
+      <div style={{ background:"#fff", border:"2px solid #e2e8f0", borderRadius:14, padding:"18px", marginBottom:14 }}>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
+          <div style={{ fontWeight:800, fontSize:15, color:"#0f172a" }}>{aktuellesEreignis.titel}</div>
+          <span style={{ background:"#ede9fe", color:"#7c3aed", fontWeight:700, fontSize:12, padding:"3px 10px", borderRadius:20 }}>{aktuellesEreignis.punkte} P</span>
+        </div>
+        <div style={{ fontSize:14, color:"#374151", lineHeight:1.6, marginBottom:14, padding:"12px", background:"#f8fafc", borderRadius:8 }}>
+          {aktuellesEreignis.text}
+        </div>
+
+        {/* Buchungssatz-Eingabe */}
+        {feedback === null ? (
+          <div>
+            <div style={{ fontSize:12, fontWeight:700, color:"#374151", marginBottom:8 }}>
+              Buchungssatz eingeben {Number(schwierigkeit) <= 7 ? "(Kürzel, z.B. AWR)" : "(Kontonummer, z.B. 6000)"}:
+            </div>
+            <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
+              <div style={{ flex:1, minWidth:120 }}>
+                <div style={{ fontSize:10, color:"#64748b", marginBottom:3 }}>Soll {Number(schwierigkeit) <= 7 ? "(Kürzel)" : "(Nr.)"}</div>
+                <input value={antwort.soll} onChange={e=>setAntwort(a=>({...a,soll:e.target.value}))}
+                  placeholder={Number(schwierigkeit) <= 7 ? "z.B. AWR" : "z.B. 6000"} style={{ width:"100%", padding:"10px", border:"2px solid #e2e8f0", borderRadius:8, fontSize:14, boxSizing:"border-box" }} />
+              </div>
+              <div style={{ fontWeight:800, color:"#94a3b8", paddingTop:18 }}>an</div>
+              <div style={{ flex:1, minWidth:120 }}>
+                <div style={{ fontSize:10, color:"#64748b", marginBottom:3 }}>Haben {Number(schwierigkeit) <= 7 ? "(Kürzel)" : "(Nr.)"}</div>
+                <input value={antwort.haben} onChange={e=>setAntwort(a=>({...a,haben:e.target.value}))}
+                  placeholder={Number(schwierigkeit) <= 7 ? "z.B. BK" : "z.B. 2800"} style={{ width:"100%", padding:"10px", border:"2px solid #e2e8f0", borderRadius:8, fontSize:14, boxSizing:"border-box" }} />
+              </div>
+            </div>
+            <button onClick={pruefen} disabled={!antwort.soll || !antwort.haben}
+              style={{ marginTop:12, width:"100%", padding:"12px", background:"#7c3aed", color:"#fff", border:"none", borderRadius:10, fontWeight:700, fontSize:14, cursor:"pointer", opacity:(!antwort.soll||!antwort.haben)?0.5:1 }}>
+              ✓ Überprüfen
+            </button>
+          </div>
+        ) : (
+          <div>
+            <div style={{ padding:"14px", borderRadius:10, background:feedback==="richtig"?"#f0fdf4":"#fef2f2", border:`2px solid ${feedback==="richtig"?"#86efac":"#fca5a5"}`, marginBottom:12 }}>
+              <div style={{ fontWeight:800, fontSize:15, color:feedback==="richtig"?"#15803d":"#dc2626", marginBottom:6 }}>
+                {feedback==="richtig" ? "✅ Richtig! +" + aktuellesEreignis.punkte + " Punkte" : "❌ Leider falsch"}
+              </div>
+              <div style={{ fontSize:13, color:"#374151" }}>
+                <strong>Lösung:</strong>{" "}
+                {aktuellesEreignis.soll.map(s => Number(schwierigkeit) <= 7 ? s.kuerzel : `${s.nr} ${s.kuerzel}`).join(" + ")}
+                {" an "}
+                {aktuellesEreignis.haben.map(h => Number(schwierigkeit) <= 7 ? h.kuerzel : `${h.nr} ${h.kuerzel}`).join(" + ")}
+                {" ("}
+                {aktuellesEreignis.soll[0]?.betrag?.toLocaleString("de-DE")} €{")"}
+              </div>
+            </div>
+            <button onClick={weiter} style={{ width:"100%", padding:"12px", background:"#0f172a", color:"#fff", border:"none", borderRadius:10, fontWeight:700, fontSize:14, cursor:"pointer" }}>
+              {aktuellesIdx+1 >= ereignisse.length ? "Abschluss →" : "Weiter →"}
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Mini-Bilanz */}
+      <div style={{ background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:12, padding:"12px 16px" }}>
+        <div style={{ fontSize:11, fontWeight:700, color:"#64748b", marginBottom:8, textTransform:"uppercase" }}>📊 Aktuelle Kontenstände</div>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6 }}>
+          <div>
+            <div style={{ fontSize:10, fontWeight:700, color:"#0ea5e9", marginBottom:4 }}>AKTIVA</div>
+            {konten.filter(k=>k.seite==="aktiv").map(k => (
+              <div key={k.nr} style={{ display:"flex", justifyContent:"space-between", fontSize:11, padding:"2px 0" }}>
+                <span style={{ color:"#374151" }}>{k.name}</span>
+                <span style={{ color:"#0f172a", fontWeight:600 }}>{k.betrag.toLocaleString("de-DE")} €</span>
+              </div>
+            ))}
+            <div style={{ borderTop:"1px solid #e2e8f0", marginTop:4, paddingTop:4, display:"flex", justifyContent:"space-between", fontSize:11, fontWeight:700 }}>
+              <span>Summe</span><span>{aktivUmme.toLocaleString("de-DE")} €</span>
+            </div>
+          </div>
+          <div>
+            <div style={{ fontSize:10, fontWeight:700, color:"#f59e0b", marginBottom:4 }}>PASSIVA</div>
+            {konten.filter(k=>k.seite==="passiv").map(k => (
+              <div key={k.nr} style={{ display:"flex", justifyContent:"space-between", fontSize:11, padding:"2px 0" }}>
+                <span style={{ color:"#374151" }}>{k.name}</span>
+                <span style={{ color:"#0f172a", fontWeight:600 }}>{k.betrag.toLocaleString("de-DE")} €</span>
+              </div>
+            ))}
+            <div style={{ borderTop:"1px solid #e2e8f0", marginTop:4, paddingTop:4, display:"flex", justifyContent:"space-between", fontSize:11, fontWeight:700 }}>
+              <span>Summe</span><span>{passivSumme.toLocaleString("de-DE")} €</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  // ── Abschluss ──────────────────────────────────────────────────────────────
+  if (phase === "abschluss") {
+    const pct = maxPunkte ? Math.round(punkte/maxPunkte*100) : 0;
+    const note = pct >= 92 ? "1" : pct >= 81 ? "2" : pct >= 67 ? "3" : pct >= 50 ? "4" : pct >= 30 ? "5" : "6";
+    return (
+      <div style={{ maxWidth:540, margin:"0 auto", padding:"24px 16px" }}>
+        <div style={{ background:"linear-gradient(135deg,#1e1b4b,#312e81)", borderRadius:16, padding:"28px", marginBottom:20, textAlign:"center", color:"#fff" }}>
+          <div style={{ fontSize:48, marginBottom:8 }}>{pct>=80?"🏆":pct>=60?"🥈":pct>=40?"🥉":"📚"}</div>
+          <div style={{ fontSize:24, fontWeight:900, marginBottom:4 }}>{punkte} / {maxPunkte} Punkte</div>
+          <div style={{ fontSize:15, color:"#a5b4fc", marginBottom:8 }}>{pct} % – Tendenz Note {note}</div>
+          <div style={{ fontSize:13, color:"#c7d2fe" }}>⏱ {fmtTime(Math.round(elapsed/1000))} | {firma?.name}</div>
+        </div>
+
+        {/* Verlauf */}
+        <div style={{ marginBottom:20 }}>
+          <div style={{ fontSize:13, fontWeight:700, color:"#374151", marginBottom:8 }}>Auswertung</div>
+          {verlauf.map((v, i) => (
+            <div key={i} style={{ display:"flex", alignItems:"center", gap:10, padding:"8px 12px", background:v.korrekt?"#f0fdf4":"#fef2f2", borderRadius:8, marginBottom:4, fontSize:12 }}>
+              <span>{v.korrekt?"✅":"❌"}</span>
+              <span style={{ flex:1, color:"#374151", fontWeight:600 }}>{v.titel}</span>
+              <span style={{ color:v.korrekt?"#15803d":"#dc2626", fontWeight:700 }}>{v.gewPunkte}/{v.punkte} P</span>
+            </div>
+          ))}
+        </div>
+
+        {/* Rangliste (Klassenmodus) */}
+        {rangliste.length > 0 && (
+          <div style={{ background:"#0f172a", borderRadius:12, padding:"16px", marginBottom:20 }}>
+            <div style={{ fontSize:13, fontWeight:700, color:"#f59e0b", marginBottom:10 }}>🏆 Rangliste – {klassenCode}</div>
+            {rangliste.slice(0,10).map((r, i) => (
+              <div key={i} style={{ display:"flex", gap:10, fontSize:12, padding:"5px 0", borderBottom:"1px solid #1e293b", color:r.spieler===spielerName?"#f59e0b":"#e2e8f0" }}>
+                <span style={{ fontWeight:700, minWidth:20 }}>{i+1}.</span>
+                <span style={{ flex:1 }}>{r.spieler}</span>
+                <span style={{ fontWeight:700 }}>{r.punkte}/{r.max_punkte} P</span>
+                <span style={{ color:"#64748b" }}>{r.zeit ? fmtTime(r.zeit) : ""}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div style={{ display:"flex", gap:10 }}>
+          <button onClick={() => { setPhase("setup"); }} style={{ flex:1, padding:"12px", background:"#f1f5f9", color:"#374151", border:"none", borderRadius:10, fontWeight:700, fontSize:13, cursor:"pointer" }}>
+            Nochmal
+          </button>
+          <button onClick={onZurueck} style={{ flex:1, padding:"12px", background:"#0f172a", color:"#fff", border:"none", borderRadius:10, fontWeight:700, fontSize:13, cursor:"pointer" }}>
+            Zurück zum Start
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return null;
+}
+
+// ── EinstellungenModal ────────────────────────────────────────────────────────
+function EinstellungenModal({ settings, setSettings, onSchliessen }) {
+  const [tab, setTab] = React.useState("profil");
+  const [local, setLocal] = React.useState({ ...settings });
+
+  function set(key, val) { setLocal(s => ({ ...s, [key]: val })); }
+  function speichern() { setSettings(local); speichereSettings(local); onSchliessen(); }
+
+  const tabs = [
+    { id:"profil",   icon:"👤", label:"Profil"    },
+    { id:"aufgaben", icon:"⚙️", label:"Aufgaben"  },
+    { id:"anzeige",  icon:"👁", label:"Anzeige"   },
+    { id:"export",   icon:"📤", label:"Export"    },
+    { id:"hilfe",    icon:"❓", label:"Hilfe"     },
+  ];
+
+  const row = (label, children) => (
+    <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"12px 0", borderBottom:"1px solid #f1f5f9" }}>
+      <span style={{ fontSize:"14px", color:"#374151", fontWeight:500 }}>{label}</span>
+      <div>{children}</div>
+    </div>
+  );
+  const chk = (key, label) => (
+    <label style={{ display:"flex", alignItems:"center", gap:"8px", cursor:"pointer", fontSize:"14px" }}>
+      <input type="checkbox" checked={!!local[key]} onChange={e=>set(key,e.target.checked)}
+        style={{ width:"18px", height:"18px", accentColor:"#0f172a", cursor:"pointer" }} />
+      <span style={{ color:"#374151" }}>{label}</span>
+    </label>
+  );
+
+  return (
+    <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.55)", zIndex:2000, display:"flex", alignItems:"center", justifyContent:"center", padding:"16px" }}>
+      <div style={{ background:"#fff", borderRadius:"20px", width:"100%", maxWidth:"560px", maxHeight:"90vh", overflow:"hidden", display:"flex", flexDirection:"column", boxShadow:"0 24px 64px rgba(0,0,0,0.25)" }}>
+        {/* Header */}
+        <div style={{ background:"linear-gradient(135deg,#0f172a,#1e293b)", padding:"20px 24px", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+          <div>
+            <div style={{ fontSize:"11px", fontWeight:700, color:"#f59e0b", letterSpacing:".12em", textTransform:"uppercase", marginBottom:"4px" }}>BuchungsWerk</div>
+            <div style={{ fontSize:"20px", fontWeight:900, color:"#fff" }}>⚙️ Einstellungen</div>
+          </div>
+          <button onClick={onSchliessen} style={{ background:"transparent", border:"1.5px solid #334155", borderRadius:"10px", color:"#94a3b8", width:"36px", height:"36px", cursor:"pointer", fontSize:"18px" }}>✕</button>
+        </div>
+
+        {/* Tabs */}
+        <div style={{ display:"flex", borderBottom:"2px solid #f1f5f9", background:"#f8fafc" }}>
+          {tabs.map(t => (
+            <button key={t.id} onClick={() => setTab(t.id)}
+              style={{ flex:1, padding:"12px 8px", border:"none", background:"transparent", cursor:"pointer", fontSize:"12px", fontWeight:tab===t.id?800:500,
+                color:tab===t.id?"#0f172a":"#64748b",
+                borderBottom:`3px solid ${tab===t.id?"#f59e0b":"transparent"}`,
+                transition:"all 0.15s" }}>
+              <div style={{ fontSize:"18px", marginBottom:"2px" }}>{t.icon}</div>
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Content */}
+        <div style={{ flex:1, overflowY:"auto", padding:"20px 24px" }}>
+
+          {tab === "profil" && (
+            <div>
+              <div style={{ fontSize:"12px", fontWeight:700, color:"#94a3b8", textTransform:"uppercase", letterSpacing:".1em", marginBottom:"16px" }}>Lehrkraft & Schule</div>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"12px", marginBottom:"16px" }}>
+                <div>
+                  <label style={{ fontSize:"11px", fontWeight:700, color:"#64748b", display:"block", marginBottom:"4px" }}>Vorname</label>
+                  <input value={local.lehrerVorname} onChange={e=>set("lehrerVorname",e.target.value)}
+                    placeholder="z.B. Maria" style={{ ...S.input, width:"100%", boxSizing:"border-box" }} />
+                </div>
+                <div>
+                  <label style={{ fontSize:"11px", fontWeight:700, color:"#64748b", display:"block", marginBottom:"4px" }}>Nachname</label>
+                  <input value={local.lehrerNachname} onChange={e=>set("lehrerNachname",e.target.value)}
+                    placeholder="z.B. Gruber" style={{ ...S.input, width:"100%", boxSizing:"border-box" }} />
+                </div>
+              </div>
+              <div style={{ marginBottom:"16px" }}>
+                <label style={{ fontSize:"11px", fontWeight:700, color:"#64748b", display:"block", marginBottom:"4px" }}>Stammschule</label>
+                <input value={local.stammschule} onChange={e=>set("stammschule",e.target.value)}
+                  placeholder="z.B. Realschule Musterstadt"
+                  style={{ ...S.input, width:"100%", boxSizing:"border-box" }} />
+                <div style={{ fontSize:"11px", color:"#94a3b8", marginTop:"4px" }}>→ Wird automatisch in alle Kopfzeilen bei Prüfungsexport übernommen.</div>
+              </div>
+              {(local.stammschule || local.lehrerVorname) && (
+                <div style={{ background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:"10px", padding:"12px 16px", fontSize:"13px", color:"#374151" }}>
+                  <div style={{ fontWeight:700, marginBottom:"4px" }}>Vorschau Kopfzeile:</div>
+                  <div>{local.stammschule || "Schule nicht angegeben"}</div>
+                  {(local.lehrerVorname || local.lehrerNachname) && <div style={{ color:"#64748b", fontSize:"12px", marginTop:"2px" }}>Lehrkraft: {local.lehrerVorname} {local.lehrerNachname}</div>}
+                </div>
+              )}
+            </div>
+          )}
+
+          {tab === "aufgaben" && (
+            <div>
+              <div style={{ fontSize:"12px", fontWeight:700, color:"#94a3b8", textTransform:"uppercase", letterSpacing:".1em", marginBottom:"16px" }}>Aufgaben generieren</div>
+              {chk("sofortrabatte", "Sofortrabatte in Eingangsrechnungen berücksichtigen")}
+              <div style={{ height:1, background:"#f1f5f9", margin:"4px 0" }} />
+              {chk("anschaffungsnebenkosten", "Anschaffungsnebenkosten (Bezugskosten) verwenden")}
+              <div style={{ height:1, background:"#f1f5f9", margin:"4px 0" }} />
+              {chk("einfacheBetraege", "Einfache (runde) Beträge bevorzugen")}
+              <div style={{ marginTop:"16px", padding:"10px 14px", background:"#fffbeb", borderRadius:"10px", border:"1px solid #fde68a", fontSize:"12px", color:"#92400e" }}>
+                ⚠️ Änderungen wirken sich auf neu generierte Aufgaben aus, nicht auf bereits erstellte.
+              </div>
+              <div style={{ fontSize:"12px", fontWeight:700, color:"#94a3b8", textTransform:"uppercase", letterSpacing:".1em", margin:"20px 0 12px" }}>Anrede</div>
+              {chk("anredeKlasse10", 'Klasse 10: Schüler automatisch mit "Sie" ansprechen')}
+            </div>
+          )}
+
+          {tab === "anzeige" && (
+            <div>
+              <div style={{ fontSize:"12px", fontWeight:700, color:"#94a3b8", textTransform:"uppercase", letterSpacing:".1em", marginBottom:"16px" }}>Darstellung</div>
+              {chk("kontennummernAnzeigen", "Kontennummern in Lösungen anzeigen")}
+              <div style={{ height:1, background:"#f1f5f9", margin:"4px 0" }} />
+              {chk("loesungenStandardAn", "Lösungen beim Öffnen standardmäßig eingeblendet")}
+              <div style={{ height:1, background:"#f1f5f9", margin:"4px 0" }} />
+
+              <div style={{ padding:"12px 0", borderBottom:"1px solid #f1f5f9" }}>
+                <div style={{ fontSize:"14px", color:"#374151", fontWeight:500, marginBottom:"8px" }}>Standard-Belegmodus</div>
+                <div style={{ display:"flex", gap:"8px" }}>
+                  {[["beleg","📄 Beleg"],["text","📝 Geschäftsfall"]].map(([v,l]) => (
+                    <button key={v} onClick={() => set("belegModus",v)}
+                      style={{ flex:1, padding:"10px", border:`2px solid ${local.belegModus===v?"#0f172a":"#e2e8f0"}`,
+                        borderRadius:"10px", background:local.belegModus===v?"#0f172a":"#fff",
+                        color:local.belegModus===v?"#fff":"#64748b", fontWeight:700, fontSize:"13px", cursor:"pointer" }}>
+                      {l}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div style={{ padding:"12px 0" }}>
+                <div style={{ fontSize:"14px", color:"#374151", fontWeight:500, marginBottom:"8px" }}>Lösungsfarbe</div>
+                <div style={{ display:"flex", gap:"8px", flexWrap:"wrap" }}>
+                  {[["#16a34a","🟢 Grün"],["#1d4ed8","🔵 Blau"],["#dc2626","🔴 Rot"],["#7c3aed","🟣 Lila"],["#0f172a","⚫ Schwarz"]].map(([c,l]) => (
+                    <button key={c} onClick={() => set("loesungsfarbe",c)}
+                      style={{ padding:"7px 14px", border:`2.5px solid ${local.loesungsfarbe===c?c:"#e2e8f0"}`,
+                        borderRadius:"20px", background:local.loesungsfarbe===c?c+"18":"#fff",
+                        color:local.loesungsfarbe===c?c:"#64748b", fontWeight:700, fontSize:"12px", cursor:"pointer" }}>
+                      {l}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {tab === "export" && (
+            <div>
+              <div style={{ fontSize:"12px", fontWeight:700, color:"#94a3b8", textTransform:"uppercase", letterSpacing:".1em", marginBottom:"16px" }}>Standard-Exportformat</div>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"10px", marginBottom:"20px" }}>
+                {[["word","📝 Word / Pages","Empfohlen für iPad"],["pdf","📄 PDF","Direkt druckbereit"]].map(([v,l,d]) => (
+                  <button key={v} onClick={() => set("exportFormat",v)}
+                    style={{ padding:"16px", border:`2.5px solid ${local.exportFormat===v?"#0f172a":"#e2e8f0"}`,
+                      borderRadius:"14px", background:local.exportFormat===v?"#0f172a":"#fff",
+                      color:local.exportFormat===v?"#fff":"#475569", cursor:"pointer", textAlign:"left" }}>
+                    <div style={{ fontWeight:700, fontSize:"14px", marginBottom:"2px" }}>{l}</div>
+                    <div style={{ fontSize:"11px", opacity:0.6 }}>{d}</div>
+                    {local.exportFormat===v && <div style={{ marginTop:"6px", fontSize:"11px", color:"#f59e0b" }}>✓ Standard</div>}
+                  </button>
+                ))}
+              </div>
+              <div style={{ fontSize:"12px", fontWeight:700, color:"#94a3b8", textTransform:"uppercase", letterSpacing:".1em", marginBottom:"12px" }}>Über BuchungsWerk</div>
+              <div style={{ background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:"10px", padding:"14px 16px", fontSize:"13px", color:"#374151" }}>
+                <div style={{ fontWeight:700, fontSize:"15px", marginBottom:"6px" }}>Buchungs<span style={{ color:"#f59e0b" }}>Werk</span></div>
+                <div>Version: 2025 · Bayern · Realschule BwR</div>
+                <div style={{ color:"#94a3b8", fontSize:"12px", marginTop:"4px" }}>Für den Einsatz an bayerischen Realschulen im Fach BwR.</div>
+                {(local.lehrerVorname || local.stammschule) && (
+                  <div style={{ marginTop:"8px", paddingTop:"8px", borderTop:"1px solid #e2e8f0", color:"#64748b" }}>
+                    Lizenziert für: {local.lehrerVorname} {local.lehrerNachname}{local.stammschule ? ` · ${local.stammschule}` : ""}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {tab === "hilfe" && (
+            <div>
+              <div style={{ fontSize:"12px", fontWeight:700, color:"#94a3b8", textTransform:"uppercase", letterSpacing:".1em", marginBottom:"16px" }}>Häufige Fragen</div>
+              {[
+                { q:"Wie generiere ich Aufgaben?",
+                  a:"Im ersten Schritt Klasse und Thema wählen, dann Firmenname eingeben – BuchungsWerk erstellt automatisch passende Aufgaben mit Buchungssatz und Musterlösung." },
+                { q:"Was sind Eigene Belege?",
+                  a:"Im Beleg-Editor kannst du eigene Rechnungen, Kontoauszüge oder Überweisungen erstellen und daraus per KI eine vollständige Buchungsaufgabe generieren lassen." },
+                { q:"Wie exportiere ich eine Schulaufgabe?",
+                  a:"Im Aufgaben-Schritt den Export-Button nutzen – als Word/Pages-Datei oder PDF. Das Layout entspricht dem bayerischen Schulaufgabenformat mit Punkte- und Notenfeld." },
+                { q:"Was bedeuten die Punkte-Badges?",
+                  a:"Jeder Buchungssatz-Block ergibt 1 Punkt. Nebenrechnungen (z.B. Skonto, Abschreibung) werden separat ausgewiesen. Die Bepunktung folgt der aktuellen Handreichung." },
+                { q:"Wie funktioniert der KI-Helfer?",
+                  a:"Bei eigenen Belegen kann per Knopfdruck eine vollständige Aufgabe mit Lösung und didaktischem Kommentar generiert werden. Die KI nutzt ausschließlich den bayerischen Kontenplan." },
+                { q:"Was ist der Kontenplan-Button?",
+                  a:"Unten in der Navigationsleiste öffnet sich der vollständige bayerische Kontenplan (IKR) mit Suche, Filteroptionen und KLR-Markierungen." },
+                { q:"Wie ändere ich die Stammschule?",
+                  a:"Im Tab 'Profil' dieser Einstellungen. Stammschule und Name werden automatisch in alle exportierten Schulaufgaben-Kopfzeilen übernommen." },
+                { q:"Werden meine Daten gespeichert?",
+                  a:"Alle Einstellungen und Belege werden lokal im Browser (localStorage) gespeichert – keine Daten auf externen Servern. Für die KI-Funktion wird nur der anonymisierte Beleg-Text übertragen." },
+              ].map(({ q, a }, i) => (
+                <div key={i} style={{ marginBottom:12, padding:"11px 14px", background:"#f8fafc", borderRadius:10, border:"1px solid #e2e8f0" }}>
+                  <div style={{ fontWeight:700, fontSize:13, color:"#0f172a", marginBottom:3 }}>❓ {q}</div>
+                  <div style={{ fontSize:13, color:"#475569", lineHeight:1.6 }}>{a}</div>
+                </div>
+              ))}
+              <div style={{ marginTop:14, padding:"11px 14px", background:"#fffbeb", border:"1px solid #fde68a", borderRadius:10, fontSize:12, color:"#92400e" }}>
+                <strong>Probleme oder Feedback?</strong><br />Den 💬 Support-Button unten rechts verwenden – danke!
+              </div>
+            </div>
+          )}
+
+        </div>
+
+        {/* Footer */}
+        <div style={{ padding:"16px 24px", borderTop:"1px solid #f1f5f9", display:"flex", gap:"10px" }}>
+          <button onClick={onSchliessen} style={{ flex:1, padding:"12px", background:"#f1f5f9", color:"#64748b", border:"none", borderRadius:"10px", fontWeight:700, fontSize:"14px", cursor:"pointer" }}>
+            Abbrechen
+          </button>
+          <button onClick={speichern} style={{ flex:2, padding:"12px", background:"#0f172a", color:"#fff", border:"none", borderRadius:"10px", fontWeight:800, fontSize:"14px", cursor:"pointer",
+            boxShadow:"0 4px 16px rgba(15,23,42,0.25)" }}>
+            💾 Speichern
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DisclaimerModal({ onSchliessen }) {
+  return (
+    <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.65)", zIndex:9000, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
+      <div style={{ background:"#fff", borderRadius:18, maxWidth:480, width:"100%", boxShadow:"0 24px 64px rgba(0,0,0,0.3)", overflow:"hidden" }}>
+        <div style={{ background:"linear-gradient(135deg,#0f172a,#1e293b)", padding:"20px 24px", display:"flex", alignItems:"center", gap:12 }}>
+          <span style={{ fontSize:28 }}>📋</span>
+          <div>
+            <div style={{ fontSize:11, fontWeight:700, color:"#f59e0b", letterSpacing:".12em", textTransform:"uppercase" }}>Buchungs<span style={{color:"#fff"}}>Werk</span></div>
+            <div style={{ fontSize:17, fontWeight:900, color:"#fff", marginTop:2 }}>Hinweis zur Qualitätssicherung</div>
+          </div>
+        </div>
+        <div style={{ padding:"20px 24px" }}>
+          <p style={{ fontSize:14, lineHeight:1.7, color:"#374151", margin:"0 0 14px" }}>
+            Alle Aufgaben und Musterlösungen in dieser App werden auf Basis der aktuell geltenden Handreichung und des bayerischen Lehrplans für das Fach BwR an Realschulen erstellt.
+          </p>
+          <p style={{ fontSize:14, lineHeight:1.7, color:"#374151", margin:"0 0 16px" }}>
+            Trotz sorgfältiger Konzeption können sich <strong>inhaltliche oder didaktische Fehler</strong> einschleichen. Bitte alle Aufgaben und Lösungen <strong>vor der Ausgabe an Schülerinnen und Schüler gegenchecken</strong>.
+          </p>
+          <div style={{ background:"#fffbeb", border:"1px solid #fde68a", borderRadius:10, padding:"10px 14px", fontSize:12, color:"#92400e", marginBottom:20 }}>
+            💡 Bei Auffälligkeiten gerne Feedback über den Support-Button senden – danke!
+          </div>
+          <button onClick={onSchliessen}
+            style={{ width:"100%", padding:"13px", background:"#0f172a", color:"#fff", border:"none", borderRadius:10, fontWeight:800, fontSize:15, cursor:"pointer", boxShadow:"0 4px 16px rgba(15,23,42,0.2)" }}>
+            ✓ Verstanden – App öffnen
+          </button>
         </div>
       </div>
     </div>
@@ -9398,6 +13860,11 @@ export default function BuchungsWerk() {
   const [belegEditorOffen, setBelegEditorOffen]   = useState(false);
   const [kontenplanOffen, setKontenplanOffen]     = useState(false);
   const [materialienStartOffen, setMaterialienStartOffen] = useState(false);
+  const [einstellungenOffen, setEinstellungenOffen] = useState(false);
+  const [settings, setSettings] = useState(ladeSettings);
+  const [disclaimerOffen, setDisclaimerOffen] = useState(() => {
+    try { return !localStorage.getItem("bw_disclaimer_ok"); } catch { return true; }
+  });
   const reset = () => { setSchritt(1); setConfig(null); setFirma(null); };
 
   const materialLaden = ({ config: c, firma: f }) => {
@@ -9411,7 +13878,10 @@ export default function BuchungsWerk() {
   const zuFirma  = () => setSchritt(2);
 
   return (
+    <SettingsContext.Provider value={settings}>
     <div style={S.page}>
+      {disclaimerOffen && <DisclaimerModal onSchliessen={() => { try { localStorage.setItem("bw_disclaimer_ok","1"); } catch {} setDisclaimerOffen(false); }} />}
+      {einstellungenOffen && <EinstellungenModal settings={settings} setSettings={setSettings} onSchliessen={() => setEinstellungenOffen(false)} />}
       {belegEditorOffen  && <BelegEditorModal  onSchliessen={() => setBelegEditorOffen(false)} />}
       {eigeneBelegeOffen && <EigeneBelege onSchliessen={() => setEigeneBelegeOffen(false)} />}
       {kontenplanOffen   && <KontenplanModal   onSchliessen={() => setKontenplanOffen(false)} />}
@@ -9419,26 +13889,26 @@ export default function BuchungsWerk() {
       <div style={S.topbar}>
         {/* Logo – links */}
         <div style={S.logo} onClick={reset}>
-          Buchungs<span style={S.logoAccent}>Werk</span>
-          <span style={{ marginLeft: 8, fontSize: 9, fontWeight: 600, color: "#475569", letterSpacing: ".12em", textTransform: "uppercase", verticalAlign: "middle" }}>BwR Bayern</span>
+          <div>Buchungs<span style={S.logoAccent}>Werk</span></div>
+          <div style={{ fontSize: 9, fontWeight: 600, color: "#475569", letterSpacing: ".12em", textTransform: "uppercase", marginTop: 2 }}>BwR Bayern</div>
         </div>
 
-        {/* Stepper – Mitte */}
+        {/* Stepper – zentriert, volle Breite, 4 Schritte */}
         <div style={{ flex: 1, display: "flex", justifyContent: "center", alignItems: "center" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 0 }}>
-            {[["Einstellungen","⚙"], ["Unternehmen","🏢"], ["Aufgaben","📋"]].map(([label, icon], i) => {
+            {[["Thema","1"], ["Unternehmen","2"], ["Aufgaben","3"], ["Export","4"]].map(([label, icon], i) => {
               const s = i + 1;
               const done = schritt > s;
               const active = schritt === s;
               return (
                 <React.Fragment key={s}>
                   {i > 0 && (
-                    <div style={{ width: 40, height: 1.5, background: done ? "#22c55e" : "#1e293b", flexShrink: 0 }} />
+                    <div style={{ width: 36, height: 2, background: done ? "#22c55e" : "#1e293b", flexShrink: 0 }} />
                   )}
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
                     <div style={{
-                      width: 28, height: 28, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center",
-                      fontSize: done ? 13 : 11, fontWeight: 800,
+                      width: 26, height: 26, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center",
+                      fontSize: done ? 12 : 11, fontWeight: 800,
                       background: done ? "#22c55e" : active ? "#f59e0b" : "#1e293b",
                       color: done ? "#fff" : active ? "#0f172a" : "#475569",
                       border: active ? "none" : done ? "none" : "1.5px solid #334155",
@@ -9447,7 +13917,7 @@ export default function BuchungsWerk() {
                     }}>
                       {done ? "✓" : s}
                     </div>
-                    <span style={{ fontSize: 9, fontWeight: active ? 700 : 500, color: active ? "#f59e0b" : done ? "#22c55e" : "#475569", letterSpacing: ".05em", textTransform: "uppercase", whiteSpace: "nowrap" }}>
+                    <span style={{ fontSize: 8, fontWeight: active ? 700 : 500, color: active ? "#f59e0b" : done ? "#22c55e" : "#475569", letterSpacing: ".05em", textTransform: "uppercase", whiteSpace: "nowrap" }}>
                       {label}
                     </span>
                   </div>
@@ -9456,35 +13926,35 @@ export default function BuchungsWerk() {
             })}
           </div>
         </div>
-
-        {/* Rechts: Materialien + ISB-Info */}
-        <div style={{ minWidth: 180, flexShrink: 0, display:"flex", flexDirection:"column", alignItems:"flex-end", gap:"5px" }}>
-          <button onClick={() => setMaterialienStartOffen(true)}
-            style={{ background:"#1e293b", border:"1.5px solid #334155", borderRadius:8, color:"#f59e0b", fontSize:11, fontWeight:700, padding:"5px 12px", cursor:"pointer", letterSpacing:".04em" }}>
-            📚 Meine Materialien
-          </button>
-          <div style={{ fontSize: 10, color: "#334155", fontWeight: 600, letterSpacing: ".06em", textTransform: "uppercase" }}>
-            ISB · Realschule · 2025
-          </div>
-        </div>
       </div>
 
       <div style={S.container}>
-        {schritt === 1 && <SchrittTyp onWeiter={cfg => { setConfig(cfg); if (skipFirma) { setSkipFirma(false); setSchritt(3); } else setSchritt(2); }} onBelegEditor={() => setBelegEditorOffen(true)} onEigeneBelege={() => setEigeneBelegeOffen(true)} initialConfig={skipFirma ? config : null} />}
+        <SupportButton />
+        {schritt === 1 && <SchrittTyp onWeiter={cfg => { setConfig(cfg); if (skipFirma) { setSkipFirma(false); setSchritt(3); } else setSchritt(2); }} onBelegEditor={() => setBelegEditorOffen(true)} onEigeneBelege={() => setEigeneBelegeOffen(true)} onSimulation={() => setSchritt(4)} initialConfig={skipFirma ? config : null} />}
         {schritt === 2 && <SchrittFirma config={config} onWeiter={f => { setFirma(f); setSchritt(3); }} onZurueck={() => setSchritt(1)} />}
-        {schritt === 3 && <SchrittAufgaben config={config} firma={firma} onNeu={reset} onMaterialLaden={materialLaden} onThemen={zuThemen} onFirma={zuFirma} />}
+        {schritt === 3 && <ErrorBoundary><SchrittAufgaben config={config} firma={firma} onNeu={reset} onMaterialLaden={materialLaden} onThemen={zuThemen} onFirma={zuFirma} /></ErrorBoundary>}
+        {schritt === 4 && <SimulationModus onZurueck={reset} />}
       </div>
 
-      {/* Footer */}
-      <div style={{ borderTop: "1px solid #1e293b", padding: "10px 24px", display: "flex", justifyContent: "center" }}>
-        <button
-          onClick={() => setKontenplanOffen(true)}
-          style={{ background: "transparent", border: "1.5px solid #1e293b", borderRadius: 7, color: "#475569",
-            fontSize: 11, fontWeight: 700, padding: "6px 14px", cursor: "pointer", letterSpacing: ".05em",
-            fontFamily: "inherit", display: "flex", alignItems: "center", gap: 6 }}>
-          📖 ISB-Kontenplan
-        </button>
+      {/* Bottom-Bar – nur Tools, kein Stepper */}
+      <div style={{ borderTop:"1px solid #1e293b", background:"#0a1120", padding:"0 8px", height:56, display:"flex", alignItems:"center", justifyContent:"space-around", position:"sticky", bottom:0, zIndex:100, flexShrink:0 }}>
+        {[
+          { icon:"📚", label:"Materialien",  action: () => setMaterialienStartOffen(true) },
+          { icon:"✏️", label:"Beleg-Editor", action: () => setBelegEditorOffen(true) },
+          { icon:"🗂️", label:"Eig. Belege",  action: () => setEigeneBelegeOffen(true) },
+          { icon:"📖", label:"Kontenplan",   action: () => setKontenplanOffen(true) },
+          { icon:"⚙️", label:"Einstell.",    action: () => setEinstellungenOffen(true) },
+        ].map(({ icon, label, action }) => (
+          <button key={label} onClick={action}
+            style={{ background:"transparent", border:"none", cursor:"pointer", display:"flex", flexDirection:"column", alignItems:"center", gap:2, padding:"6px 10px", borderRadius:8, color:"#475569", transition:"color 0.15s" }}
+            onMouseEnter={e => e.currentTarget.style.color="#f59e0b"}
+            onMouseLeave={e => e.currentTarget.style.color="#475569"}>
+            <span style={{ fontSize:19, lineHeight:1 }}>{icon}</span>
+            <span style={{ fontSize:9, fontWeight:600, letterSpacing:".04em", textTransform:"uppercase", whiteSpace:"nowrap" }}>{label}</span>
+          </button>
+        ))}
       </div>
     </div>
+    </SettingsContext.Provider>
   );
 }
