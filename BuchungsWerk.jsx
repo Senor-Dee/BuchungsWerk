@@ -7094,21 +7094,35 @@ function SchrittTyp({ onWeiter, onBelegEditor, onEigeneBelege, onSimulation, ini
     skonto: true,
   });
 
+  // Lernbereiche: aktuelle Klasse + optionale Vorklassen (Wiederholung)
+  const [wiederholungAn, setWiederholungAn] = useState(false);
+  const vorklassen = klasse ? [7,8,9,10].filter(k => k < klasse) : [];
+  // Hilfsfunktion: findet den Pool-Eintrag eines Tasks klassenübergreifend
+  const findTask = (lb, tid) => {
+    for (const k of [7,8,9,10]) {
+      const t = (AUFGABEN_POOL[k]?.[lb] || []).find(x => x.id === tid);
+      if (t) return t;
+    }
+    return null;
+  };
   const lernbereiche = klasse ? Object.keys(AUFGABEN_POOL[klasse]) : [];
+  const vorLernbereiche = (klasse && wiederholungAn)
+    ? vorklassen.flatMap(k => Object.keys(AUFGABEN_POOL[k]).map(lb => ({ lb, k })))
+    : [];
   const activeLBs = Object.keys(selectedThemen).filter(lb => selectedThemen[lb].size > 0);
   const totalThemen = activeLBs.reduce((s, lb) => s + selectedThemen[lb].size, 0);
 
   // Estimate points: sum of all selected task types' average points
   const estPunkte = activeLBs.reduce((sum, lb) => {
     return sum + [...(selectedThemen[lb] || [])].reduce((s2, tid) => {
-      const t = (AUFGABEN_POOL[klasse][lb] || []).find(x => x.id === tid);
+      const t = findTask(lb, tid);
       if (!t) return s2;
       const pts = t.taskTyp === "komplex" ? 16 : t.taskTyp === "rechnung" ? (t.nrPunkte || 3) : 2 + (t.nrPunkte || 0);
       return s2 + pts;
     }, 0);
   }, 0);
 
-  function onKlasseChange(k) { setKlasse(k); setSelectedThemen({}); setExpandedLBs({}); }
+  function onKlasseChange(k) { setKlasse(k); setSelectedThemen({}); setExpandedLBs({}); setWiederholungAn(false); }
 
   function toggleLB(lb) {
     // Nur Auf-/Zuklappen – keine automatische Auswahl aller Themen
@@ -7226,9 +7240,21 @@ function SchrittTyp({ onWeiter, onBelegEditor, onEigeneBelege, onSimulation, ini
           <div style={{ marginBottom: "20px" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
               <label style={{ fontSize: "13px", fontWeight: 600, color: "#374151" }}>Lernbereiche & Themen <span style={{ fontWeight: 400, color: "#94a3b8" }}>— Mehrfachauswahl</span></label>
-              {totalThemen > 0 && <span style={{ fontSize: "12px", color: "#f59e0b", fontWeight: 700, background: "#0f172a", padding: "2px 10px", borderRadius: "20px" }}>{totalThemen} Thema{totalThemen === 1 ? "" : "en"}</span>}
+              <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                {vorklassen.length > 0 && (
+                  <button onClick={() => setWiederholungAn(w => !w)}
+                    style={{ fontSize:11, fontWeight:700, padding:"3px 10px", borderRadius:20, border:"1.5px solid", cursor:"pointer",
+                      borderColor: wiederholungAn ? "#f59e0b" : "#e2e8f0",
+                      background: wiederholungAn ? "#fffbeb" : "#f8fafc",
+                      color: wiederholungAn ? "#92400e" : "#94a3b8" }}>
+                    🔁 Wiederholung {wiederholungAn ? "ein" : "aus"}
+                  </button>
+                )}
+                {totalThemen > 0 && <span style={{ fontSize: "12px", color: "#f59e0b", fontWeight: 700, background: "#0f172a", padding: "2px 10px", borderRadius: "20px" }}>{totalThemen} Thema{totalThemen === 1 ? "" : "en"}</span>}
+              </div>
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+              {/* Themen der aktuellen Klasse */}
               {lernbereiche.map(lb => {
                 const meta = LB_INFO[lb] || { icon: "📌", farbe: "#475569" };
                 const tasks = AUFGABEN_POOL[klasse][lb];
@@ -7840,6 +7866,56 @@ function SchrittTyp({ onWeiter, onBelegEditor, onEigeneBelege, onSimulation, ini
                   </div>
                 );
               })}
+
+              {/* Wiederholungs-Themen aus Vorklassen */}
+              {wiederholungAn && vorklassen.length > 0 && (
+                <div style={{ marginTop:8, borderTop:"2px dashed #fde68a", paddingTop:8 }}>
+                  <div style={{ fontSize:10, fontWeight:700, color:"#92400e", letterSpacing:".1em", textTransform:"uppercase", marginBottom:6, display:"flex", alignItems:"center", gap:6 }}>
+                    🔁 Wiederholungsstoff aus {vorklassen.map(k=>`Klasse ${k}`).join(" + ")}
+                  </div>
+                  {vorLernbereiche.map(({ lb, k }) => {
+                    const meta = LB_INFO[lb] || { icon: "📌", farbe: "#f59e0b" };
+                    const tasks = AUFGABEN_POOL[k][lb];
+                    const selSet = selectedThemen[lb] || new Set();
+                    const isActive = selSet.size > 0;
+                    const isExpanded = expandedLBs[lb + "_vor"];
+                    return (
+                      <div key={`vor_${k}_${lb}`} style={{ border:`2px solid ${isActive ? "#f59e0b" : "#fde68a"}`, borderRadius:12, overflow:"hidden", background: isActive ? "#fffbeb" : "#fffdf5", marginBottom:5 }}>
+                        <div style={{ display:"flex", alignItems:"center", gap:8, padding:"10px 14px", cursor:"pointer" }}
+                          onClick={() => setExpandedLBs(p => ({ ...p, [lb+"_vor"]: !p[lb+"_vor"] }))}>
+                          <div style={{ width:16, height:16, borderRadius:4, border:`2px solid ${isActive?"#f59e0b":"#fbbf24"}`, background:isActive?"#f59e0b":"#fff", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+                            {isActive && <span style={{ color:"#fff", fontSize:10 }}>✓</span>}
+                          </div>
+                          <span style={{ fontSize:14 }}>{meta.icon}</span>
+                          <span style={{ fontWeight:700, fontSize:12, color:"#92400e", flex:1 }}>{lb}</span>
+                          <span style={{ fontSize:10, fontWeight:800, background:"#fef3c7", color:"#92400e", padding:"1px 7px", borderRadius:10, border:"1px solid #fde68a" }}>Kl. {k}</span>
+                          {isActive && <span style={{ fontSize:10, color:"#92400e", fontWeight:700 }}>{selSet.size}/{tasks.length}</span>}
+                          <span style={{ color:"#fbbf24", fontSize:12 }}>{isExpanded ? "▲" : "▼"}</span>
+                        </div>
+                        {isExpanded && (
+                          <div style={{ borderTop:"1px solid #fde68a", padding:"8px 12px", background:"#fff" }}>
+                            <div style={{ display:"flex", gap:6, marginBottom:6 }}>
+                              <button onClick={() => setSelectedThemen(p => ({ ...p, [lb]: new Set(tasks.map(t=>t.id)) }))} style={{ fontSize:10, fontWeight:700, color:"#92400e", background:"#fef3c7", border:"1px solid #fde68a", borderRadius:5, padding:"2px 7px", cursor:"pointer" }}>✓ Alle</button>
+                              <button onClick={() => setSelectedThemen(p => ({ ...p, [lb]: new Set() }))} style={{ fontSize:10, fontWeight:600, color:"#94a3b8", background:"#f1f5f9", border:"1px solid #e2e8f0", borderRadius:5, padding:"2px 7px", cursor:"pointer" }}>✗ Keine</button>
+                            </div>
+                            {tasks.map(task => {
+                              const checked = selSet.has(task.id);
+                              return (
+                                <label key={task.id} style={{ display:"flex", alignItems:"center", gap:8, padding:"5px 4px", cursor:"pointer", borderRadius:6 }}>
+                                  <input type="checkbox" checked={checked} onChange={() => toggleThema(lb, task.id)}
+                                    style={{ width:15, height:15, accentColor:"#f59e0b", cursor:"pointer" }} />
+                                  <span style={{ fontSize:12, color:"#374151" }}>{task.titel}</span>
+                                  <span style={{ marginLeft:"auto", fontSize:10, color:"#94a3b8" }}>{task.nrPunkte||2}P</span>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -9730,14 +9806,14 @@ function ExportModal({ aufgaben, config, firma, kiHistorie, onSchliessen }) {
           {/* Export-Buttons */}
           <div style={{ fontSize:"11px", fontWeight:700, letterSpacing:"0.08em", textTransform:"uppercase", color:"#64748b", marginBottom:"10px" }}>Format</div>
           <div style={{ display:"flex", gap:"8px", flexWrap:"wrap" }}>
-            <button onClick={exportWord}
+            <button onClick={() => exportWord("docx")}
               style={{ flex:1, minWidth:"120px", padding:"12px 14px", borderRadius:"10px", border:"none",
                 background:"#2563eb", color:"#fff", fontWeight:800, fontSize:"13px", cursor:"pointer",
                 display:"flex", alignItems:"center", justifyContent:"center", gap:"6px",
                 boxShadow:"0 2px 8px rgba(37,99,235,0.3)" }}>
               📝 Word / Pages
             </button>
-            <button onClick={exportPDF}
+            <button onClick={() => exportPDF()}
               style={{ flex:1, minWidth:"120px", padding:"12px 14px", borderRadius:"10px", border:"none",
                 background:"#dc2626", color:"#fff", fontWeight:800, fontSize:"13px", cursor:"pointer",
                 display:"flex", alignItems:"center", justifyContent:"center", gap:"6px",
@@ -9771,7 +9847,10 @@ function SchrittAufgaben({ config, firma, onNeu, onMaterialLaden, onThemen, onFi
 
   const pool = [];
   Object.entries(config.selectedThemen).forEach(([lb, taskIds]) => {
-    (AUFGABEN_POOL[config.klasse][lb] || []).forEach(t => { if (taskIds.includes(t.id)) pool.push(t); });
+    // Suche in allen Klassen (klassenübergreifende Wiederholung)
+    [7,8,9,10].forEach(k => {
+      (AUFGABEN_POOL[k]?.[lb] || []).forEach(t => { if (taskIds.includes(t.id)) pool.push(t); });
+    });
   });
 
   const [aufgaben, setAufgaben] = useState(() => {
