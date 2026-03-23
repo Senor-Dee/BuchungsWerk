@@ -7,6 +7,9 @@ services:
     volumes:
       - ./data:/data
     restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
     environment:
       BW_DB: /data/buchungswerk.db
 

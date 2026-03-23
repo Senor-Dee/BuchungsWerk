@@ -1,7 +1,33 @@
+# Node / Vite
 node_modules/
-buchungswerk-backend/node_modules/
-buchungswerk-backend/data/
-buchungswerk-backend/app/assets/
-buchungswerk-backend/app/bundle.js
-bw-build/
-*.db
+dist/
+.vite/
+*.local
+
+# Python / FastAPI
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# Secrets – NIEMALS ins Repository!
+.env
+.env.*
+docker-compose.override.yml
+Resend_Key.txt
+*_Key.txt
+*_key.txt
+*.secret
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# IDE
+.vscode/
+.idea/
