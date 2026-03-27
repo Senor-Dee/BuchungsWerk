@@ -2,32 +2,74 @@
 // Copyright (C) 2026 Anton Gebert <info@buchungswerk.org> - BuchungsWerk
 
 import React, { useState, useRef, useCallback, useEffect, useMemo } from "react";
+import { PenLine, ClipboardList, Factory, FileText, Zap, Timer, Search,
+         TrendingUp, BookOpen, GraduationCap, BookMarked, Settings,
+         CheckSquare, Files, Bot, Download, Upload, Landmark, ArrowLeftRight,
+         Mail, Receipt, ReceiptEuro, FilePen, Printer, User, Settings2, Eye, HelpCircle, FolderOpen,
+         Hash, BarChart2, Package, Megaphone, Tag, Users, Briefcase,
+         Building2, AlertTriangle, Calendar, TrendingDown, Calculator,
+         Lock, Library, Layers, Wrench, Component, Fuel,
+         Sun, Trees, Scissors, Dumbbell,
+         Save, Monitor, Smile, Frown, Sprout, Star, Trophy, Flame,
+         RefreshCw, MessageSquare, XCircle, Award, Paperclip, QrCode } from "lucide-react";
+
+const ICON_MAP = {
+  Hash, BarChart2, BookOpen, Settings, Package, Megaphone, Tag, Users,
+  Landmark, Briefcase, Factory, Building2, TrendingUp, AlertTriangle,
+  Calendar, TrendingDown, Calculator, ClipboardList, Lock, Library,
+  Layers, Wrench, Component, Fuel,
+  Sun, Trees, Scissors, Dumbbell,
+  FileText, PenLine, Download, Upload, Zap,
+};
+function IconFor({ name, size = 14, ...props }) {
+  const C = ICON_MAP[name];
+  return C ? <C size={size} strokeWidth={1.5} {...props} /> : null;
+}
 import { apiFetch, API_URL } from "./api.js";
 import { r2, fmt, pick, rnd, fmtIBAN, duSie, duSieGross, anrede,
          BUCHUNGS_JAHR, rgnr, augnr, fakeDatum, berechnePunkte,
          WERKSTOFF_TYPEN, LB_INFO, NOTEN_ANKER, notenTabelle } from "./utils.js";
 import { S } from "./styles.js";
-import { DEFAULT_SETTINGS, SettingsContext, useSettings } from "./settings.js";
+import { DEFAULT_SETTINGS, SettingsContext, useSettings,
+         ladeSettings, speichereSettings,
+         ladeStreak, aktualisiereStreak, streakEmoji,
+         ladeMastery, trackMastery, masteryLevel } from "./settings.js";
 import { LIEFERANTEN, KUNDEN, UNTERNEHMEN, KOMPLEX_STEP_DEFS,
          mkEingangsRE, mkAusgangsRE, mkUeberweisung, mkKontoauszug, mkEmail } from "./data/stammdaten.js";
 import { AUFGABEN_POOL } from "./data/aufgabenPool.js";
+import { generiereAPSatz, gesamtpunkte,
+         AP_WAHLTEIL_6, AP_WAHLTEIL_7, AP_WAHLTEIL_8 } from "./data/apAufgaben.js";
 
 class ErrorBoundary extends React.Component {
-  constructor(props) { super(props); this.state = { error: null }; }
+  constructor(props) { super(props); this.state = { error: null, gemeldet: false }; }
   static getDerivedStateFromError(error) { return { error }; }
-  componentDidCatch(error, info) { console.error("BuchungsWerk Fehler:", error, info); }
+  componentDidCatch(error, info) {
+    console.error("BuchungsWerk Fehler:", error, info);
+    const text = `Fehler: ${error.message}\n\nStack:\n${error.stack}\n\nKomponenten-Stack:\n${info.componentStack}`;
+    fetch(API_URL + "/support", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ typ: "bug", text, ts: new Date().toISOString() }),
+    })
+      .then(() => this.setState({ gemeldet: true }))
+      .catch(() => {});
+  }
   render() {
     if (this.state.error) {
       return (
         <div style={{ padding: "40px", fontFamily: "Arial", maxWidth: "600px", margin: "40px auto" }}>
           <div style={{ background: "#fef2f2", border: "2px solid #dc2626", borderRadius: "12px", padding: "24px" }}>
-            <div style={{ fontSize: "24px", marginBottom: "12px" }}>⚠️ BuchungsWerk – Fehler</div>
+            <div style={{ fontSize: "24px", marginBottom: "12px", display:"flex", alignItems:"center", gap:8 }}><AlertTriangle size={22} color="#dc2626"/>BuchungsWerk – Fehler</div>
             <div style={{ fontFamily: "monospace", fontSize: "13px", color: "#7f1d1d", background: "#fee2e2", padding: "12px", borderRadius: "8px", marginBottom: "16px", wordBreak: "break-all" }}>
               {this.state.error.message}
             </div>
-            <button onClick={() => { this.setState({ error: null }); window.location.reload(); }}
-              style={{ background: "#dc2626", color: "#fff", border: "none", padding: "10px 20px", borderRadius: "8px", cursor: "pointer", fontWeight: 700, fontSize: "14px" }}>
-              🔄 Neu laden
+            {this.state.gemeldet
+              ? <div style={{ fontSize: "13px", color: "#15803d", marginBottom: "12px", display:"flex", alignItems:"center", gap:5 }}><CheckSquare size={13} strokeWidth={1.5}/>Fehler wurde automatisch an den Entwickler gemeldet.</div>
+              : <div style={{ fontSize: "13px", color: "#92400e", marginBottom: "12px", display:"flex", alignItems:"center", gap:4 }}><Zap size={13}/>Fehler wird gemeldet…</div>
+            }
+            <button onClick={() => { this.setState({ error: null, gemeldet: false }); window.location.reload(); }}
+              style={{ background: "#dc2626", color: "#fff", border: "none", padding: "10px 20px", borderRadius: "8px", cursor: "pointer", fontWeight: 700, fontSize: "14px", display:"flex", alignItems:"center", gap:7 }}>
+              <RefreshCw size={14} strokeWidth={1.5}/>Neu laden
             </button>
           </div>
         </div>
@@ -37,64 +79,6 @@ class ErrorBoundary extends React.Component {
   }
 }
 
-function ladeStreak() {
-  try {
-    const raw = localStorage.getItem("bw_streak");
-    if (!raw) return { count: 0, lastDate: null, longest: 0 };
-    return JSON.parse(raw);
-  } catch { return { count: 0, lastDate: null, longest: 0 }; }
-}
-
-function aktualisiereStreak() {
-  const heute = new Date().toISOString().split("T")[0];
-  const s = ladeStreak();
-  if (s.lastDate === heute) return s; // bereits heute gezählt
-  const gestern = new Date(Date.now() - 86400000).toISOString().split("T")[0];
-  const neuerCount = s.lastDate === gestern ? s.count + 1 : 1;
-  const neu = { count: neuerCount, lastDate: heute, longest: Math.max(neuerCount, s.longest || 0) };
-  try { localStorage.setItem("bw_streak", JSON.stringify(neu)); } catch {}
-  return neu;
-}
-
-function streakEmoji(count) {
-  if (count >= 30) return "🏆";
-  if (count >= 14) return "🔥";
-  if (count >= 7)  return "⚡";
-  if (count >= 3)  return "✨";
-  return "🌱";
-}
-
-// ── Mastery-System ─────────────────────────────────────────────────────────
-function ladeMastery() {
-  try { return JSON.parse(localStorage.getItem("bw_mastery") || "{}"); }
-  catch { return {}; }
-}
-function trackMastery(aufgaben) {
-  if (!aufgaben || aufgaben.length === 0) return;
-  const m = ladeMastery();
-  aufgaben.forEach(a => {
-    const id = a._baseTypId;
-    if (id) m[id] = (m[id] || 0) + 1;
-  });
-  try { localStorage.setItem("bw_mastery", JSON.stringify(m)); } catch {}
-}
-function masteryLevel(count) {
-  if (count >= 20) return { level: 4, label: "Meister",    color: "#f59e0b", bg: "#fffbeb", icon: "🏆" };
-  if (count >= 10) return { level: 3, label: "Fortgesch.", color: "#7c3aed", bg: "#f5f3ff", icon: "⭐" };
-  if (count >=  5) return { level: 2, label: "Geübt",      color: "#2563eb", bg: "#eff6ff", icon: "📈" };
-  if (count >=  1) return { level: 1, label: "Beginner",   color: "#16a34a", bg: "#f0fdf4", icon: "🌱" };
-  return                   { level: 0, label: "Neu",        color: "#94a3b8", bg: "#f8fafc", icon: "○" };
-}
-
-function ladeSettings() {
-  try {
-    const s = localStorage.getItem("buchungswerk_settings");
-    return s ? { ...DEFAULT_SETTINGS, ...JSON.parse(s) } : { ...DEFAULT_SETTINGS };
-  } catch { return { ...DEFAULT_SETTINGS }; }
-}
-function speichereSettings(s) {
-  try { localStorage.setItem("buchungswerk_settings", JSON.stringify(s)); } catch {}
-}
 
 // ══════════════════════════════════════════════════════════════════════════════
 // BELEG-KOMPONENTEN
@@ -116,9 +100,9 @@ function FirmaLogoSVG({ firma, size = 48 }) {
         return <line key={deg}
           x1={cx + r*0.55*Math.cos(rad)} y1={cy + r*0.55*Math.sin(rad)}
           x2={cx + r*0.9*Math.cos(rad)}  y2={cy + r*0.9*Math.sin(rad)}
-          stroke="#f59e0b" strokeWidth={s*0.055} strokeLinecap="round"/>;
+          stroke="#e8600a" strokeWidth={s*0.055} strokeLinecap="round"/>;
       });
-      return <>{rays}<circle cx={cx} cy={cy} r={r*0.4} fill="#f59e0b"/></>;
+      return <>{rays}<circle cx={cx} cy={cy} r={r*0.4} fill="#e8600a"/></>;
     }
     if (f.id === "waldform") {
       // Baum
@@ -157,7 +141,7 @@ function FirmaLogoSVG({ firma, size = 48 }) {
 }
 function BelegEingangsrechnung({ b }) {
   return (
-    <div style={{ border: "1px solid #cbd5e1", borderRadius: "10px", overflow: "hidden", fontFamily: "Arial, sans-serif", fontSize: "13px" }}>
+    <div style={{ border: "1px solid #cbd5e1", borderRadius: "10px", overflow: "hidden", fontFamily: "Arial, sans-serif", fontSize: "13px", background: "#fff", color: "#374151" }}>
       {/* Header */}
       <div style={{ background: "#1e293b", padding: "14px 18px", display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "12px" }}>
         <div style={{ display: "flex", gap: "12px", alignItems: "flex-start", flex: 1 }}>
@@ -169,14 +153,14 @@ function BelegEingangsrechnung({ b }) {
           </div>
           <div style={{ color: "#fff" }}>
             <div style={{ fontWeight: 800, fontSize: "15px", marginBottom: "4px" }}>{b.lief.name}</div>
-            <div style={{ color: "#94a3b8", fontSize: "12px" }}>{b.lief.strasse} · {b.lief.plz} {b.lief.ort}</div>
-            <div style={{ color: "#94a3b8", fontSize: "12px" }}>{b.lief.tel} · {b.lief.email}</div>
-            <div style={{ color: "#64748b", fontSize: "11px", marginTop: "2px" }}>IBAN: {fmtIBAN(b.lief.iban)}</div>
+            <div style={{ color: "#cbd5e1", fontSize: "12px" }}>{b.lief.strasse} · {b.lief.plz} {b.lief.ort}</div>
+            <div style={{ color: "#cbd5e1", fontSize: "12px" }}>{b.lief.tel} · {b.lief.email}</div>
+            <div style={{ color: "#94a3b8", fontSize: "11px", marginTop: "2px" }}>IBAN: {fmtIBAN(b.lief.iban)}</div>
           </div>
         </div>
-        <div style={{ textAlign: "right", color: "#f59e0b", flexShrink: 0 }}>
+        <div style={{ textAlign: "right", color: "#e8600a", flexShrink: 0 }}>
           <div style={{ fontSize: "22px", fontWeight: 900, letterSpacing: "0.1em" }}>RECHNUNG</div>
-          {b.klasse7 && <div style={{ background: "#f59e0b", color: "#0f172a", fontSize: "10px", fontWeight: 800, padding: "2px 8px", borderRadius: "4px", marginTop: "4px" }}>Klasse 7: Nur Bruttobetrag angegeben</div>}
+          {b.klasse7 && <div style={{ background: "#e8600a", color: "#0f172a", fontSize: "10px", fontWeight: 800, padding: "2px 8px", borderRadius: "4px", marginTop: "4px" }}>Klasse 7: Nur Bruttobetrag angegeben</div>}
         </div>
       </div>
 
@@ -184,15 +168,15 @@ function BelegEingangsrechnung({ b }) {
         {/* Empfänger + Meta */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
           <div>
-            <div style={{ fontSize: "10px", color: "#94a3b8", textTransform: "uppercase", marginBottom: "4px" }}>An</div>
-            <div style={S.bold}>{b.empfaenger.name}</div>
-            <div style={S.subdued}>{b.empfaenger.strasse}</div>
-            <div style={S.subdued}>{b.empfaenger.plz_ort}</div>
+            <div style={{ fontSize: "10px", color: "#475569", fontWeight: 700, textTransform: "uppercase", marginBottom: "4px" }}>An</div>
+            <div style={{ fontWeight: 700, color: "#1e293b" }}>{b.empfaenger.name}</div>
+            <div style={{ color: "#334155" }}>{b.empfaenger.strasse}</div>
+            <div style={{ color: "#334155" }}>{b.empfaenger.plz_ort}</div>
           </div>
-          <div style={S.right}>
-            <div><span style={S.sub}>Rechnungs-Nr.: </span><strong>{b.rgnr}</strong></div>
-            <div><span style={S.sub}>Rechnungsdatum: </span>{b.datum}</div>
-            <div><span style={S.sub}>Lieferdatum: </span>{b.lieferdatum}</div>
+          <div style={{ textAlign: "right" }}>
+            <div><span style={{ color: "#475569", fontWeight: 600 }}>Rechnungs-Nr.: </span><strong>{b.rgnr}</strong></div>
+            <div><span style={{ color: "#475569", fontWeight: 600 }}>Rechnungsdatum: </span>{b.datum}</div>
+            <div><span style={{ color: "#475569", fontWeight: 600 }}>Lieferdatum: </span>{b.lieferdatum}</div>
           </div>
         </div>
       </div>
@@ -202,21 +186,21 @@ function BelegEingangsrechnung({ b }) {
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px" }}>
           <thead>
             <tr style={{ background: "#f8fafc", borderBottom: "2px solid #e2e8f0" }}>
-              <th style={{ padding: "8px 6px", textAlign: "left", color: "#64748b" }}>Pos.</th>
-              <th style={{ padding: "8px 6px", textAlign: "left", color: "#64748b" }}>Bezeichnung</th>
-              <th style={{ padding: "8px 6px", textAlign: "right", color: "#64748b" }}>Menge</th>
-              <th style={{ padding: "8px 6px", textAlign: "right", color: "#64748b" }}>Einheit</th>
-              <th style={{ padding: "8px 6px", textAlign: "right", color: "#64748b" }}>Einzelpreis</th>
-              {!b.klasse7 && <th style={{ padding: "8px 6px", textAlign: "right", color: "#64748b" }}>Betrag (netto)</th>}
+              <th style={{ padding: "8px 6px", textAlign: "left", color: "#334155", fontWeight: 700 }}>Pos.</th>
+              <th style={{ padding: "8px 6px", textAlign: "left", color: "#334155", fontWeight: 700 }}>Bezeichnung</th>
+              <th style={{ padding: "8px 6px", textAlign: "right", color: "#334155", fontWeight: 700 }}>Menge</th>
+              <th style={{ padding: "8px 6px", textAlign: "right", color: "#334155", fontWeight: 700 }}>Einheit</th>
+              <th style={{ padding: "8px 6px", textAlign: "right", color: "#334155", fontWeight: 700 }}>Einzelpreis</th>
+              {!b.klasse7 && <th style={{ padding: "8px 6px", textAlign: "right", color: "#334155", fontWeight: 700 }}>Betrag (netto)</th>}
             </tr>
           </thead>
           <tbody>
             {b.positionen.map((p, i) => (
               <tr key={i} style={{ borderBottom: "1px solid #f1f5f9" }}>
-                <td style={{ padding: "8px 6px", color: "#64748b" }}>{p.pos}</td>
-                <td style={{ padding: "8px 6px", fontWeight: 500 }}>{p.beschr}</td>
-                <td style={{ padding: "8px 6px", textAlign: "right" }}>{p.menge != null ? p.menge.toLocaleString("de-DE") : ""}</td>
-                <td style={{ padding: "8px 6px", textAlign: "right", color: "#64748b" }}>{p.einheit}</td>
+                <td style={{ padding: "8px 6px", color: "#475569" }}>{p.pos}</td>
+                <td style={{ padding: "8px 6px", fontWeight: 600, color: "#1e293b" }}>{p.beschr}</td>
+                <td style={{ padding: "8px 6px", textAlign: "right", color: "#1e293b" }}>{p.menge != null ? p.menge.toLocaleString("de-DE") : ""}</td>
+                <td style={{ padding: "8px 6px", textAlign: "right", color: "#475569" }}>{p.einheit}</td>
                 <td style={{ padding: "8px 6px", textAlign: "right" }}>{fmt(p.ep)} €</td>
                 {!b.klasse7 && <td style={{ padding: "8px 6px", textAlign: "right", fontWeight: 600 }}>{fmt(p.netto)} €</td>}
               </tr>
@@ -230,14 +214,14 @@ function BelegEingangsrechnung({ b }) {
         <table style={{ fontSize: "13px", minWidth: "260px" }}>
           <tbody>
             {b.klasse7 ? (
-              <tr style={{ background: "#0f172a", color: "#fff" }}>
+              <tr style={{ background: "#1e293b", color: "#fff" }}>
                 <td style={{ padding: "10px 12px", fontWeight: 700 }}>Rechnungsbetrag (brutto)</td>
                 <td style={{ padding: "10px 12px", textAlign: "right", fontWeight: 800, fontSize: "16px" }}>{fmt(b.brutto)} €</td>
               </tr>
             ) : (<>
-              <tr><td style={{ padding: "4px 12px", color: "#64748b" }}>Nettobetrag</td><td style={{ padding: "4px 12px", textAlign: "right" }}>{fmt(b.netto)} €</td></tr>
-              <tr><td style={{ padding: "4px 12px", color: "#64748b" }}>zzgl. {b.ustPct} % MwSt.</td><td style={{ padding: "4px 12px", textAlign: "right" }}>{fmt(b.ustBetrag)} €</td></tr>
-              <tr style={{ background: "#0f172a", color: "#fff" }}>
+              <tr><td style={{ padding: "4px 12px", color: "#64748b" }}>Nettobetrag</td><td style={{ padding: "4px 12px", textAlign: "right", color: "#374151" }}>{fmt(b.netto)} €</td></tr>
+              <tr><td style={{ padding: "4px 12px", color: "#64748b" }}>zzgl. {b.ustPct} % MwSt.</td><td style={{ padding: "4px 12px", textAlign: "right", color: "#374151" }}>{fmt(b.ustBetrag)} €</td></tr>
+              <tr style={{ background: "#1e293b", color: "#fff" }}>
                 <td style={{ padding: "8px 12px", fontWeight: 700 }}>Rechnungsbetrag</td>
                 <td style={{ padding: "8px 12px", textAlign: "right", fontWeight: 800, fontSize: "15px" }}>{fmt(b.brutto)} €</td>
               </tr>
@@ -256,7 +240,7 @@ function BelegEingangsrechnung({ b }) {
 
 function BelegAusgangsrechnung({ b }) {
   return (
-    <div style={{ border: "1px solid #cbd5e1", borderRadius: "10px", overflow: "hidden", fontFamily: "Arial, sans-serif", fontSize: "13px" }}>
+    <div style={{ border: "1px solid #cbd5e1", borderRadius: "10px", overflow: "hidden", fontFamily: "Arial, sans-serif", fontSize: "13px", background: "#fff", color: "#374151" }}>
       <div style={{ background: b.firma.farbe, padding: "14px 18px", display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "12px" }}>
         <div style={{ display: "flex", gap: "12px", alignItems: "flex-start", flex: 1 }}>
           <FirmaLogoSVG firma={b.firma} size={52} />
@@ -275,15 +259,15 @@ function BelegAusgangsrechnung({ b }) {
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
           <div>
             <div style={{ fontSize: "10px", color: "#94a3b8", textTransform: "uppercase", marginBottom: "4px" }}>An</div>
-            <div style={S.bold}>{b.kunde.name}</div>
-            <div style={S.subdued}>{b.kunde.strasse}</div>
-            <div style={S.subdued}>{b.kunde.plz} {b.kunde.ort}</div>
+            <div style={{ fontWeight: 700, color: "#1e293b" }}>{b.kunde.name}</div>
+            <div style={{ color: "#64748b" }}>{b.kunde.strasse}</div>
+            <div style={{ color: "#64748b" }}>{b.kunde.plz} {b.kunde.ort}</div>
             <div style={{ color: "#64748b", fontSize: "12px" }}>Kunden-Nr.: {b.kunde.kundennr}</div>
           </div>
-          <div style={S.right}>
-            <div><span style={S.sub}>Rechnungs-Nr.: </span><strong>{b.rgnr}</strong></div>
-            <div><span style={S.sub}>Datum: </span>{b.datum}</div>
-            <div><span style={S.sub}>Lieferdatum: </span>{b.lieferdatum}</div>
+          <div style={{ textAlign: "right" }}>
+            <div><span style={{ color: "#94a3b8" }}>Rechnungs-Nr.: </span><strong>{b.rgnr}</strong></div>
+            <div><span style={{ color: "#94a3b8" }}>Datum: </span>{b.datum}</div>
+            <div><span style={{ color: "#94a3b8" }}>Lieferdatum: </span>{b.lieferdatum}</div>
           </div>
         </div>
       </div>
@@ -313,8 +297,8 @@ function BelegAusgangsrechnung({ b }) {
       <div style={{ padding: "12px 18px", borderTop: "1px solid #e2e8f0", display: "flex", justifyContent: "flex-end" }}>
         <table style={{ fontSize: "13px", minWidth: "260px" }}>
           <tbody>
-            <tr><td style={{ padding: "4px 12px", color: "#64748b" }}>Nettobetrag</td><td style={{ padding: "4px 12px", textAlign: "right" }}>{fmt(b.netto)} €</td></tr>
-            <tr><td style={{ padding: "4px 12px", color: "#64748b" }}>zzgl. {b.ustPct} % MwSt.</td><td style={{ padding: "4px 12px", textAlign: "right" }}>{fmt(b.ustBetrag)} €</td></tr>
+            <tr><td style={{ padding: "4px 12px", color: "#64748b" }}>Nettobetrag</td><td style={{ padding: "4px 12px", textAlign: "right", color: "#374151" }}>{fmt(b.netto)} €</td></tr>
+            <tr><td style={{ padding: "4px 12px", color: "#64748b" }}>zzgl. {b.ustPct} % MwSt.</td><td style={{ padding: "4px 12px", textAlign: "right", color: "#374151" }}>{fmt(b.ustBetrag)} €</td></tr>
             <tr style={{ background: b.firma.farbe + "22", borderTop: "2px solid " + b.firma.farbe }}>
               <td style={{ padding: "8px 12px", fontWeight: 700, color: b.firma.farbe }}>Rechnungsbetrag</td>
               <td style={{ padding: "8px 12px", textAlign: "right", fontWeight: 800, fontSize: "15px", color: b.firma.farbe }}>{fmt(b.brutto)} €</td>
@@ -331,10 +315,10 @@ function BelegAusgangsrechnung({ b }) {
 
 function BelegKontoauszug({ b }) {
   return (
-    <div style={{ border: "1px solid #bfdbfe", borderRadius: "10px", overflow: "hidden", fontFamily: "Arial, sans-serif", fontSize: "13px" }}>
+    <div style={{ border: "1px solid #bfdbfe", borderRadius: "10px", overflow: "hidden", fontFamily: "Arial, sans-serif", fontSize: "13px", background: "#fff" }}>
       <div style={{ background: "#1e40af", padding: "12px 18px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div>
-          <div style={{ color: "#fff", fontWeight: 800, fontSize: "15px" }}>🏦 {b.bank}</div>
+          <div style={{ color: "#fff", fontWeight: 800, fontSize: "15px", display:"flex", alignItems:"center", gap:6 }}><Building2 size={14} strokeWidth={1.5}/>{b.bank}</div>
           <div style={{ color: "#93c5fd", fontSize: "12px" }}>Kontoauszug Nr. {b.auszugNr}</div>
         </div>
         <div style={S.right}>
@@ -354,13 +338,13 @@ function BelegKontoauszug({ b }) {
           {b.buchungen.map((buch, i) => (
             <tr key={i} style={{
               background: buch.highlight ? "#fef9c3" : i % 2 === 0 ? "#fff" : "#f8fafc",
-              borderLeft: buch.highlight ? "4px solid #f59e0b" : "4px solid transparent",
-              borderBottom: "1px solid #e2e8f0",
+              borderLeft: buch.highlight ? "4px solid #e8600a" : "4px solid transparent",
+              borderBottom: "1px solid rgba(240,236,227,0.1)",
             }}>
               <td style={{ padding: "9px 14px", color: "#64748b", whiteSpace: "nowrap" }}>{buch.datum}</td>
               <td style={{ padding: "9px 14px", color: "#374151" }}>
                 {buch.text}
-                {buch.highlight && <span style={{ marginLeft: "8px", fontSize: "10px", background: "#f59e0b", color: "#0f172a", fontWeight: 800, padding: "1px 6px", borderRadius: "10px" }}>◀ zu buchen</span>}
+                {buch.highlight && <span style={{ marginLeft: "8px", fontSize: "10px", background: "#e8600a", color: "#0f172a", fontWeight: 800, padding: "1px 6px", borderRadius: "10px" }}>◀ zu buchen</span>}
               </td>
               <td style={{ padding: "9px 14px", textAlign: "right", fontWeight: 700, fontFamily: "monospace", color: buch.betrag > 0 ? "#15803d" : "#dc2626" }}>
                 {buch.betrag > 0 ? "+" : ""}{fmt(Math.abs(buch.betrag))} €
@@ -375,7 +359,7 @@ function BelegKontoauszug({ b }) {
 
 function BelegUeberweisung({ b }) {
   return (
-    <div style={{ border: "1px solid #bbf7d0", borderRadius: "10px", overflow: "hidden", fontFamily: "Arial, sans-serif", fontSize: "13px" }}>
+    <div style={{ border: "1px solid #bbf7d0", borderRadius: "10px", overflow: "hidden", fontFamily: "Arial, sans-serif", fontSize: "13px", background: "#fff" }}>
       <div style={{ background: "#15803d", padding: "12px 18px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div>
           <div style={{ color: "#fff", fontWeight: 800, fontSize: "15px" }}>💻 {b.bank}</div>
@@ -422,19 +406,19 @@ function BelegUeberweisung({ b }) {
 
 function BelegEmail({ b }) {
   return (
-    <div style={{ border: "1px solid #e2e8f0", borderRadius: "10px", overflow: "hidden", fontFamily: "Arial, sans-serif", fontSize: "13px" }}>
+    <div style={{ border: "1px solid #e2e8f0", borderRadius: "10px", overflow: "hidden", fontFamily: "Arial, sans-serif", fontSize: "13px", background: "#fff" }}>
       <div style={{ background: "#374151", padding: "10px 16px" }}>
         <div style={{ color: "#9ca3af", fontSize: "11px", marginBottom: "2px" }}>📧 E-Mail</div>
         <div style={{ color: "#fff", fontWeight: 700, fontSize: "14px" }}>{b.betreff}</div>
       </div>
       <div style={{ background: "#f9fafb", padding: "10px 16px", borderBottom: "1px solid #e2e8f0", fontSize: "12px" }}>
         <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", columnGap: "8px", rowGap: "3px" }}>
-          <span style={{ color: "#9ca3af", fontWeight: 600 }}>Von:</span> <span><strong>{b.vonName}</strong> &lt;{b.von}&gt;</span>
-          <span style={{ color: "#9ca3af", fontWeight: 600 }}>An:</span> <span>{b.an}</span>
-          <span style={{ color: "#9ca3af", fontWeight: 600 }}>Datum:</span> <span>{b.datum}, {b.uhrzeit}</span>
+          <span style={{ color: "#374151", fontWeight: 700 }}>Von:</span> <span style={{ color: "#1e293b" }}><strong>{b.vonName}</strong> &lt;{b.von}&gt;</span>
+          <span style={{ color: "#374151", fontWeight: 700 }}>An:</span> <span style={{ color: "#1e293b" }}>{b.an}</span>
+          <span style={{ color: "#374151", fontWeight: 700 }}>Datum:</span> <span style={{ color: "#1e293b" }}>{b.datum}, {b.uhrzeit}</span>
         </div>
       </div>
-      <div style={{ padding: "14px 16px", whiteSpace: "pre-wrap", lineHeight: 1.65, color: "#374151", background: "#fff" }}>
+      <div style={{ padding: "14px 16px", whiteSpace: "pre-wrap", lineHeight: 1.65, color: "#1e293b", background: "#fff" }}>
         {b.text}
       </div>
     </div>
@@ -504,36 +488,36 @@ function LinienDiagramm({ daten }) {
   const x = i => pad.l + i * iW / (jahre.length - 1);
   const y = v => pad.t + iH - (v - min) / (max - min) * iH;
   const pts = werte.map((v, i) => `${x(i)},${y(v)}`).join(" ");
-  const farbe = "#0ea5e9";
+  const farbe = "#e8600a";
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", maxWidth: 480, fontFamily: "Arial, sans-serif", border: "1px solid #e2e8f0", borderRadius: 8, background: "#fafafa" }}>
+    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", maxWidth: 480, fontFamily: "Arial, sans-serif", border: "1px solid rgba(240,236,227,0.12)", borderRadius: 8, background: "rgba(240,236,227,0.04)" }}>
       {/* Titel */}
-      <text x={W/2} y={16} textAnchor="middle" fontSize={11} fontWeight="700" fill="#0f172a">{titel}</text>
-      <text x={W/2} y={28} textAnchor="middle" fontSize={9} fill="#64748b">{untertitel}</text>
+      <text x={W/2} y={16} textAnchor="middle" fontSize={11} fontWeight="700" fill="#f0ece3">{titel}</text>
+      <text x={W/2} y={28} textAnchor="middle" fontSize={9} fill="rgba(240,236,227,0.5)">{untertitel}</text>
       {/* Gitternetz */}
       {[0,0.25,0.5,0.75,1].map((t,i) => {
         const yv = pad.t + iH * (1-t);
         const val = min + (max-min)*t;
         return <g key={i}>
-          <line x1={pad.l} y1={yv} x2={W-pad.r} y2={yv} stroke="#e2e8f0" strokeWidth={1}/>
-          <text x={pad.l-5} y={yv+4} textAnchor="end" fontSize={8} fill="#94a3b8">{val.toFixed(0)}</text>
+          <line x1={pad.l} y1={yv} x2={W-pad.r} y2={yv} stroke="rgba(240,236,227,0.12)" strokeWidth={1}/>
+          <text x={pad.l-5} y={yv+4} textAnchor="end" fontSize={8} fill="rgba(240,236,227,0.4)">{val.toFixed(0)}</text>
         </g>;
       })}
       {/* Achsen */}
-      <line x1={pad.l} y1={pad.t} x2={pad.l} y2={pad.t+iH} stroke="#cbd5e1" strokeWidth={1.5}/>
-      <line x1={pad.l} y1={pad.t+iH} x2={W-pad.r} y2={pad.t+iH} stroke="#cbd5e1" strokeWidth={1.5}/>
+      <line x1={pad.l} y1={pad.t} x2={pad.l} y2={pad.t+iH} stroke="rgba(240,236,227,0.2)" strokeWidth={1.5}/>
+      <line x1={pad.l} y1={pad.t+iH} x2={W-pad.r} y2={pad.t+iH} stroke="rgba(240,236,227,0.2)" strokeWidth={1.5}/>
       {/* Linie */}
       <polyline points={pts} fill="none" stroke={farbe} strokeWidth={2.5} strokeLinejoin="round"/>
       {/* Punkte + Werte */}
       {werte.map((v, i) => <g key={i}>
         <circle cx={x(i)} cy={y(v)} r={4} fill={farbe} stroke="#fff" strokeWidth={1.5}/>
         <text x={x(i)} y={y(v)-8} textAnchor="middle" fontSize={8} fontWeight="600" fill={farbe}>{v.toLocaleString("de-DE")}</text>
-        <text x={x(i)} y={pad.t+iH+14} textAnchor="middle" fontSize={9} fill="#374151">{jahre[i]}</text>
+        <text x={x(i)} y={pad.t+iH+14} textAnchor="middle" fontSize={9} fill="rgba(240,236,227,0.6)">{jahre[i]}</text>
       </g>)}
       {/* Einheit links */}
-      <text x={12} y={pad.t+iH/2} textAnchor="middle" fontSize={8} fill="#94a3b8" transform={`rotate(-90,12,${pad.t+iH/2})`}>{einheit}</text>
+      <text x={12} y={pad.t+iH/2} textAnchor="middle" fontSize={8} fill="rgba(240,236,227,0.35)" transform={`rotate(-90,12,${pad.t+iH/2})`}>{einheit}</text>
       {/* Quelle */}
-      <text x={W-4} y={H-4} textAnchor="end" fontSize={7} fill="#94a3b8">Quelle: {quelle} | {herausgeber}</text>
+      <text x={W-4} y={H-4} textAnchor="end" fontSize={7} fill="rgba(240,236,227,0.35)">Quelle: {quelle} | {herausgeber}</text>
     </svg>
   );
 }
@@ -545,26 +529,26 @@ function BalkenDiagramm({ daten }) {
   const max = Math.max(...werte) * 1.15;
   const barH = iH / kategorien.length * 0.65;
   const gap  = iH / kategorien.length;
-  const farben = ["#0ea5e9","#f59e0b","#10b981","#8b5cf6","#ef4444","#64748b"];
+  const farben = ["#e8600a","rgba(240,236,227,0.7)","rgba(240,236,227,0.5)","rgba(240,236,227,0.38)","rgba(240,236,227,0.26)","rgba(240,236,227,0.16)"];
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", maxWidth: 480, fontFamily: "Arial, sans-serif", border: "1px solid #e2e8f0", borderRadius: 8, background: "#fafafa" }}>
-      <text x={W/2} y={16} textAnchor="middle" fontSize={11} fontWeight="700" fill="#0f172a">{titel}</text>
-      <text x={W/2} y={28} textAnchor="middle" fontSize={9} fill="#64748b">{untertitel}</text>
+    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", maxWidth: 480, fontFamily: "Arial, sans-serif", border: "1px solid rgba(240,236,227,0.12)", borderRadius: 8, background: "rgba(240,236,227,0.04)" }}>
+      <text x={W/2} y={16} textAnchor="middle" fontSize={11} fontWeight="700" fill="#f0ece3">{titel}</text>
+      <text x={W/2} y={28} textAnchor="middle" fontSize={9} fill="rgba(240,236,227,0.5)">{untertitel}</text>
       {/* Achsen */}
-      <line x1={pad.l} y1={pad.t} x2={pad.l} y2={pad.t+iH} stroke="#cbd5e1" strokeWidth={1.5}/>
-      <line x1={pad.l} y1={pad.t+iH} x2={W-pad.r} y2={pad.t+iH} stroke="#cbd5e1" strokeWidth={1.5}/>
+      <line x1={pad.l} y1={pad.t} x2={pad.l} y2={pad.t+iH} stroke="rgba(240,236,227,0.15)" strokeWidth={1.5}/>
+      <line x1={pad.l} y1={pad.t+iH} x2={W-pad.r} y2={pad.t+iH} stroke="rgba(240,236,227,0.15)" strokeWidth={1.5}/>
       {/* Balken */}
       {kategorien.map((kat, i) => {
         const bW = werte[i] / max * iW;
         const yPos = pad.t + i * gap + (gap - barH) / 2;
         return <g key={i}>
-          <text x={pad.l-5} y={yPos+barH/2+4} textAnchor="end" fontSize={9} fill="#374151">{kat.length > 14 ? kat.slice(0,13)+"…" : kat}</text>
+          <text x={pad.l-5} y={yPos+barH/2+4} textAnchor="end" fontSize={9} fill="rgba(240,236,227,0.6)">{kat.length > 14 ? kat.slice(0,13)+"…" : kat}</text>
           <rect x={pad.l} y={yPos} width={bW} height={barH} fill={farben[i % farben.length]} rx={2} opacity={0.85}/>
           <text x={pad.l+bW+4} y={yPos+barH/2+4} fontSize={9} fontWeight="600" fill={farben[i % farben.length]}>{werte[i].toLocaleString("de-DE")}</text>
         </g>;
       })}
       {/* Einheit */}
-      <text x={W-4} y={H-4} textAnchor="end" fontSize={7} fill="#94a3b8">Quelle: {quelle} | {herausgeber}</text>
+      <text x={W-4} y={H-4} textAnchor="end" fontSize={7} fill="rgba(240,236,227,0.35)">Quelle: {quelle} | {herausgeber}</text>
     </svg>
   );
 }
@@ -581,32 +565,32 @@ function SchaubildAnzeige({ schaubild }) {
 
 function GeschaeftsfallKarte({ text, editText, onEdit, isEditing, onSave, onReset, onCancel, onKI, kiLaden }) {
   return (
-    <div style={{ border: "1.5px dashed #94a3b8", borderRadius: "10px", background: "#f8fafc", padding: "16px 18px" }}>
+    <div style={{ border: "1.5px dashed rgba(240,236,227,0.2)", borderRadius: "10px", background: "rgba(240,236,227,0.04)", padding: "16px 18px" }}>
       <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
-        <div style={{ fontSize: "11px", fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.1em", flex: 1 }}>
-          📝 Geschäftsfall
+        <div style={{ fontSize: "11px", fontWeight: 700, color: "rgba(240,236,227,0.5)", textTransform: "uppercase", letterSpacing: "0.1em", flex: 1 }}>
+          <MessageSquare size={11} strokeWidth={1.5} style={{ verticalAlign:"middle", marginRight:4 }} />Geschäftsfall
         </div>
         {!isEditing && onEdit && (
           <button onClick={onEdit} title="Geschäftsfall bearbeiten"
-            style={{ padding: "2px 7px", border: "1.5px solid #e2e8f0", borderRadius: "6px", background: "#fff", cursor: "pointer", fontSize: "13px" }}>✏️</button>
+            style={{ padding: "2px 7px", border: "1.5px solid rgba(240,236,227,0.15)", borderRadius: "6px", background: "rgba(240,236,227,0.06)", cursor: "pointer", display:"flex", alignItems:"center" }}><PenLine size={13} strokeWidth={1.5} /></button>
         )}
       </div>
       {isEditing ? (
         <div>
           <textarea value={editText} onChange={e => onEdit && onEdit(e.target.value)} rows={4}
-            style={{ width: "100%", padding: "8px", border: "2px solid #3b82f6", borderRadius: "6px", fontSize: "13px", fontFamily: "inherit", resize: "vertical", boxSizing: "border-box" }} />
+            style={{ width: "100%", padding: "8px", border: "1.5px solid rgba(240,236,227,0.22)", borderRadius: "6px", fontSize: "13px", fontFamily: "inherit", resize: "vertical", boxSizing: "border-box", background: "rgba(240,236,227,0.05)", color: "#f0ece3" }} />
           <div style={{ display: "flex", gap: "6px", marginTop: "6px", flexWrap: "wrap" }}>
-            <button onClick={onSave} style={{ padding: "5px 12px", background: "#0f172a", color: "#fff", border: "none", borderRadius: "6px", fontWeight: 700, fontSize: "11px", cursor: "pointer" }}>💾 Speichern</button>
-            <button onClick={onReset} style={{ padding: "5px 12px", background: "#fee2e2", color: "#dc2626", border: "none", borderRadius: "6px", fontWeight: 700, fontSize: "11px", cursor: "pointer" }}>↺ Original</button>
+            <button onClick={onSave} style={{ padding: "5px 12px", background: "#141008", color: "#fff", border: "none", borderRadius: "6px", fontWeight: 700, fontSize: "11px", cursor: "pointer", display:"flex", alignItems:"center", gap:4 }}><Save size={12} strokeWidth={1.5}/>Speichern</button>
+            <button onClick={onReset} style={{ padding: "5px 12px", background: "#fee2e2", color: "#dc2626", border: "none", borderRadius: "6px", fontWeight: 700, fontSize: "11px", cursor: "pointer", display:"flex", alignItems:"center", gap:4 }}><RefreshCw size={12} strokeWidth={1.5}/>Original</button>
             {onKI && <button onClick={onKI} disabled={kiLaden}
-              style={{ padding: "5px 12px", background: "#ede9fe", color: "#7c3aed", border: "none", borderRadius: "6px", fontWeight: 700, fontSize: "11px", cursor: kiLaden ? "wait" : "pointer", opacity: kiLaden ? 0.7 : 1 }}>
-              {kiLaden ? "⏳ KI…" : "🔄 KI-Neuformulierung"}
+              style={{ padding: "5px 12px", background: "rgba(232,96,10,0.15)", color: "#e8600a", border: "1px solid rgba(232,96,10,0.3)", borderRadius: "6px", fontWeight: 700, fontSize: "11px", cursor: kiLaden ? "wait" : "pointer", opacity: kiLaden ? 0.7 : 1, display:"flex", alignItems:"center", gap:4 }}>
+              {kiLaden ? <><Zap size={12} strokeWidth={1.5}/>KI…</> : <><RefreshCw size={12} strokeWidth={1.5}/>KI-Neuformulierung</>}
             </button>}
-            <button onClick={onCancel} style={{ padding: "5px 12px", background: "#f1f5f9", color: "#64748b", border: "none", borderRadius: "6px", fontSize: "11px", cursor: "pointer" }}>Abbrechen</button>
+            <button onClick={onCancel} style={{ padding: "5px 12px", background: "rgba(240,236,227,0.06)", color: "rgba(240,236,227,0.5)", border: "none", borderRadius: "6px", fontSize: "11px", cursor: "pointer" }}>Abbrechen</button>
           </div>
         </div>
       ) : (
-        <p style={{ margin: 0, fontSize: "14px", color: "#1e293b", lineHeight: 1.7 }}>{text}</p>
+        <p style={{ margin: 0, fontSize: "14px", color: "rgba(240,236,227,0.85)", lineHeight: 1.7 }}>{text}</p>
       )}
     </div>
   );
@@ -779,8 +763,8 @@ function KürzelSpan({ nr, style = {} }) {
           position: "fixed",
           left: Math.min(tip.x, window.innerWidth - 200),
           top: tip.y - 38,
-          background: "#0f172a",
-          color: "#f8fafc",
+          background: "rgba(20,16,8,0.95)",
+          color: "#f0ece3",
           fontSize: 11,
           fontWeight: 600,
           padding: "5px 9px",
@@ -794,7 +778,7 @@ function KürzelSpan({ nr, style = {} }) {
           <span style={{ color: "#94a3b8", fontSize: 10, marginRight: 5 }}>{nr}</span>{vollname}
           {/* kleiner Pfeil nach unten */}
           <div style={{ position:"absolute", left:12, bottom:-4, width:8, height:8,
-            background:"#0f172a", transform:"rotate(45deg)" }} />
+            background:"rgba(20,16,8,0.95)", transform:"rotate(45deg)" }} />
         </div>
       )}
     </>
@@ -829,9 +813,9 @@ function KontenplanModal({ onSchliessen }) {
 
   const typen = ["aktiv","passiv","ertrag","aufwand","abschluss"];
   const fBtn = (active, bg, text, border) => ({
-    padding:"5px 10px", borderRadius:6, border:`1.5px solid ${active ? border : "#334155"}`,
+    padding:"5px 10px", borderRadius:6, border:`1.5px solid ${active ? border : "rgba(240,236,227,0.12)"}`,
     fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"'Courier New',monospace",
-    background: active ? bg : "#1e293b", color: active ? text : "#94a3b8", letterSpacing:"0.04em",
+    background: active ? bg : "rgba(240,236,227,0.05)", color: active ? text : "rgba(240,236,227,0.45)", letterSpacing:"0.04em",
   });
 
   return (
@@ -845,7 +829,7 @@ function KontenplanModal({ onSchliessen }) {
           padding:"18px 20px 14px", display:"flex", alignItems:"center", gap:12, flexShrink:0 }}>
           <div>
             <div style={{ fontSize:16, fontWeight:800, color:"#f8fafc", letterSpacing:"-0.3px" }}>Kontenplan Bayern</div>
-            <div style={{ fontSize:10, color:"#64748b", textTransform:"uppercase", letterSpacing:".1em", marginTop:2 }}>IKR · BwR · Klassen 7–10</div>
+            <div style={{ fontSize:10, color:"rgba(240,236,227,0.4)", textTransform:"uppercase", letterSpacing:".1em", marginTop:2 }}>IKR · BwR · Klassen 7–10</div>
           </div>
           <button onClick={onSchliessen} style={{ marginLeft:"auto", background:"#1e293b", border:"1.5px solid #334155",
             borderRadius:8, color:"#94a3b8", fontSize:18, cursor:"pointer", width:34, height:34, display:"flex", alignItems:"center", justifyContent:"center" }}>×</button>
@@ -864,23 +848,23 @@ function KontenplanModal({ onSchliessen }) {
         </div>
 
         {/* Klassen-Filter */}
-        <div style={{ display:"flex", gap:6, flexWrap:"wrap", padding:"10px 20px", background:"#1e293b", borderBottom:"1px solid #334155", flexShrink:0 }}>
+        <div style={{ display:"flex", gap:6, flexWrap:"wrap", padding:"10px 20px", background:"rgba(240,236,227,0.04)", borderBottom:"1px solid rgba(240,236,227,0.1)", flexShrink:0 }}>
           {KONTEN_KLASSEN.map(k => (
-            <button key={k.nr} style={fBtn(filterKlasse===k.nr,"#0369a1","#e0f2fe","#38bdf8")}
+            <button key={k.nr} style={fBtn(filterKlasse===k.nr,"rgba(232,96,10,0.15)","#e8600a","rgba(232,96,10,0.5)")}
               onClick={() => setFilterKlasse(filterKlasse===k.nr ? null : k.nr)}>{k.label}</button>
           ))}
         </div>
 
         {/* Typ-Filter */}
-        <div style={{ display:"flex", gap:6, flexWrap:"wrap", padding:"8px 20px", background:"#1e293b", borderBottom:"1px solid #334155", flexShrink:0, alignItems:"center" }}>
-          <span style={{ fontSize:10, color:"#475569", fontWeight:700, letterSpacing:".08em" }}>TYP:</span>
+        <div style={{ display:"flex", gap:6, flexWrap:"wrap", padding:"8px 20px", background:"rgba(240,236,227,0.04)", borderBottom:"1px solid rgba(240,236,227,0.1)", flexShrink:0, alignItems:"center" }}>
+          <span style={{ fontSize:10, color:"rgba(240,236,227,0.4)", fontWeight:700, letterSpacing:".08em" }}>TYP:</span>
           {typen.map(t => { const f = KONTEN_TYP_FARBEN[t]; return (
             <button key={t} style={fBtn(filterTyp===t, f.bg, f.text, f.border)}
               onClick={() => setFilterTyp(filterTyp===t ? null : t)}>{f.label}</button>
           );})}
-          <button style={{ ...fBtn(nurKLR,"#4c1d95","#ddd6fe","#a78bfa") }}
+          <button style={{ ...fBtn(nurKLR,"#e8600a","#f0ece3","rgba(232,96,10,0.5)") }}
             onClick={() => setNurKLR(!nurKLR)}>● KLR</button>
-          <span style={{ marginLeft:"auto", fontSize:11, color:"#475569" }}>{gefiltert.length} / {KONTEN.length}</span>
+          <span style={{ marginLeft:"auto", fontSize:11, color:"rgba(240,236,227,0.4)" }}>{gefiltert.length} / {KONTEN.length}</span>
         </div>
 
         {/* Tabelle */}
@@ -906,11 +890,11 @@ function KontenplanModal({ onSchliessen }) {
                       const f = KONTEN_TYP_FARBEN[k.typ];
                       return (
                         <tr key={k.nr} style={{ borderBottom:"1px solid #1e293b" }}>
-                          <td style={{ padding:"7px 8px", fontSize:13, fontWeight:700, color:"#f59e0b", fontFamily:"'Courier New',monospace", whiteSpace:"nowrap" }}>{k.nr}</td>
+                          <td style={{ padding:"7px 8px", fontSize:13, fontWeight:700, color:"#e8600a", fontFamily:"'Courier New',monospace", whiteSpace:"nowrap" }}>{k.nr}</td>
                           <td style={{ padding:"7px 8px", fontSize:12, fontWeight:800, color:"#38bdf8", fontFamily:"'Courier New',monospace", whiteSpace:"nowrap" }}>{k.kuerzel}</td>
                           <td style={{ padding:"7px 8px", fontSize:13, color:"#e2e8f0" }}>
                             {k.name}
-                            {k.klr && <span title="KLR-relevant" style={{ display:"inline-block", width:6, height:6, borderRadius:"50%", background:"#a78bfa", marginLeft:6, verticalAlign:"middle" }} />}
+                            {k.klr && <span title="KLR-relevant" style={{ display:"inline-block", width:6, height:6, borderRadius:"50%", background:"#e8600a", marginLeft:6, verticalAlign:"middle" }} />}
                           </td>
                           <td style={{ padding:"7px 8px" }}>
                             <span style={{ display:"inline-block", fontSize:10, fontWeight:700, padding:"2px 6px", borderRadius:4,
@@ -935,7 +919,7 @@ function KontenplanModal({ onSchliessen }) {
                   background:f.bg, color:f.text, border:`1px solid ${f.border}` }}>{f.label}</span>
               );})}
               <span style={{ fontSize:11, color:"#94a3b8", display:"flex", alignItems:"center", gap:5 }}>
-                <span style={{ display:"inline-block", width:7, height:7, borderRadius:"50%", background:"#a78bfa" }} />
+                <span style={{ display:"inline-block", width:7, height:7, borderRadius:"50%", background:"#e8600a" }} />
                 = geht in KLR ein
               </span>
             </div>
@@ -1007,8 +991,8 @@ function DraggableHaken({ label = "✓" }) {
       style={{
         display: "inline-block", cursor: "pointer",
         fontFamily: "sans-serif", fontSize: 12, fontWeight: 800,
-        color: "#94a3b8", background: "#f1f5f9",
-        border: "1.5px dashed #cbd5e1", borderRadius: 3,
+        color: "rgba(240,236,227,0.4)", background: "rgba(240,236,227,0.06)",
+        border: "1.5px dashed rgba(240,236,227,0.2)", borderRadius: 3,
         padding: "0 4px", margin: "0 4px", lineHeight: 1,
         flexShrink: 0, userSelect: "none",
       }}>+</span>
@@ -1032,9 +1016,9 @@ function DraggableHaken({ label = "✓" }) {
         fontFamily: "sans-serif",
         fontSize: 13,
         fontWeight: 800,
-        color: "#16a34a",
-        background: moved ? "#dcfce7" : "#f0fdf4",
-        border: `1.5px solid ${moved ? "#4ade80" : "#bbf7d0"}`,
+        color: "#4ade80",
+        background: moved ? "rgba(74,222,128,0.15)" : "rgba(34,197,94,0.08)",
+        border: `1.5px solid ${moved ? "#4ade80" : "rgba(74,222,128,0.3)"}`,
         borderRadius: 3,
         padding: "0 4px",
         margin: "0 4px",
@@ -1058,14 +1042,14 @@ function BuchungsSatz({ soll, haben }) {
     nr:    { fontFamily: "'Courier New',monospace", fontWeight: 700, minWidth: "44px" },
     kürz:  { fontFamily: "'Courier New',monospace", fontWeight: 700, minWidth: "62px" },
     betr:  { fontFamily: "'Courier New',monospace", minWidth: "90px", textAlign: "right", paddingRight: "6px" },
-    an:    { fontFamily: "'Courier New',monospace", fontWeight: 700, color: "#64748b", minWidth: "30px", textAlign: "center", padding: "0 6px" },
+    an:    { fontFamily: "'Courier New',monospace", fontWeight: 700, color: "rgba(240,236,227,0.35)", minWidth: "30px", textAlign: "center", padding: "0 6px" },
   };
 
   const anRow = sollLen - 1;
 
   return (
     <div style={{ fontFamily: "'Courier New',monospace", fontSize: "14px", lineHeight: 2.1,
-                  background: "#f8fafc", border: "1.5px solid #e2e8f0", borderRadius: "8px",
+                  background: "rgba(240,236,227,0.05)", border: "1.5px solid rgba(240,236,227,0.15)", borderRadius: "8px",
                   padding: "12px 16px", display: "inline-block", minWidth: "100%" }}>
       {Array.from({ length: rows }).map((_, rowIdx) => {
         const s = rowIdx < sollLen ? soll[rowIdx] : null;
@@ -1111,9 +1095,9 @@ function BuchungsSatz({ soll, haben }) {
 function NebenrechnungBox({ nrs, nrPunkte = 0 }) {
   if (!nrs || nrs.length === 0) return null;
   return (
-    <div style={{ background: "#fefce8", border: "1px solid #fde68a", borderRadius: "8px", padding: "10px 14px", marginBottom: "10px" }}>
+    <div style={{ background: "rgba(232,96,10,0.07)", border: "1px solid rgba(232,96,10,0.22)", borderRadius: "8px", padding: "10px 14px", marginBottom: "10px" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-        <div style={{ fontSize: "11px", fontWeight: 700, color: "#92400e", textTransform: "uppercase" }}>📐 Nebenrechnung</div>
+        <div style={{ fontSize: "11px", fontWeight: 700, color: "#e8600a", textTransform: "uppercase", display:"flex", alignItems:"center", gap:4 }}><Calculator size={11} strokeWidth={1.5}/>Nebenrechnung</div>
         {nrPunkte > 0 && (
           <div style={{ display: "flex", gap: 3 }}>
             {Array.from({ length: nrPunkte }).map((_, i) => (
@@ -1126,9 +1110,9 @@ function NebenrechnungBox({ nrs, nrPunkte = 0 }) {
         <tbody>
           {nrs.map((nr, i) => (
             <tr key={i}>
-              <td style={{ color: "#92400e", fontWeight: 600, paddingRight: "12px", paddingBottom: "3px" }}>{nr.label}</td>
-              <td style={{ color: "#78350f", fontFamily: "monospace", paddingRight: "12px" }}>{nr.formel}</td>
-              <td style={{ color: "#78350f", fontFamily: "monospace", fontWeight: 700, textAlign: "right" }}>= {nr.ergebnis}</td>
+              <td style={{ color: "rgba(240,236,227,0.7)", fontWeight: 600, paddingRight: "12px", paddingBottom: "3px" }}>{nr.label}</td>
+              <td style={{ color: "rgba(240,236,227,0.55)", fontFamily: "monospace", paddingRight: "12px" }}>{nr.formel}</td>
+              <td style={{ color: "#f0ece3", fontFamily: "monospace", fontWeight: 700, textAlign: "right" }}>= {nr.ergebnis}</td>
             </tr>
           ))}
         </tbody>
@@ -1139,18 +1123,18 @@ function NebenrechnungBox({ nrs, nrPunkte = 0 }) {
 
 function SchemaTabelle({ rows }) {
   return (
-    <div style={{ border: "1px solid #e2e8f0", borderRadius: "8px", overflow: "hidden" }}>
+    <div style={{ border: "1px solid rgba(240,236,227,0.12)", borderRadius: "8px", overflow: "hidden" }}>
       <table style={{ width: "100%", fontSize: "13px", borderCollapse: "collapse" }}>
         <tbody>
           {rows.map((r, i) => {
             const isInfo = typeof r.wert !== "number";
             return (
-              <tr key={i} style={{ background: r.highlight ? "#f0fdf4" : isInfo ? "#fafafa" : r.bold ? "#f8fafc" : "#fff", borderTop: r.trennlinie ? "2px solid #0f172a" : i > 0 ? "1px solid #f1f5f9" : "none" }}>
-                <td style={{ padding: isInfo ? "4px 14px 4px 20px" : "7px 14px", color: r.highlight ? "#15803d" : isInfo ? "#64748b" : r.bold ? "#0f172a" : "#374151", fontWeight: r.bold || r.highlight ? 700 : 400, fontStyle: isInfo ? "italic" : "normal", paddingLeft: !isInfo && (r.label.startsWith("+") || r.label.startsWith("−") || r.label.startsWith("×")) ? "28px" : undefined }} colSpan={isInfo ? 2 : 1}>
+              <tr key={i} style={{ background: r.highlight ? "rgba(74,222,128,0.1)" : isInfo ? "rgba(240,236,227,0.03)" : r.bold ? "rgba(240,236,227,0.05)" : "transparent", borderTop: r.trennlinie ? "2px solid rgba(240,236,227,0.3)" : i > 0 ? "1px solid rgba(240,236,227,0.07)" : "none" }}>
+                <td style={{ padding: isInfo ? "4px 14px 4px 20px" : "7px 14px", color: r.highlight ? "#4ade80" : isInfo ? "rgba(240,236,227,0.4)" : r.bold ? "#f0ece3" : "rgba(240,236,227,0.7)", fontWeight: r.bold || r.highlight ? 700 : 400, fontStyle: isInfo ? "italic" : "normal", paddingLeft: !isInfo && (r.label.startsWith("+") || r.label.startsWith("−") || r.label.startsWith("×")) ? "28px" : undefined }} colSpan={isInfo ? 2 : 1}>
                   {isInfo ? `ℹ ${r.label}` : r.label}
                 </td>
                 {!isInfo && (
-                  <td style={{ padding: "7px 14px", textAlign: "right", fontFamily: "monospace", fontWeight: r.bold || r.highlight ? 700 : 400, color: r.highlight ? "#15803d" : r.bold ? "#0f172a" : "#475569" }}>
+                  <td style={{ padding: "7px 14px", textAlign: "right", fontFamily: "monospace", fontWeight: r.bold || r.highlight ? 700 : 400, color: r.highlight ? "#4ade80" : r.bold ? "#f0ece3" : "rgba(240,236,227,0.55)" }}>
                     {`${fmt(r.wert)} ${r.einheit}`}
                   </td>
                 )}
@@ -1168,8 +1152,8 @@ function AngebotsVergleichAufgabe({ angebote }) {
   return (
     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
       {angebote.map((a, ai) => (
-        <div key={ai} style={{ border: "1px solid #e2e8f0", borderRadius: "8px", overflow: "hidden" }}>
-          <div style={{ background: "#f8fafc", padding: "8px 12px", borderBottom: "1px solid #e2e8f0", fontWeight: 700, fontSize: "13px", color: "#374151" }}>
+        <div key={ai} style={{ border: "1px solid rgba(240,236,227,0.12)", borderRadius: "8px", overflow: "hidden" }}>
+          <div style={{ background: "rgba(240,236,227,0.05)", padding: "8px 12px", borderBottom: "1px solid rgba(240,236,227,0.1)", fontWeight: 700, fontSize: "13px", color: "#f0ece3" }}>
             {a.name} – {a.lief}
             <div style={{ fontSize: "11px", color: "#6b7280", fontWeight: 400 }}>{a.ort}</div>
           </div>
@@ -1181,9 +1165,9 @@ function AngebotsVergleichAufgabe({ angebote }) {
                 [`Liefererskonto`, `${a.skPct} %`, false],
                 ["Bezugskosten", `${fmt(a.k.bzkBetrag)} €`, false],
               ].map(([label, val, bold], i) => (
-                <tr key={i} style={{ borderTop: i > 0 ? "1px solid #f1f5f9" : "none" }}>
-                  <td style={{ padding: "6px 12px", color: "#374151", fontWeight: bold ? 700 : 400 }}>{label}</td>
-                  <td style={{ padding: "6px 12px", textAlign: "right", fontFamily: "monospace", fontWeight: bold ? 700 : 400, color: "#0f172a" }}>{val}</td>
+                <tr key={i} style={{ borderTop: i > 0 ? "1px solid rgba(240,236,227,0.07)" : "none" }}>
+                  <td style={{ padding: "6px 12px", color: bold ? "#f0ece3" : "rgba(240,236,227,0.6)", fontWeight: bold ? 700 : 400 }}>{label}</td>
+                  <td style={{ padding: "6px 12px", textAlign: "right", fontFamily: "monospace", fontWeight: bold ? 700 : 400, color: bold ? "#f0ece3" : "rgba(240,236,227,0.7)" }}>{val}</td>
                 </tr>
               ))}
             </tbody>
@@ -1199,17 +1183,17 @@ function AngebotsVergleichLoesung({ angebote, gewinner }) {
   const rowLabels = angebote[0].rows.map(r => r.label);
   return (
     <div style={{ overflowX: "auto" }}>
-      <table style={{ width: "100%", fontSize: "12px", borderCollapse: "collapse", border: "1px solid #e2e8f0", borderRadius: "8px", overflow: "hidden" }}>
+      <table style={{ width: "100%", fontSize: "12px", borderCollapse: "collapse", border: "1px solid rgba(240,236,227,0.12)", borderRadius: "8px", overflow: "hidden" }}>
         <thead>
           <tr>
-            <th style={{ padding: "7px 12px", textAlign: "left", background: "#f8fafc", borderBottom: "2px solid #e2e8f0", color: "#374151", fontWeight: 700, width: "42%" }}>Position</th>
+            <th style={{ padding: "7px 12px", textAlign: "left", background: "rgba(240,236,227,0.05)", borderBottom: "2px solid rgba(240,236,227,0.12)", color: "rgba(240,236,227,0.6)", fontWeight: 700, width: "42%" }}>Position</th>
             {angebote.map((a, ai) => (
               <th key={ai} style={{ padding: "7px 12px", textAlign: "right",
-                background: gewinner === ai ? "#f0fdf4" : "#f8fafc",
-                borderBottom: "2px solid " + (gewinner === ai ? "#22c55e" : "#e2e8f0"),
-                color: gewinner === ai ? "#15803d" : "#374151", fontWeight: 800 }}>
+                background: gewinner === ai ? "rgba(74,222,128,0.1)" : "rgba(240,236,227,0.04)",
+                borderBottom: "2px solid " + (gewinner === ai ? "#4ade80" : "rgba(240,236,227,0.1)"),
+                color: gewinner === ai ? "#4ade80" : "#f0ece3", fontWeight: 800 }}>
                 {a.name} {gewinner === ai ? "✓" : ""}
-                <div style={{ fontSize: "10px", fontWeight: 400, color: "#6b7280" }}>{a.lief}</div>
+                <div style={{ fontSize: "10px", fontWeight: 400, color: "rgba(240,236,227,0.4)" }}>{a.lief}</div>
               </th>
             ))}
           </tr>
@@ -1219,8 +1203,8 @@ function AngebotsVergleichLoesung({ angebote, gewinner }) {
             const isInfo = typeof r.wert !== "number";
             if (isInfo) return null;
             return (
-              <tr key={ri} style={{ background: r.bold ? "#f8fafc" : "#fff", borderTop: r.trennlinie ? "2px solid #374151" : "1px solid #f1f5f9" }}>
-                <td style={{ padding: "6px 12px", color: r.bold ? "#0f172a" : "#374151", fontWeight: r.bold ? 700 : 400,
+              <tr key={ri} style={{ background: r.bold ? "rgba(240,236,227,0.05)" : "transparent", borderTop: r.trennlinie ? "2px solid rgba(240,236,227,0.25)" : "1px solid rgba(240,236,227,0.07)" }}>
+                <td style={{ padding: "6px 12px", color: r.bold ? "#f0ece3" : "rgba(240,236,227,0.6)", fontWeight: r.bold ? 700 : 400,
                   paddingLeft: r.label.startsWith("+") || r.label.startsWith("−") ? "24px" : undefined }}>
                   {r.label}
                 </td>
@@ -1230,8 +1214,8 @@ function AngebotsVergleichLoesung({ angebote, gewinner }) {
                   return (
                     <td key={ai} style={{ padding: "6px 12px", textAlign: "right", fontFamily: "monospace",
                       fontWeight: cell?.bold || cell?.highlight ? 700 : 400,
-                      color: cell?.highlight && isWinner ? "#15803d" : cell?.bold ? "#0f172a" : "#475569",
-                      background: cell?.highlight && isWinner ? "#dcfce7" : cell?.highlight ? "#fef9c3" : "transparent" }}>
+                      color: cell?.highlight && isWinner ? "#4ade80" : cell?.bold ? "#f0ece3" : "rgba(240,236,227,0.55)",
+                      background: cell?.highlight && isWinner ? "rgba(74,222,128,0.12)" : cell?.highlight ? "rgba(250,204,21,0.1)" : "transparent" }}>
                       {cell && typeof cell.wert === "number" ? `${fmt(cell.wert)} €` : ""}
                     </td>
                   );
@@ -1241,7 +1225,7 @@ function AngebotsVergleichLoesung({ angebote, gewinner }) {
           })}
         </tbody>
       </table>
-      <div style={{ marginTop: "8px", padding: "8px 12px", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: "8px", fontSize: "12px", color: "#15803d", fontWeight: 700 }}>
+      <div style={{ marginTop: "8px", padding: "8px 12px", background: "rgba(74,222,128,0.08)", border: "1px solid rgba(74,222,128,0.2)", borderRadius: "8px", fontSize: "12px", color: "#4ade80", fontWeight: 700 }}>
         🏆 {angebote[gewinner].name} ({angebote[gewinner].lief}) – Einstandspreis {fmt(angebote[gewinner].k.einst)} € &lt; {fmt(angebote[1-gewinner].k.einst)} € &nbsp;→&nbsp; Kauf zum ZielEP: <strong>{fmt(angebote[gewinner].rows.find(r => r.highlight)?.wert)} €</strong>
       </div>
     </div>
@@ -1274,35 +1258,35 @@ function TKonten({ soll, haben }) {
         const kürzel = getKürzel(k.nr);
         const vollname = getVollname(k.nr);
         return (
-          <div key={k.nr} style={{ border: "2px solid #334155", borderRadius: "8px", minWidth: "180px", overflow: "hidden", fontSize: "13px", fontFamily: "'Courier New',monospace" }}>
+          <div key={k.nr} style={{ border: "1px solid rgba(240,236,227,0.12)", borderRadius: "8px", minWidth: "180px", overflow: "hidden", fontSize: "13px", fontFamily: "'Courier New',monospace" }}>
             {/* Kontoname */}
-            <div style={{ background: "#1e293b", color: "#f1f5f9", padding: "5px 10px", textAlign: "center", fontWeight: 700, fontSize: "12px", letterSpacing: "0.04em" }}>
-              {k.nr} · <KürzelSpan nr={k.nr} style={{ color: "#f1f5f9", fontFamily: "'Courier New',monospace", fontWeight: 700, fontSize: "12px" }} />
-              {vollname && <div style={{ fontSize: 9, fontWeight: 400, color: "#94a3b8", marginTop: 1, letterSpacing: 0 }}>{vollname}</div>}
+            <div style={{ background: "rgba(240,236,227,0.08)", color: "#f0ece3", padding: "5px 10px", textAlign: "center", fontWeight: 700, fontSize: "12px", letterSpacing: "0.04em" }}>
+              {k.nr} · <KürzelSpan nr={k.nr} style={{ color: "#f0ece3", fontFamily: "'Courier New',monospace", fontWeight: 700, fontSize: "12px" }} />
+              {vollname && <div style={{ fontSize: 9, fontWeight: 400, color: "rgba(240,236,227,0.4)", marginTop: 1, letterSpacing: 0 }}>{vollname}</div>}
             </div>
             {/* T-Konto Körper */}
-            <div style={{ display: "flex", background: "#fff" }}>
+            <div style={{ display: "flex", background: "rgba(240,236,227,0.03)" }}>
               {/* Soll-Seite */}
-              <div style={{ flex: 1, borderRight: "2px solid #334155", padding: "8px 10px", minWidth: "80px" }}>
-                <div style={{ fontSize: "10px", fontWeight: 800, color: "#1d4ed8", textTransform: "uppercase", marginBottom: "5px", letterSpacing: "0.08em" }}>Soll</div>
+              <div style={{ flex: 1, borderRight: "1px solid rgba(240,236,227,0.12)", padding: "8px 10px", minWidth: "80px" }}>
+                <div style={{ fontSize: "10px", fontWeight: 800, color: "#60a5fa", textTransform: "uppercase", marginBottom: "5px", letterSpacing: "0.08em" }}>Soll</div>
                 {k.soll.map((e, i) => (
-                  <div key={i} style={{ color: "#1d4ed8", fontWeight: 600, textAlign: "right", lineHeight: 1.8 }}>{fmt(e.betrag)}</div>
+                  <div key={i} style={{ color: "#93c5fd", fontWeight: 600, textAlign: "right", lineHeight: 1.8 }}>{fmt(e.betrag)}</div>
                 ))}
-                {k.soll.length === 0 && <div style={{ color: "#cbd5e1", fontSize: "11px" }}>—</div>}
+                {k.soll.length === 0 && <div style={{ color: "rgba(240,236,227,0.2)", fontSize: "11px" }}>—</div>}
               </div>
               {/* Haben-Seite */}
               <div style={{ flex: 1, padding: "8px 10px", minWidth: "80px" }}>
-                <div style={{ fontSize: "10px", fontWeight: 800, color: "#dc2626", textTransform: "uppercase", marginBottom: "5px", letterSpacing: "0.08em" }}>Haben</div>
+                <div style={{ fontSize: "10px", fontWeight: 800, color: "#f87171", textTransform: "uppercase", marginBottom: "5px", letterSpacing: "0.08em" }}>Haben</div>
                 {k.haben.map((e, i) => (
-                  <div key={i} style={{ color: "#dc2626", fontWeight: 600, textAlign: "right", lineHeight: 1.8 }}>{fmt(e.betrag)}</div>
+                  <div key={i} style={{ color: "#fca5a5", fontWeight: 600, textAlign: "right", lineHeight: 1.8 }}>{fmt(e.betrag)}</div>
                 ))}
-                {k.haben.length === 0 && <div style={{ color: "#cbd5e1", fontSize: "11px" }}>—</div>}
+                {k.haben.length === 0 && <div style={{ color: "rgba(240,236,227,0.2)", fontSize: "11px" }}>—</div>}
               </div>
             </div>
             {/* Saldo */}
-            <div style={{ borderTop: "1.5px solid #334155", padding: "4px 10px", background: "#f8fafc", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span style={{ fontSize: "10px", color: "#64748b", fontWeight: 600 }}>Saldo</span>
-              <span style={{ fontWeight: 800, fontSize: "12px", color: saldo > 0 ? "#1d4ed8" : saldo < 0 ? "#dc2626" : "#64748b" }}>
+            <div style={{ borderTop: "1.5px solid rgba(240,236,227,0.1)", padding: "4px 10px", background: "rgba(240,236,227,0.05)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ fontSize: "10px", color: "rgba(240,236,227,0.4)", fontWeight: 600 }}>Saldo</span>
+              <span style={{ fontWeight: 800, fontSize: "12px", color: saldo > 0 ? "#60a5fa" : saldo < 0 ? "#f87171" : "rgba(240,236,227,0.4)" }}>
                 {fmt(Math.abs(saldo))} {saldo > 0 ? "S" : saldo < 0 ? "H" : ""}
               </span>
             </div>
@@ -1335,13 +1319,13 @@ function TheorieKarte({ aufgabe, nr, showLoesung, klasse = 10 }) {
           const idx = parseInt(t);
           const antwort = lt.luecken[idx];
           return showAnswer
-            ? <span key={i} style={{ background: "#dcfce7", color: "#166534", fontWeight: 700, borderRadius: "4px", padding: "0 6px", margin: "0 2px", borderBottom: "2px solid #16a34a" }}>{antwort}</span>
-            : <span key={i} style={{ display: "inline-block", minWidth: "120px", borderBottom: "2px solid #374151", margin: "0 4px", verticalAlign: "bottom" }}>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>;
+            ? <span key={i} style={{ background: "rgba(74,222,128,0.15)", color: "#4ade80", fontWeight: 700, borderRadius: "4px", padding: "0 6px", margin: "0 2px", borderBottom: "2px solid #4ade80" }}>{antwort}</span>
+            : <span key={i} style={{ display: "inline-block", minWidth: "120px", borderBottom: "2px solid rgba(240,236,227,0.25)", margin: "0 4px", verticalAlign: "bottom" }}>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>;
         })}
-        <div style={{ marginTop: "14px", padding: "10px 12px", background: "#f8fafc", borderRadius: "8px", border: "1px solid #e2e8f0" }}>
-          <span style={{ fontSize: "11px", fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.08em" }}>Wortbank: </span>
+        <div style={{ marginTop: "14px", padding: "10px 12px", background: "rgba(240,236,227,0.05)", borderRadius: "8px", border: "1px solid rgba(240,236,227,0.12)" }}>
+          <span style={{ fontSize: "11px", fontWeight: 700, color: "rgba(240,236,227,0.4)", textTransform: "uppercase", letterSpacing: "0.08em" }}>Wortbank: </span>
           {lt.wortbank.map((w, i) => (
-            <span key={i} style={{ display: "inline-block", margin: "2px 4px", padding: "2px 8px", background: "#fff", border: "1.5px solid #cbd5e1", borderRadius: "6px", fontSize: "13px", color: "#374151" }}>{w}</span>
+            <span key={i} style={{ display: "inline-block", margin: "2px 4px", padding: "2px 8px", background: "rgba(240,236,227,0.08)", border: "1.5px solid rgba(240,236,227,0.18)", borderRadius: "6px", fontSize: "13px", color: "rgba(240,236,227,0.85)" }}>{w}</span>
           ))}
         </div>
       </div>
@@ -1372,25 +1356,25 @@ function TheorieKarte({ aufgabe, nr, showLoesung, klasse = 10 }) {
     return (
       <div style={{ fontSize: "13px" }}>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginBottom: "4px" }}>
-          <div style={{ fontWeight: 700, color: "#374151", padding: "4px 0", borderBottom: "2px solid #e2e8f0" }}>Begriff</div>
-          <div style={{ fontWeight: 700, color: "#374151", padding: "4px 0", borderBottom: "2px solid #e2e8f0" }}>Definition</div>
+          <div style={{ fontWeight: 700, color: "#374151", padding: "4px 0", borderBottom: "2px solid rgba(240,236,227,0.12)" }}>Begriff</div>
+          <div style={{ fontWeight: 700, color: "#374151", padding: "4px 0", borderBottom: "2px solid rgba(240,236,227,0.12)" }}>Definition</div>
           {shuffled.terms.map((t, i) => (
             <React.Fragment key={i}>
-              <div style={{ display: "flex", alignItems: "flex-start", gap: "8px", padding: "6px 0", borderBottom: "1px solid #f1f5f9" }}>
+              <div style={{ display: "flex", alignItems: "flex-start", gap: "8px", padding: "6px 0", borderBottom: "1px solid rgba(240,236,227,0.08)" }}>
                 <span style={{
                   display: "inline-flex", alignItems: "center", justifyContent: "center",
                   minWidth: "22px", height: "22px", borderRadius: "50%",
-                  background: showAnswer ? "#dcfce7" : "#f8fafc",
-                  border: "1.5px solid " + (showAnswer ? "#16a34a" : "#cbd5e1"),
-                  color: showAnswer ? "#166534" : "#374151",
+                  background: showAnswer ? "rgba(34,197,94,0.18)" : "rgba(240,236,227,0.06)",
+                  border: "1.5px solid " + (showAnswer ? "#4ade80" : "rgba(240,236,227,0.2)"),
+                  color: showAnswer ? "#4ade80" : "rgba(240,236,227,0.6)",
                   fontWeight: 800, fontSize: "12px", flexShrink: 0,
                 }}>
                   {showAnswer ? answerMap[t.origIdx] : " "}
                 </span>
-                <span style={{ fontWeight: 600, color: "#1e293b" }}>{t.term}</span>
+                <span style={{ fontWeight: 600, color: "#f0ece3" }}>{t.term}</span>
               </div>
-              <div style={{ color: "#475569", padding: "6px 0", borderBottom: "1px solid #f1f5f9", lineHeight: 1.5 }}>
-                <span style={{ display: "inline-block", minWidth: "20px", fontWeight: 700, color: "#0f172a" }}>{shuffled.defs[i]?.letter})</span>
+              <div style={{ color: "rgba(240,236,227,0.55)", padding: "6px 0", borderBottom: "1px solid rgba(240,236,227,0.08)", lineHeight: 1.5 }}>
+                <span style={{ display: "inline-block", minWidth: "20px", fontWeight: 700, color: "rgba(240,236,227,0.4)" }}>{shuffled.defs[i]?.letter})</span>
                 {shuffled.defs[i]?.def}
               </div>
             </React.Fragment>
@@ -1404,7 +1388,7 @@ function TheorieKarte({ aufgabe, nr, showLoesung, klasse = 10 }) {
   const renderMC = (mc, showAnswer) => (
     <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
       {mc.fragen.map((f, fi) => (
-        <div key={fi} style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "10px", padding: "12px 14px" }}>
+        <div key={fi} style={{ background: "rgba(240,236,227,0.05)", border: "1px solid rgba(240,236,227,0.12)", borderRadius: "10px", padding: "12px 14px" }}>
           <div style={{ fontWeight: 700, color: "#1e293b", marginBottom: "8px", fontSize: "13px" }}>{fi + 1}. {f.frage}</div>
           <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
             {f.optionen.map((opt, oi) => {
@@ -1412,21 +1396,21 @@ function TheorieKarte({ aufgabe, nr, showLoesung, klasse = 10 }) {
               return (
                 <div key={oi} style={{
                   display: "flex", alignItems: "flex-start", gap: "8px", padding: "5px 8px", borderRadius: "7px",
-                  background: showAnswer && isRichtig ? "#dcfce7" : "#fff",
-                  border: "1.5px solid " + (showAnswer && isRichtig ? "#16a34a" : "#e2e8f0"),
+                  background: showAnswer && isRichtig ? "rgba(74,222,128,0.1)" : "rgba(240,236,227,0.04)",
+                  border: "1.5px solid " + (showAnswer && isRichtig ? "#4ade80" : "rgba(240,236,227,0.12)"),
                 }}>
                   <span style={{
                     display: "inline-flex", alignItems: "center", justifyContent: "center",
                     minWidth: "18px", height: "18px", borderRadius: "50%",
-                    border: "1.5px solid " + (showAnswer && isRichtig ? "#16a34a" : "#94a3b8"),
+                    border: "1.5px solid " + (showAnswer && isRichtig ? "#4ade80" : "rgba(240,236,227,0.3)"),
                     fontSize: "11px", fontWeight: 700,
-                    background: showAnswer && isRichtig ? "#16a34a" : "#fff",
-                    color: showAnswer && isRichtig ? "#fff" : "#64748b",
+                    background: showAnswer && isRichtig ? "rgba(74,222,128,0.2)" : "rgba(240,236,227,0.06)",
+                    color: showAnswer && isRichtig ? "#4ade80" : "rgba(240,236,227,0.55)",
                     flexShrink: 0, marginTop: "1px",
                   }}>
                     {String.fromCharCode(65 + oi)}
                   </span>
-                  <span style={{ fontSize: "13px", color: showAnswer && isRichtig ? "#166534" : "#374151", fontWeight: showAnswer && isRichtig ? 700 : 400 }}>{opt}</span>
+                  <span style={{ fontSize: "13px", color: showAnswer && isRichtig ? "#4ade80" : "#f0ece3", fontWeight: showAnswer && isRichtig ? 700 : 400 }}>{opt}</span>
                 </div>
               );
             })}
@@ -1442,17 +1426,17 @@ function TheorieKarte({ aufgabe, nr, showLoesung, klasse = 10 }) {
   const mc  = aufgabe.mc;
 
   return (
-    <div style={{ border: "1px solid #bae6fd", borderRadius: "12px", overflow: "hidden", marginBottom: "12px", background: "#fff" }}>
-      <div style={{ background: "#f0f9ff", padding: "12px 16px", display: "flex", alignItems: "center", gap: "8px", borderBottom: "1px solid #bae6fd", flexWrap: "wrap" }}>
-        <div style={{ width: "26px", height: "26px", background: "#0891b2", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: "12px", fontWeight: 800, flexShrink: 0 }}>{nr}</div>
-        <span style={{ fontWeight: 700, fontSize: "14px", color: "#374151", flex: 1, minWidth: "120px" }}>{aufgabe.titel}</span>
-        <span style={{ fontSize: "11px", color: "#0891b2", fontWeight: 700, background: "#e0f2fe", padding: "2px 8px", borderRadius: "20px" }}>
-          {themenTyp === "lueckentext" ? "📝 Lückentext" : themenTyp === "zuordnung" ? "🔗 Zuordnung" : themenTyp === "mc" ? "☑️ Multiple Choice" : "✍️ Freitext"}
+    <div style={{ border: "1px solid rgba(240,236,227,0.12)", borderRadius: "12px", overflow: "hidden", marginBottom: "12px", background: "rgba(28,20,10,0.6)" }}>
+      <div style={{ background: "rgba(240,236,227,0.06)", padding: "12px 16px", display: "flex", alignItems: "center", gap: "8px", borderBottom: "1px solid rgba(240,236,227,0.1)", flexWrap: "wrap" }}>
+        <div style={{ width: "26px", height: "26px", background: "#e8600a", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: "12px", fontWeight: 800, flexShrink: 0 }}>{nr}</div>
+        <span style={{ fontWeight: 700, fontSize: "14px", color: "#f0ece3", flex: 1, minWidth: "120px" }}>{aufgabe.titel}</span>
+        <span style={{ fontSize: "11px", color: "rgba(240,236,227,0.65)", fontWeight: 700, background: "rgba(240,236,227,0.1)", padding: "2px 8px", borderRadius: "20px" }}>
+          {themenTyp === "lueckentext" ? <><FileText size={10} strokeWidth={1.5} style={{verticalAlign:"middle",marginRight:3}}/>Lückentext</> : themenTyp === "zuordnung" ? <><ArrowLeftRight size={10} strokeWidth={1.5} style={{verticalAlign:"middle",marginRight:3}}/>Zuordnung</> : themenTyp === "mc" ? <><CheckSquare size={10} strokeWidth={1.5} style={{verticalAlign:"middle",marginRight:3}}/>Multiple Choice</> : <><PenLine size={10} strokeWidth={1.5} style={{verticalAlign:"middle",marginRight:3}}/>Freitext</>}
         </span>
-        <div style={{ display: "flex", alignItems: "center", background: "#0f172a", color: "#f59e0b", borderRadius: "20px", padding: "3px 12px", fontSize: "12px", fontWeight: 800, flexShrink: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", background: "#141008", color: "#e8600a", borderRadius: "20px", padding: "3px 12px", fontSize: "12px", fontWeight: 800, flexShrink: 0 }}>
           {punkte} P
         </div>
-        <button onClick={() => setOpen(!open)} style={{ ...S.btnSecondary, padding: "8px 14px", fontSize: "12px", borderRadius: "10px", fontWeight: 700, background: open ? "#0f172a" : "#f8fafc", color: open ? "#fff" : "#475569" }}>{open ? "▲ Lösung" : "▼ Lösung"}</button>
+        <button onClick={() => setOpen(!open)} style={{ ...S.btnSecondary, padding: "8px 14px", fontSize: "12px", borderRadius: "10px", fontWeight: 700 }}>{open ? "▲ Lösung" : "▼ Lösung"}</button>
       </div>
 
       <div style={{ padding: "16px" }}>
@@ -1462,13 +1446,13 @@ function TheorieKarte({ aufgabe, nr, showLoesung, klasse = 10 }) {
         {themenTyp === "mc"          && mc  && renderMC(mc, show)}
         {themenTyp === "freitext"    && aufgabe.freitext && (
           <div style={{ marginTop: "4px" }}>
-            <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "8px", padding: "12px 14px", minHeight: "60px", fontSize: "13px", color: "#94a3b8", fontStyle: "italic" }}>
+            <div style={{ background: "rgba(240,236,227,0.05)", border: "1px solid rgba(240,236,227,0.12)", borderRadius: "8px", padding: "12px 14px", minHeight: "60px", fontSize: "13px", color: "#94a3b8", fontStyle: "italic" }}>
               Antwortfeld (ca. {aufgabe.freitext.zeilen || 4} Zeilen)
             </div>
             {show && aufgabe.freitext.loesung && (
-              <div style={{ marginTop: "10px", background: "#dcfce7", border: "1.5px solid #16a34a", borderRadius: "8px", padding: "12px 14px" }}>
-                <div style={{ fontSize: "11px", fontWeight: 800, color: "#166534", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.06em" }}>✓ Musterlösung</div>
-                <div style={{ fontSize: "13px", color: "#166534", lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{aufgabe.freitext.loesung}</div>
+              <div style={{ marginTop: "10px", background: "rgba(74,222,128,0.08)", border: "1.5px solid rgba(74,222,128,0.3)", borderRadius: "8px", padding: "12px 14px" }}>
+                <div style={{ fontSize: "11px", fontWeight: 800, color: "#4ade80", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.06em" }}>✓ Musterlösung</div>
+                <div style={{ fontSize: "13px", color: "rgba(240,236,227,0.85)", lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{aufgabe.freitext.loesung}</div>
               </div>
             )}
           </div>
@@ -1503,37 +1487,31 @@ function KomplexKarte({ aufgabe, nr, showLoesung, globalMode, klasse = 10, onSch
   const setLoeView = (i, v) => setLoesungsViews(p => ({ ...p, [i]: v }));
 
   return (
-    <div style={{ border: "2px solid #0f172a", borderRadius: "14px", overflow: "hidden", marginBottom: "16px", background: "#fff" }}>
+    <div style={{ border: "1px solid rgba(240,236,227,0.12)", borderLeft: "3px solid #e8600a", borderRadius: "14px", overflow: "hidden", marginBottom: "16px", background: "rgba(30,22,10,0.72)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)" }}>
       {/* ── Gesamtheader ── */}
-      <div style={{ background: "#0f172a", padding: "14px 18px", display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
-        <div style={{ width: "28px", height: "28px", background: "#f59e0b", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", color: "#0f172a", fontSize: "13px", fontWeight: 900, flexShrink: 0 }}>{nr}</div>
+      <div style={{ background: "#141008", padding: "14px 18px", display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+        <div style={{ width: "28px", height: "28px", background: "#e8600a", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: "13px", fontWeight: 900, flexShrink: 0 }}>{nr}</div>
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: "10px", color: "#64748b", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: "2px" }}>🔗 Komplexaufgabe · {(aufgabe.schritte || []).length} Schritte</div>
+          <div style={{ fontSize: "10px", color: "#64748b", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: "2px", display:"flex", alignItems:"center", gap:4 }}><ArrowLeftRight size={10} strokeWidth={1.5}/>Komplexaufgabe · {(aufgabe.schritte || []).length} Schritte</div>
           <div style={{ fontSize: "15px", fontWeight: 800, color: "#fff" }}>{aufgabe.titel.replace("🔗 ", "")}</div>
         </div>
-        <div style={{ background: "#f59e0b", color: "#0f172a", borderRadius: "20px", padding: "4px 14px", fontSize: "13px", fontWeight: 900, flexShrink: 0 }}>{gesamtPunkte} P</div>
+        <div style={{ background: "#e8600a", color: "#fff", borderRadius: "20px", padding: "4px 14px", fontSize: "13px", fontWeight: 900, flexShrink: 0 }}>{gesamtPunkte} P</div>
         {/* Beleg/Geschäftsfall-Toggle für alle Schritte */}
-        <div style={{ display: "flex", border: "1.5px solid #334155", borderRadius: "8px", overflow: "hidden", flexShrink: 0 }}>
-          {[{ key: "beleg", label: "📄 Beleg" }, { key: "text", label: "📝 GF" }].map(opt => {
-            const isActive = effectiveMode === opt.key;
-            return (
-              <button key={opt.key} onClick={() => setLocalMode(localMode === opt.key ? null : opt.key)}
-                style={{ padding: "4px 10px", border: "none", cursor: "pointer", fontSize: "11px", fontWeight: isActive ? 700 : 500,
-                  background: isActive ? "#334155" : "transparent", color: isActive ? "#f59e0b" : "#64748b", transition: "all 0.15s" }}>
-                {opt.label}
-              </button>
-            );
-          })}
-        </div>
+        <BelegGFSlider
+          value={effectiveMode}
+          isOverridden={!!localMode}
+          onChange={v => setLocalMode(v)}
+          compact
+        />
         <button onClick={() => setOpenAll(!openAll)}
-          style={{ ...S.btnSecondary, padding: "4px 12px", fontSize: "12px", background: "#1e293b", color: "#94a3b8", border: "1px solid #334155" }}>
+          style={{ ...S.btnSecondary, padding: "4px 12px", fontSize: "12px" }}>
           {openAll ? "▲ Lösungen" : "▼ Lösungen"}
         </button>
       </div>
 
       {/* ── Szenario-Box ── */}
-      <div style={{ padding: "12px 18px 10px", background: "#f8fafc", borderBottom: "1px solid #e2e8f0", fontSize: "13px", color: "#374151", textAlign: "left" }}>
-        <span style={{ fontWeight: 700, color: "#0f172a" }}>📋 Szenario</span>
+      <div style={{ padding: "12px 18px 10px", background: "rgba(240,236,227,0.04)", borderBottom: "1px solid rgba(240,236,227,0.1)", fontSize: "13px", color: "rgba(240,236,227,0.8)", textAlign: "left" }}>
+        <span style={{ fontWeight: 700, color: "#e8600a", display:"inline-flex", alignItems:"center", gap:4 }}><ClipboardList size={13} strokeWidth={1.5}/>Szenario</span>
         {Array.isArray(aufgabe.kontext)
           ? aufgabe.kontext.map((teil, i) => (
               <p key={i} style={{ margin: "6px 0 0", lineHeight: 1.6, paddingLeft: i > 0 ? "12px" : 0, borderLeft: i > 0 ? "2px solid #e2e8f0" : "none", textAlign: "left" }}>{teil}</p>
@@ -1551,12 +1529,12 @@ function KomplexKarte({ aufgabe, nr, showLoesung, globalMode, klasse = 10, onSch
         const nrPunkte = schritt.nrPunkte || 0;
         const buchPunkte = schritt.punkte - nrPunkte;
         return (
-          <div key={i} style={{ borderTop: "1px solid #e2e8f0" }}>
+          <div key={i} style={{ borderTop: "1px solid rgba(240,236,227,0.1)" }}>
             {/* Schritt-Header */}
-            <div style={{ padding: "9px 18px", display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap", background: "#fafafa" }}>
-              <div style={{ width: "22px", height: "22px", background: "#1e293b", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", color: "#f59e0b", fontSize: "11px", fontWeight: 800, flexShrink: 0 }}>{i + 1}</div>
-              <span style={{ fontWeight: 700, fontSize: "13px", color: "#0f172a", flex: 1 }}>{schritt.titel}</span>
-              <div style={{ display: "flex", alignItems: "center", background: "#1e293b", color: "#f59e0b", borderRadius: "20px", padding: "2px 10px", fontSize: "11px", fontWeight: 800 }}>
+            <div style={{ padding: "9px 18px", display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap", background: "rgba(240,236,227,0.04)" }}>
+              <div style={{ width: "22px", height: "22px", background: "rgba(232,96,10,0.2)", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", color: "#e8600a", fontSize: "11px", fontWeight: 800, flexShrink: 0 }}>{i + 1}</div>
+              <span style={{ fontWeight: 700, fontSize: "13px", color: "#f0ece3", flex: 1 }}>{schritt.titel}</span>
+              <div style={{ display: "flex", alignItems: "center", background: "#1e293b", color: "#e8600a", borderRadius: "20px", padding: "2px 10px", fontSize: "11px", fontWeight: 800 }}>
                 {schritt.punkte} P{nrPunkte > 0 && <span style={{ color: "#fde68a", fontSize: "10px", fontWeight: 600 }}> (+{nrPunkte} NR)</span>}
               </div>
               <button onClick={() => toggleSchritt(i)} style={{ ...S.btnSecondary, padding: "3px 9px", fontSize: "11px" }}>
@@ -1578,7 +1556,7 @@ function KomplexKarte({ aufgabe, nr, showLoesung, globalMode, klasse = 10, onSch
               {editSchrittIdx === i ? (
                 <div style={{ marginBottom: "10px" }}>
                   <textarea value={editText} onChange={e => setEditText(e.target.value)} rows={3}
-                    style={{ width: "100%", padding: "8px", border: "2px solid #3b82f6", borderRadius: "8px", fontSize: "13px", fontFamily: "inherit", resize: "vertical", boxSizing: "border-box", color: "#0f172a" }} />
+                    style={{ width: "100%", padding: "8px", border: "1.5px solid rgba(240,236,227,0.22)", borderRadius: "8px", fontSize: "13px", fontFamily: "inherit", resize: "vertical", boxSizing: "border-box", background: "rgba(240,236,227,0.05)", color: "#f0ece3" }} />
                   <div style={{ display: "flex", gap: "6px", marginTop: "6px", flexWrap: "wrap" }}>
                     <button onClick={() => {
                       if (onAufgabeChange) {
@@ -1586,7 +1564,7 @@ function KomplexKarte({ aufgabe, nr, showLoesung, globalMode, klasse = 10, onSch
                         onAufgabeChange({ ...aufgabe, schritte: neuSchritte });
                       }
                       setEditSchrittIdx(null);
-                    }} style={{ padding: "5px 12px", background: "#0f172a", color: "#fff", border: "none", borderRadius: "6px", fontWeight: 700, fontSize: "11px", cursor: "pointer" }}>💾 Speichern</button>
+                    }} style={{ padding: "5px 12px", background: "#141008", color: "#fff", border: "none", borderRadius: "6px", fontWeight: 700, fontSize: "11px", cursor: "pointer", display:"flex", alignItems:"center", gap:4 }}><Save size={12} strokeWidth={1.5}/>Speichern</button>
                     <button onClick={() => {
                       if (onAufgabeChange) {
                         const neuSchritte = (aufgabe.schritte || []).map((s, si) => si === i ? { ...s, _aufgabeEdit: undefined } : s);
@@ -1594,7 +1572,7 @@ function KomplexKarte({ aufgabe, nr, showLoesung, globalMode, klasse = 10, onSch
                       }
                       setEditText(anrede(klasse, schritt.aufgabe ?? ""));
                       setEditSchrittIdx(null);
-                    }} style={{ padding: "5px 12px", background: "#fee2e2", color: "#dc2626", border: "none", borderRadius: "6px", fontWeight: 700, fontSize: "11px", cursor: "pointer" }}>↺ Original</button>
+                    }} style={{ padding: "5px 12px", background: "#fee2e2", color: "#dc2626", border: "none", borderRadius: "6px", fontWeight: 700, fontSize: "11px", cursor: "pointer", display:"flex", alignItems:"center", gap:4 }}><RefreshCw size={10} strokeWidth={1.5}/>Original</button>
                     <button disabled={kiLaden} onClick={async () => {
                       setKiLaden(true);
                       try {
@@ -1604,10 +1582,10 @@ function KomplexKarte({ aufgabe, nr, showLoesung, globalMode, klasse = 10, onSch
                         if (t) setEditText(t);
                       } catch(e) { alert("KI-Fehler: " + e.message); }
                       setKiLaden(false);
-                    }} style={{ padding: "5px 12px", background: "#ede9fe", color: "#7c3aed", border: "none", borderRadius: "6px", fontWeight: 700, fontSize: "11px", cursor: kiLaden?"wait":"pointer", opacity: kiLaden?0.7:1 }}>
-                      {kiLaden ? "⏳ KI…" : "🔄 KI-Neuformulierung"}
+                    }} style={{ padding: "5px 12px", background: "rgba(232,96,10,0.15)", color: "#e8600a", border: "1px solid rgba(232,96,10,0.3)", borderRadius: "6px", fontWeight: 700, fontSize: "11px", cursor: kiLaden?"wait":"pointer", opacity: kiLaden?0.7:1 }}>
+                      {kiLaden ? <><Zap size={11} strokeWidth={1.5}/>KI…</> : <><RefreshCw size={11} strokeWidth={1.5}/>KI-Neuformulierung</>}
                     </button>
-                    <button onClick={() => setEditSchrittIdx(null)} style={{ padding: "5px 12px", background: "#f1f5f9", color: "#64748b", border: "none", borderRadius: "6px", fontSize: "11px", cursor: "pointer" }}>Abbrechen</button>
+                    <button onClick={() => setEditSchrittIdx(null)} style={{ padding: "5px 12px", background: "rgba(240,236,227,0.06)", color: "rgba(240,236,227,0.5)", border: "none", borderRadius: "6px", fontSize: "11px", cursor: "pointer" }}>Abbrechen</button>
                   </div>
                 </div>
               ) : (
@@ -1617,10 +1595,10 @@ function KomplexKarte({ aufgabe, nr, showLoesung, globalMode, klasse = 10, onSch
                   </p>
                   <button onClick={() => { setEditText(schritt._aufgabeEdit ?? anrede(klasse, schritt.aufgabe ?? "")); setEditSchrittIdx(i); }}
                     title="Aufgabentext bearbeiten"
-                    style={{ padding: "2px 7px", border: `1.5px solid ${schritt._aufgabeEdit ? "#f59e0b" : "#e2e8f0"}`,
+                    style={{ padding: "4px 7px", border: `1.5px solid ${schritt._aufgabeEdit ? "#e8600a" : "#e2e8f0"}`,
                       borderRadius: "6px", background: schritt._aufgabeEdit ? "#fffbeb" : "#fff",
-                      cursor: "pointer", fontSize: "13px", flexShrink: 0 }}>
-                    ✏️{schritt._aufgabeEdit ? " ✓" : ""}
+                      cursor: "pointer", flexShrink: 0, display:"flex", alignItems:"center", gap:3 }}>
+                    <PenLine size={11} strokeWidth={1.5} color={schritt._aufgabeEdit?"#e8600a":"#94a3b8"}/>{schritt._aufgabeEdit ? <CheckSquare size={10} strokeWidth={1.5} color="#16a34a"/> : null}
                   </button>
                 </div>
               )}
@@ -1636,7 +1614,7 @@ function KomplexKarte({ aufgabe, nr, showLoesung, globalMode, klasse = 10, onSch
               {/* ── Einfache Kalkulation – Blanko-Schema (Labels ohne Beträge) ── */}
               {(schritt.typ === "kalkulation" || schritt.typ === "kalkulation_vk") && schritt.schema && !schritt.angebote && (
                 <div style={{ marginBottom: "10px" }}>
-                  <div style={{ border: "1px solid #e2e8f0", borderRadius: "8px", overflow: "hidden" }}>
+                  <div style={{ border: "1px solid rgba(240,236,227,0.12)", borderRadius: "8px", overflow: "hidden" }}>
                     <table style={{ width: "100%", fontSize: "13px", borderCollapse: "collapse" }}>
                       <tbody>
                         {schritt.schema.map((r, i) => {
@@ -1657,7 +1635,7 @@ function KomplexKarte({ aufgabe, nr, showLoesung, globalMode, klasse = 10, onSch
                       </tbody>
                     </table>
                   </div>
-                  <div style={{ marginTop: "6px", fontSize: "11px", color: "#64748b" }}>
+                  <div style={{ marginTop: "6px", fontSize: "11px", color: "rgba(240,236,227,0.4)" }}>
                     {anrede(klasse, "Füllen Sie das Kalkulationsschema aus.")}{schritt.typ === "kalkulation" ? " Rechne nur mit Nettowerten." : ""}
                   </div>
                 </div>
@@ -1667,18 +1645,11 @@ function KomplexKarte({ aufgabe, nr, showLoesung, globalMode, klasse = 10, onSch
               {hasBeleg && schritt.typ !== "angebotsvergleich" && schritt.typ !== "kalkulation" && schritt.typ !== "kalkulation_vk" && (
                 <div style={{ marginBottom: "10px" }}>
                   {/* Per-Schritt Toggle */}
-                  <div style={{ display: "flex", gap: "6px", marginBottom: "8px", alignItems: "center" }}>
-                    {[{ key: "beleg", label: "📄 Beleg" }, { key: "text", label: "📝 Geschäftsfall" }].map(opt => {
-                      const aktiv = getSchrittMode(i) === opt.key;
-                      return (
-                        <button key={opt.key} onClick={() => setSchrittMode(i, opt.key)}
-                          style={{ padding: "3px 10px", border: `1px solid ${aktiv ? "#334155" : "#e2e8f0"}`, borderRadius: "6px",
-                            background: aktiv ? "#1e293b" : "#f8fafc", color: aktiv ? "#f59e0b" : "#64748b",
-                            fontSize: "11px", fontWeight: aktiv ? 700 : 500, cursor: "pointer" }}>
-                          {opt.label}
-                        </button>
-                      );
-                    })}
+                  <div style={{ marginBottom: "8px" }}>
+                    <BelegGFSlider
+                      value={getSchrittMode(i)}
+                      onChange={v => setSchrittMode(i, v)}
+                    />
                   </div>
                   {getSchrittMode(i) === "beleg"
                     ? <BelegAnzeige beleg={schritt.beleg} />
@@ -1688,14 +1659,14 @@ function KomplexKarte({ aufgabe, nr, showLoesung, globalMode, klasse = 10, onSch
               )}
 
               {isOpen && schritt.typ !== "angebotsvergleich" && schritt.typ !== "kalkulation" && schritt.typ !== "kalkulation_vk" && (
-                <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: "10px", padding: "12px 14px" }}>
+                <div style={{ background: "rgba(34,197,94,0.05)", border: "1px solid rgba(74,222,128,0.2)", borderRadius: "10px", padding: "12px 14px" }}>
                   {/* View Toggle */}
                   <div style={{ display: "flex", gap: "6px", marginBottom: "10px" }}>
-                    {[{ key: "buchungssatz", label: "📒 Buchungssatz" }, { key: "tkonten", label: "📐 T-Konten" }].map(opt => (
+                    {[{ key: "buchungssatz", label: "Buchungssatz" }, { key: "tkonten", label: "T-Konten" }].map(opt => (
                       <button key={opt.key} onClick={() => setLoeView(i, opt.key)}
                         style={{ ...S.btnSecondary, padding: "3px 9px", fontSize: "11px",
                           fontWeight: loeView === opt.key ? 800 : 500,
-                          background: loeView === opt.key ? "#dcfce7" : "#fff" }}>
+                          background: loeView === opt.key ? "rgba(74,222,128,0.15)" : "transparent" }}>
                         {opt.label}
                       </button>
                     ))}
@@ -1705,7 +1676,7 @@ function KomplexKarte({ aufgabe, nr, showLoesung, globalMode, klasse = 10, onSch
                     : <TKonten soll={schritt.soll} haben={schritt.haben} />
                   }
                   {schritt.erklaerung && (
-                    <div style={{ marginTop: "10px", padding: "8px 12px", background: "#fff", borderRadius: "8px", border: "1px solid #d1fae5", fontSize: "12px", color: "#374151", lineHeight: 1.6 }}>
+                    <div style={{ marginTop: "10px", padding: "8px 12px", background: "rgba(232,96,10,0.06)", borderRadius: "8px", border: "1px solid rgba(232,96,10,0.2)", fontSize: "12px", color: "rgba(240,236,227,0.8)", lineHeight: 1.6 }}>
                       💡 {schritt.erklaerung}
                     </div>
                   )}
@@ -1714,11 +1685,11 @@ function KomplexKarte({ aufgabe, nr, showLoesung, globalMode, klasse = 10, onSch
 
               {/* Lösung Angebotsvergleich: vollständiges Schema + Entscheidung */}
               {isOpen && schritt.typ === "angebotsvergleich" && schritt.angebote && (
-                <div style={{ marginTop: "10px", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: "10px", padding: "12px 14px" }}>
-                  <div style={{ fontSize: "11px", fontWeight: 800, color: "#166534", marginBottom: "8px", textTransform: "uppercase", letterSpacing: "0.05em" }}>📊 Lösung – Kalkulationsschema</div>
+                <div style={{ marginTop: "10px", background: "rgba(34,197,94,0.05)", border: "1px solid rgba(74,222,128,0.2)", borderRadius: "10px", padding: "12px 14px" }}>
+                  <div style={{ fontSize: "11px", fontWeight: 800, color: "#4ade80", marginBottom: "8px", textTransform: "uppercase", letterSpacing: "0.05em", display:"flex", alignItems:"center", gap:4 }}><BarChart2 size={11} strokeWidth={1.5}/>Lösung – Kalkulationsschema</div>
                   <AngebotsVergleichLoesung angebote={schritt.angebote} gewinner={schritt.gewinner} />
                   {schritt.erklaerung && (
-                    <div style={{ marginTop: "8px", padding: "6px 10px", background: "#fff", borderRadius: "7px", border: "1px solid #d1fae5", fontSize: "12px", color: "#374151", lineHeight: 1.6 }}>
+                    <div style={{ marginTop: "8px", padding: "6px 10px", background: "rgba(232,96,10,0.06)", borderRadius: "7px", border: "1px solid rgba(232,96,10,0.2)", fontSize: "12px", color: "rgba(240,236,227,0.8)", lineHeight: 1.6 }}>
                       💡 {schritt.erklaerung}
                     </div>
                   )}
@@ -1727,9 +1698,9 @@ function KomplexKarte({ aufgabe, nr, showLoesung, globalMode, klasse = 10, onSch
 
               {/* Lösung einfache Kalkulation */}
               {isOpen && (schritt.typ === "kalkulation" || schritt.typ === "kalkulation_vk") && schritt.schema && (
-                <div style={{ marginTop: "10px", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: "10px", padding: "12px 14px" }}>
-                  <div style={{ fontSize: "11px", fontWeight: 800, color: "#166534", marginBottom: "8px", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                    {schritt.typ === "kalkulation_vk" ? "📊 Lösung – Verkaufskalkulation" : "📊 Lösung – Kalkulationsschema"}
+                <div style={{ marginTop: "10px", background: "rgba(34,197,94,0.05)", border: "1px solid rgba(74,222,128,0.2)", borderRadius: "10px", padding: "12px 14px" }}>
+                  <div style={{ fontSize: "11px", fontWeight: 800, color: "#4ade80", marginBottom: "8px", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                    {schritt.typ === "kalkulation_vk" ? <><BarChart2 size={11} strokeWidth={1.5} style={{marginRight:4}}/>Lösung – Verkaufskalkulation</> : <><BarChart2 size={11} strokeWidth={1.5} style={{marginRight:4}}/>Lösung – Kalkulationsschema</>}
                   </div>
                   <SchemaTabelle rows={schritt.schema} />
                   {schritt.erklaerung && (
@@ -1746,16 +1717,16 @@ function KomplexKarte({ aufgabe, nr, showLoesung, globalMode, klasse = 10, onSch
 
       {/* ── Footer: Schritt hinzufügen ── */}
       {onSchrittHinzufuegen && verfuegbareSchritte.length > 0 && (
-        <div style={{ borderTop: "1px solid #e2e8f0", padding: "10px 18px", background: "#f8fafc", position: "relative" }}>
+        <div style={{ borderTop: "1px solid rgba(240,236,227,0.1)", padding: "10px 18px", background: "rgba(240,236,227,0.05)", position: "relative" }}>
           <button
             onClick={() => setAddMenuOffen(v => !v)}
-            style={{ padding: "5px 14px", border: "1.5px dashed #64748b", borderRadius: "8px", background: "transparent",
-              color: "#64748b", fontSize: "12px", fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: "6px" }}>
+            style={{ padding: "5px 14px", border: "1.5px dashed rgba(240,236,227,0.2)", borderRadius: "8px", background: "transparent",
+              color: "rgba(240,236,227,0.4)", fontSize: "12px", fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: "6px" }}>
             ＋ Schritt hinzufügen
           </button>
           {addMenuOffen && (
-            <div style={{ position: "absolute", bottom: "calc(100% + 4px)", left: "18px", background: "#fff", border: "1.5px solid #334155",
-              borderRadius: "10px", boxShadow: "0 4px 16px rgba(0,0,0,0.12)", zIndex: 50, minWidth: "220px", overflow: "hidden" }}>
+            <div style={{ position: "absolute", bottom: "calc(100% + 4px)", left: "18px", background: "rgba(20,16,8,0.95)", backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", border: "1px solid rgba(240,236,227,0.12)",
+              borderRadius: "10px", boxShadow: "0 4px 24px rgba(0,0,0,0.5)", zIndex: 50, minWidth: "220px", overflow: "hidden" }}>
               {verfuegbareSchritte.map(d => (
                 <button key={d.optsKey}
                   onClick={() => { onSchrittHinzufuegen(d.optsKey); setAddMenuOffen(false); }}
@@ -1770,6 +1741,65 @@ function KomplexKarte({ aufgabe, nr, showLoesung, globalMode, klasse = 10, onSch
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+// ── Beleg / Geschäftsfall Slider ──────────────────────────────────────────────
+function BelegGFSlider({ value, onChange, isOverridden, compact = false }) {
+  const opts = compact
+    ? [{ key:"beleg", label:"Beleg", icon:FileText }, { key:"text", label:"GF", icon:MessageSquare }]
+    : [{ key:"beleg", label:"Beleg", icon:FileText }, { key:"text", label:"Geschäftsfall", icon:MessageSquare }];
+  const isLeft = value === "beleg";
+  const startXRef = useRef(0);
+  const movedRef  = useRef(false);
+
+  const onDown = e => {
+    movedRef.current = false;
+    startXRef.current = e.clientX;
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+  const onMove = e => {
+    const dx = e.clientX - startXRef.current;
+    if (Math.abs(dx) > 14 && !movedRef.current) {
+      movedRef.current = true;
+      if (dx > 0 && isLeft)  { onChange("text");  startXRef.current = e.clientX; }
+      if (dx < 0 && !isLeft) { onChange("beleg"); startXRef.current = e.clientX; }
+    }
+  };
+  const onUp = () => {
+    if (!movedRef.current) onChange(isLeft ? "text" : "beleg");
+  };
+
+  const W = compact ? 108 : 166;
+  return (
+    <div style={{ position:"relative", width:W, height:28, borderRadius:14, flexShrink:0,
+      background:"rgba(240,236,227,0.06)", border:"1.5px solid rgba(240,236,227,0.2)",
+      cursor:"pointer", userSelect:"none", touchAction:"none" }}
+      onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp}>
+      {/* sliding pill */}
+      <div style={{ position:"absolute", top:2, left: isLeft ? 2 : "calc(50% + 1px)",
+        width:"calc(50% - 3px)", height:"calc(100% - 4px)",
+        background:"#e8600a", borderRadius:12,
+        transition:"left 200ms cubic-bezier(.4,0,.2,1)",
+        boxShadow:"0 1px 8px rgba(232,96,10,0.45)" }}/>
+      {/* override dot */}
+      {isOverridden && (
+        <div style={{ position:"absolute", top:3, right:4, width:5, height:5,
+          background:"#fde68a", borderRadius:"50%", zIndex:2, pointerEvents:"none" }}/>
+      )}
+      {/* labels */}
+      {opts.map((opt, i) => (
+        <div key={opt.key} style={{ position:"absolute", top:0, bottom:0,
+          left: i === 0 ? 0 : "50%", width:"50%",
+          display:"flex", alignItems:"center", justifyContent:"center",
+          gap:3, zIndex:1, pointerEvents:"none",
+          fontSize:10, fontWeight:700, fontFamily:"'IBM Plex Sans',sans-serif",
+          color: value === opt.key ? "#fff" : "rgba(240,236,227,0.38)",
+          transition:"color 200ms" }}>
+          <opt.icon size={10} strokeWidth={2.5}/>{opt.label}
+        </div>
+      ))}
     </div>
   );
 }
@@ -1836,40 +1866,30 @@ function AufgabeKarte({ aufgabe, nr, showLoesung, globalMode, klasse = 10, onAuf
   }
 
   return (
-    <div style={{ border: "1px solid #e2e8f0", borderRadius: "12px", overflow: "hidden", marginBottom: "12px", background: "#fff" }}>
+    <div style={{ border: "1px solid rgba(240,236,227,0.12)", borderLeft: "3px solid #e8600a", borderRadius: "12px", overflow: "hidden", marginBottom: "12px", background: "rgba(30,22,10,0.72)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)" }}>
       {/* Task header */}
-      <div style={{ background: "#f8fafc", padding: "12px 16px", display: "flex", alignItems: "center", gap: "8px", borderBottom: "1px solid #e2e8f0", flexWrap: "wrap" }}>
-        <div style={{ width: "26px", height: "26px", background: "#f59e0b", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", color: "#0f172a", fontSize: "12px", fontWeight: 900, flexShrink: 0 }}>{nr}</div>
-        <span style={{ fontWeight: 700, fontSize: "14px", color: "#374151", flex: 1, minWidth: "120px" }}>{aufgabe.titel}</span>
+      <div style={{ background: "rgba(240,236,227,0.04)", padding: "12px 16px", display: "flex", alignItems: "center", gap: "8px", borderBottom: "1px solid rgba(240,236,227,0.1)", flexWrap: "wrap" }}>
+        <div style={{ width: "26px", height: "26px", background: "#e8600a", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: "12px", fontWeight: 900, flexShrink: 0 }}>{nr}</div>
+        <span style={{ fontWeight: 700, fontSize: "14px", color: "#f0ece3", flex: 1, minWidth: "120px" }}>{aufgabe.titel}</span>
 
         {hasBeleg && (
-          <div style={{ display: "flex", border: "1.5px solid #e2e8f0", borderRadius: "8px", overflow: "hidden", flexShrink: 0 }}>
-            {[{ key: "beleg", label: "📄 Beleg" }, { key: "text", label: "📝 Geschäftsfall" }].map(opt => {
-              const isActive = effectiveMode === opt.key;
-              const isOverridden = localMode === opt.key;
-              return (
-                <button key={opt.key} onClick={() => setLocalMode(localMode === opt.key ? null : opt.key)}
-                  title={isOverridden ? "Lokale Einstellung – klicken zum Zurücksetzen" : "Klicken zum Überschreiben"}
-                  style={{ padding: "4px 11px", border: "none", cursor: "pointer", fontSize: "12px", fontWeight: isActive ? 700 : 500,
-                    background: isActive ? "#0f172a" : "#fff", color: isActive ? (isOverridden ? "#f59e0b" : "#fff") : "#94a3b8", transition: "all 0.15s", position: "relative" }}>
-                  {opt.label}
-                  {isOverridden && <span style={{ position: "absolute", top: "2px", right: "3px", width: "5px", height: "5px", background: "#f59e0b", borderRadius: "50%" }} />}
-                </button>
-              );
-            })}
-          </div>
+          <BelegGFSlider
+            value={effectiveMode}
+            isOverridden={!!localMode}
+            onChange={v => setLocalMode(v)}
+          />
         )}
 
-        {belegTyp && effectiveMode === "beleg" && <span style={{ fontSize: "11px", color: "#475569", background: "#e2e8f0", padding: "2px 8px", borderRadius: "20px", fontWeight: 600 }}>{BELEG_LABEL[belegTyp] || belegTyp}</span>}
-        {isRechnung && <span style={{ fontSize: "11px", color: "#7c3aed", fontWeight: 700, background: "#ede9fe", padding: "2px 8px", borderRadius: "20px" }}>Rechnung</span>}
-        <div style={{ display: "flex", alignItems: "center", background: "#0f172a", color: "#f59e0b", borderRadius: "20px", padding: "3px 12px", fontSize: "12px", fontWeight: 800, flexShrink: 0 }}>
+        {belegTyp && effectiveMode === "beleg" && <span style={{ fontSize: "11px", color: "rgba(240,236,227,0.6)", background: "rgba(240,236,227,0.1)", padding: "2px 8px", borderRadius: "20px", fontWeight: 600 }}>{BELEG_LABEL[belegTyp] || belegTyp}</span>}
+        {isRechnung && <span style={{ fontSize: "11px", color: "rgba(240,236,227,0.7)", fontWeight: 700, background: "rgba(240,236,227,0.1)", padding: "2px 8px", borderRadius: "20px" }}>Rechnung</span>}
+        <div style={{ display: "flex", alignItems: "center", background: "#141008", color: "#e8600a", borderRadius: "20px", padding: "3px 12px", fontSize: "12px", fontWeight: 800, flexShrink: 0 }}>
           {punkte} P{aufgabe.nrPunkte > 0 && !isRechnung && <span style={{ color: "#fde68a", fontSize: "10px", fontWeight: 600 }}> (+{aufgabe.nrPunkte} NR)</span>}
         </div>
         {/* Stift-Button – nur im Beleg-Modus oder ohne Beleg */}
         {(effectiveMode !== "text" || !hasBeleg) && (
           <button onClick={startEdit} title="Aufgabentext bearbeiten"
-            style={{ padding: "4px 8px", border: "1.5px solid " + (isEdited ? "#f59e0b" : "#e2e8f0"), borderRadius: "8px", background: isEdited ? "#fffbeb" : "#fff", cursor: "pointer", fontSize: "14px" }}>
-            ✏️{isEdited ? " ✓" : ""}
+            style={{ padding: "4px 8px", border: "1.5px solid " + (isEdited ? "#e8600a" : "#e2e8f0"), borderRadius: "8px", background: isEdited ? "#fffbeb" : "#fff", cursor: "pointer", display:"flex", alignItems:"center", gap:3 }}>
+            <PenLine size={12} strokeWidth={1.5} color={isEdited?"#e8600a":"#94a3b8"}/>{isEdited ? <CheckSquare size={10} strokeWidth={1.5} color="#16a34a"/> : null}
           </button>
         )}
         <button onClick={() => setOpen(!open)} style={{ ...S.btnSecondary, padding: "4px 10px", fontSize: "12px" }}>{open ? "▲" : "▼ Lösung"}</button>
@@ -1880,16 +1900,16 @@ function AufgabeKarte({ aufgabe, nr, showLoesung, globalMode, klasse = 10, onAuf
         {editMode ? (
           <div style={{ marginBottom: "12px" }}>
             <textarea value={editText} onChange={e => setEditText(e.target.value)} rows={4}
-              style={{ width: "100%", padding: "10px", border: "2px solid #3b82f6", borderRadius: "8px", fontSize: "14px", fontFamily: "inherit", resize: "vertical", boxSizing: "border-box" }} />
+              style={{ width: "100%", padding: "10px", border: "1.5px solid rgba(240,236,227,0.22)", borderRadius: "8px", fontSize: "14px", fontFamily: "inherit", resize: "vertical", boxSizing: "border-box", background: "rgba(240,236,227,0.05)", color: "#f0ece3" }} />
             <div style={{ display: "flex", gap: "8px", marginTop: "6px", flexWrap: "wrap" }}>
-              <button onClick={saveEdit} style={{ padding: "6px 14px", background: "#0f172a", color: "#fff", border: "none", borderRadius: "7px", fontWeight: 700, fontSize: "12px", cursor: "pointer" }}>💾 Speichern</button>
+              <button onClick={saveEdit} style={{ padding: "6px 14px", background: "#141008", color: "#fff", border: "none", borderRadius: "7px", fontWeight: 700, fontSize: "12px", cursor: "pointer", display:"flex", alignItems:"center", gap:4 }}><Save size={12} strokeWidth={1.5}/>Speichern</button>
               <button onClick={resetEdit} title="Zurück zur generierten Formulierung"
-                style={{ padding: "6px 14px", background: "#fee2e2", color: "#dc2626", border: "none", borderRadius: "7px", fontWeight: 700, fontSize: "12px", cursor: "pointer" }}>↺ Original</button>
+                style={{ padding: "6px 14px", background: "#fee2e2", color: "#dc2626", border: "none", borderRadius: "7px", fontWeight: 700, fontSize: "12px", cursor: "pointer", display:"flex", alignItems:"center", gap:4 }}><RefreshCw size={12} strokeWidth={1.5}/>Original</button>
               <button onClick={kiNeuformulierung} disabled={kiLaden}
-                style={{ padding: "6px 14px", background: "#ede9fe", color: "#7c3aed", border: "none", borderRadius: "7px", fontWeight: 700, fontSize: "12px", cursor: kiLaden ? "wait" : "pointer", opacity: kiLaden ? 0.7 : 1 }}>
-                {kiLaden ? "⏳ KI…" : "🔄 KI-Neuformulierung"}
+                style={{ padding: "6px 14px", background: "rgba(232,96,10,0.15)", color: "#e8600a", border: "1px solid rgba(232,96,10,0.3)", borderRadius: "7px", fontWeight: 700, fontSize: "12px", cursor: kiLaden ? "wait" : "pointer", opacity: kiLaden ? 0.7 : 1, display:"flex", alignItems:"center", gap:4 }}>
+                {kiLaden ? <><Zap size={12} strokeWidth={1.5}/>KI…</> : <><RefreshCw size={12} strokeWidth={1.5}/>KI-Neuformulierung</>}
               </button>
-              <button onClick={() => setEditMode(false)} style={{ padding: "6px 14px", background: "#f1f5f9", color: "#64748b", border: "none", borderRadius: "7px", fontSize: "12px", cursor: "pointer" }}>Abbrechen</button>
+              <button onClick={() => setEditMode(false)} style={{ padding: "6px 14px", background: "rgba(240,236,227,0.06)", color: "rgba(240,236,227,0.5)", border: "none", borderRadius: "7px", fontSize: "12px", cursor: "pointer" }}>Abbrechen</button>
             </div>
           </div>
         ) : (
@@ -1933,23 +1953,23 @@ Original: ${origText}`;
         {aufgabe.taskTyp === "schaubild" && aufgabe.schaubild && (
           <div>
             {/* Hinweis fiktive Daten */}
-            <div style={{ background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 7, padding: "6px 12px", fontSize: "11px", color: "#92400e", marginBottom: 8, fontWeight: 600 }}>
-              ⚠️ Hinweis: Die dargestellten Daten sind fiktiv und dienen ausschließlich zu Übungszwecken.
+            <div style={{ background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 7, padding: "6px 12px", fontSize: "11px", color: "#92400e", marginBottom: 8, fontWeight: 600, display:"flex", alignItems:"flex-start", gap:5 }}>
+              <AlertTriangle size={11} strokeWidth={1.5} style={{flexShrink:0,marginTop:1}}/><span>Hinweis: Die dargestellten Daten sind fiktiv und dienen ausschließlich zu Übungszwecken.</span>
             </div>
             <SchaubildAnzeige schaubild={aufgabe.schaubild} />
             <div style={{ marginTop: 12 }}>
               {(aufgabe.teilaufgaben || []).map((ta, ti) => (
                 <div key={ti} style={{ marginBottom: 10 }}>
-                  <p style={{ margin: "0 0 6px", color: "#374151", fontWeight: 600, fontSize: "13px" }}>
-                    <span style={{ fontWeight: 800, color: "#0ea5e9" }}>{ta.nr})</span> {ta.text}
-                    <span style={{ marginLeft: 8, fontSize: "11px", color: "#94a3b8" }}>[{ta.punkte} P]</span>
+                  <p style={{ margin: "0 0 6px", color: "#f0ece3", fontWeight: 600, fontSize: "13px" }}>
+                    <span style={{ fontWeight: 800, color: "#e8600a" }}>{ta.nr})</span> {ta.text}
+                    <span style={{ marginLeft: 8, fontSize: "11px", color: "rgba(240,236,227,0.4)" }}>[{ta.punkte} P]</span>
                   </p>
                   {(showLoesung || open) ? (
-                    <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 7, padding: "8px 12px", fontSize: "13px", color: "#15803d" }}>
+                    <div style={{ background: "rgba(34,197,94,0.08)", border: "1px solid rgba(74,222,128,0.25)", borderRadius: 7, padding: "8px 12px", fontSize: "13px", color: "#4ade80" }}>
                       {ta.loesung}
                     </div>
                   ) : (
-                    <div style={{ height: 32, border: "1px solid #e2e8f0", borderRadius: 6, background: "#f8fafc" }} />
+                    <div style={{ height: 32, border: "1px solid rgba(240,236,227,0.12)", borderRadius: 6, background: "rgba(240,236,227,0.05)" }} />
                   )}
                 </div>
               ))}
@@ -1963,7 +1983,7 @@ Original: ${origText}`;
               {/* Ansicht-Toggle für Buchungslösungen */}
               {!isRechnung && aufgabe.soll && (
                 <div style={{ display: "flex", border: "1.5px solid #bbf7d0", borderRadius: "8px", overflow: "hidden" }}>
-                  {[{ key: "buchungssatz", label: "📒 Buchungssatz" }, { key: "tkonten", label: "📐 T-Konten" }].map(opt => (
+                  {[{ key: "buchungssatz", label: "Buchungssatz" }, { key: "tkonten", label: "T-Konten" }].map(opt => (
                     <button key={opt.key} onClick={() => setLoesungsView(opt.key)}
                       style={{ padding: "4px 12px", border: "none", cursor: "pointer", fontSize: "12px", fontWeight: loesungsView === opt.key ? 700 : 500,
                         background: loesungsView === opt.key ? "#16a34a" : "#fff",
@@ -1973,10 +1993,10 @@ Original: ${origText}`;
                   ))}
                 </div>
               )}
-              {isRechnung && <span style={{ fontSize: "11px", fontWeight: 700, color: "#7c3aed", textTransform: "uppercase" }}>✦ Lösung (Schema)</span>}
-              <span style={{ fontSize: "12px", color: "#475569" }}>
+              {isRechnung && <span style={{ fontSize: "11px", fontWeight: 700, color: "#e8600a", textTransform: "uppercase" }}>✦ Lösung (Schema)</span>}
+              <span style={{ fontSize: "12px", color: "rgba(240,236,227,0.55)" }}>
                 <strong>{punkte} P</strong>
-                {!isRechnung && aufgabe.nrPunkte > 0 && <span style={{ color: "#92400e" }}> = {(aufgabe.soll?.length || 0) + (aufgabe.haben?.length || 0)} BS-P + {aufgabe.nrPunkte} NR-P</span>}
+                {!isRechnung && aufgabe.nrPunkte > 0 && <span style={{ color: "rgba(240,236,227,0.4)" }}> = {(aufgabe.soll?.length || 0) + (aufgabe.haben?.length || 0)} BS-P + {aufgabe.nrPunkte} NR-P</span>}
               </span>
             </div>
             <NebenrechnungBox nrs={aufgabe.nebenrechnungen} nrPunkte={aufgabe.nrPunkte} />
@@ -1986,7 +2006,7 @@ Original: ${origText}`;
                 ? <BuchungsSatz soll={aufgabe.soll} haben={aufgabe.haben} />
                 : <TKonten soll={aufgabe.soll} haben={aufgabe.haben} />
             )}
-            <div style={{ marginTop: "10px", padding: "8px 12px", background: "#fff", borderRadius: "8px", border: `1px solid ${isRechnung ? "#ede9fe" : "#d1fae5"}`, fontSize: "13px", color: "#374151", lineHeight: 1.6 }}>
+            <div style={{ marginTop: "10px", padding: "8px 12px", background: "rgba(232,96,10,0.06)", borderRadius: "8px", border: "1px solid rgba(232,96,10,0.2)", fontSize: "13px", color: "rgba(240,236,227,0.8)", lineHeight: 1.6 }}>
               💡 {renderMitTooltips(aufgabe.erklaerung)}
             </div>
           </div>
@@ -2015,13 +2035,13 @@ function PunktePanel({ aufgaben, typ }) {
     else einordnung = "Umfangr. Schulaufgabe";
   }
   return (
-    <div style={{ background: "#0f172a", borderRadius: "14px", padding: "20px 24px", marginBottom: "16px", color: "#fff" }}>
+    <div style={{ background: "#141008", borderRadius: "14px", padding: "20px 24px", marginBottom: "16px", color: "#fff" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "16px" }}>
         <div>
-          <div style={{ fontSize: "11px", color: "#64748b", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: "4px" }}>ISB-Punkte-Auswertung · Bayern 2025</div>
+          <div style={{ fontSize: "11px", color: "rgba(240,236,227,0.4)", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: "4px" }}>Punkte-Auswertung · 2026</div>
           <div style={{ display: "flex", alignItems: "baseline", gap: "8px" }}>
-            <span style={{ fontSize: "42px", fontWeight: 900, color: "#f59e0b", lineHeight: 1 }}>{gesamt}</span>
-            <span style={{ fontSize: "18px", color: "#94a3b8" }}>Punkte</span>
+            <span style={{ fontSize: "42px", fontWeight: 900, color: "#e8600a", lineHeight: 1 }}>{gesamt}</span>
+            <span style={{ fontSize: "18px", color: "rgba(240,236,227,0.5)" }}>Punkte</span>
           </div>
         </div>
         <div style={{ display: "flex", gap: "20px", flexWrap: "wrap" }}>
@@ -2040,8 +2060,8 @@ function PunktePanel({ aufgaben, typ }) {
               const labels = "abcdefghij";
               a.schritte.forEach((st, si) => {
                 pills.push(
-                  <div key={`${i}-${si}`} style={{ background: "#1e293b", border: "1px solid #f59e0b44", borderRadius: "8px", padding: "4px 10px", fontSize: "12px", display: "flex", gap: "4px" }}>
-                    <span style={{ color: "#f59e0b88", fontWeight: 700 }}>A{aufgNr}{labels[si]}</span>
+                  <div key={`${i}-${si}`} style={{ background: "#1e293b", border: "1px solid #e8600a44", borderRadius: "8px", padding: "4px 10px", fontSize: "12px", display: "flex", gap: "4px" }}>
+                    <span style={{ color: "#e8600a88", fontWeight: 700 }}>A{aufgNr}{labels[si]}</span>
                     <span style={S.accent}>{st.punkte}P</span>
                   </div>
                 );
@@ -2059,7 +2079,7 @@ function PunktePanel({ aufgaben, typ }) {
           });
           return pills;
         })()}
-        <div style={{ background: "#f59e0b", borderRadius: "8px", padding: "4px 12px", fontSize: "12px", color: "#0f172a", fontWeight: 800 }}>Σ {gesamt} P</div>
+        <div style={{ background: "#e8600a", borderRadius: "8px", padding: "4px 12px", fontSize: "12px", color: "#fff", fontWeight: 800 }}>Σ {gesamt} P</div>
       </div>
       <button onClick={() => setZeigTab(!zeigTab)} style={{ marginTop: "10px", background: "transparent", border: "1px solid #334155", borderRadius: "6px", color: "#94a3b8", fontSize: "11px", padding: "4px 12px", cursor: "pointer" }}>
         {zeigTab ? "▲ Notenschlüssel" : "▼ Notenschlüssel"}
@@ -2069,26 +2089,26 @@ function PunktePanel({ aufgaben, typ }) {
           {/* ── Strenge-Regler ── */}
           <div style={{ marginBottom: "12px", background: "#1e293b", borderRadius: "10px", padding: "10px 14px" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
-              <span style={{ fontSize: "11px", color: "#94a3b8", fontWeight: 700 }}>🎓 Anforderungsniveau</span>
-              <span style={{ fontSize: "11px", color: "#f59e0b", fontWeight: 700 }}>
+              <span style={{ fontSize: "11px", color: "#94a3b8", fontWeight: 700, display:"flex", alignItems:"center", gap:4 }}><GraduationCap size={12} strokeWidth={1.5}/>Anforderungsniveau</span>
+              <span style={{ fontSize: "11px", color: "#e8600a", fontWeight: 700 }}>
                 Note 4 ab {Math.round(g4pct * 100)} %
                 {Math.abs(strenge - 0.5) < 0.04 && <span style={{ color: "#64748b", marginLeft: "6px" }}>(ISB-Standard)</span>}
               </span>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-              <span style={{ fontSize: "12px", color: "#4ade80", fontWeight: 700, minWidth: "46px" }}>😊 locker</span>
+              <span style={{ fontSize: "12px", color: "#4ade80", fontWeight: 700, minWidth: "46px", display:"flex", alignItems:"center", gap:3 }}><Smile size={12} strokeWidth={1.5}/>locker</span>
               <div style={{ flex: 1, position: "relative" }}>
                 <input type="range" min="0" max="100" value={Math.round(strenge * 100)}
                   onChange={e => setStrenge(Number(e.target.value) / 100)}
-                  style={{ width: "100%", accentColor: "#f59e0b", cursor: "pointer", height: "6px" }} />
+                  style={{ width: "100%", accentColor: "#e8600a", cursor: "pointer", height: "6px" }} />
                 {/* ISB-Marker */}
                 <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)", width: "3px", height: "14px", background: "#475569", borderRadius: "2px", pointerEvents: "none" }} />
               </div>
-              <span style={{ fontSize: "12px", color: "#f87171", fontWeight: 700, minWidth: "46px", textAlign: "right" }}>😤 streng</span>
+              <span style={{ fontSize: "12px", color: "#f87171", fontWeight: 700, minWidth: "46px", textAlign: "right", display:"flex", alignItems:"center", gap:3, justifyContent:"flex-end" }}><Frown size={12} strokeWidth={1.5}/>streng</span>
             </div>
             {Math.abs(strenge - 0.5) > 0.04 && (
-              <button onClick={() => setStrenge(0.5)} style={{ marginTop: "6px", fontSize: "10px", color: "#64748b", background: "transparent", border: "1px solid #334155", borderRadius: "4px", padding: "2px 8px", cursor: "pointer" }}>
-                ↺ ISB-Standard zurücksetzen
+              <button onClick={() => setStrenge(0.5)} style={{ marginTop: "6px", fontSize: "10px", color: "#64748b", background: "transparent", border: "1px solid #334155", borderRadius: "4px", padding: "2px 8px", cursor: "pointer", display:"flex", alignItems:"center", gap:4 }}>
+                <RefreshCw size={9} strokeWidth={1.5}/>Standard zurücksetzen
               </button>
             )}
           </div>
@@ -2115,6 +2135,8 @@ function SchrittTyp({ onWeiter, onBelegEditor, onEigeneBelege, onSimulation, ini
   // Wenn initialConfig gesetzt → Vorauswahl aus bestehendem config
   const ic = initialConfig;
   const [typ, setTyp] = useState(ic?.typ ?? null);
+  const [hoveredCard, setHoveredCard] = useState(null);
+  const [hoveredTool, setHoveredTool] = useState(null);
   const [pruefungsart, setPruefungsart] = useState(ic?.pruefungsart ?? null);
   const [klasse, setKlasse] = useState(ic?.klasse ?? null);
   const [datum, setDatum] = useState(ic?.datum ?? new Date().toISOString().split("T")[0]);
@@ -2212,43 +2234,49 @@ function SchrittTyp({ onWeiter, onBelegEditor, onEigeneBelege, onSimulation, ini
   }
 
   const PRUEFUNGSARTEN = [
-    { id: "Schulaufgabe",    icon: "📝", info: "90–100 min · 30–50 P" },
-    { id: "Stegreifaufgabe", icon: "⚡", info: "20 min · 10–15 P" },
-    { id: "Kurzarbeit",      icon: "⏱️", info: "30–45 min · 15–25 P" },
-    { id: "Test",            icon: "🔍", info: "45–60 min · 20–30 P" },
+    { id: "Schulaufgabe",    icon: FileText, info: "90–100 min · 30–50 P" },
+    { id: "Stegreifaufgabe", icon: Zap,      info: "20 min · 10–15 P" },
+    { id: "Kurzarbeit",      icon: Timer,    info: "30–45 min · 15–25 P" },
+    { id: "Test",            icon: Search,   info: "45–60 min · 20–30 P" },
   ];
 
   const canProceed = typ && klasse && totalThemen > 0 && (typ === "Übung" || pruefungsart);
 
   return (
-    <div style={{ background: "#f8fafc" }}>
+    <div style={{ background: "transparent" }}>
 
       {/* ── HERO ── */}
-      <div style={{ background: "linear-gradient(160deg,#0f172a 0%,#1e293b 100%)", padding: "32px 20px 36px" }}>
+      <div style={{ background: "linear-gradient(160deg,#1a1208 0%,#251a0a 100%)", padding: "32px 20px 36px" }}>
         <div style={{ maxWidth: "860px", margin: "0 auto" }}>
-          <div style={{ fontSize: "12px", fontWeight: 700, letterSpacing: "0.15em", textTransform: "uppercase", color: "#f59e0b", marginBottom: "6px" }}>BwR Bayern · ISB LehrplanPLUS</div>
+          <div style={{ fontSize: "12px", fontWeight: 700, letterSpacing: "0.15em", textTransform: "uppercase", color: "#e8600a", marginBottom: "6px" }}>BwR Bayern</div>
           <div style={{ fontSize: "26px", fontWeight: 900, color: "#fff", letterSpacing: "-0.03em", marginBottom: "24px" }}>Was möchtest du erstellen?</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "12px" }}>
-        {[["Übung","📝","Aufgaben üben","#0f172a","#fff"],["Prüfung","📋","Schulaufgabe erstellen","#1e40af","#eff6ff"]].map(([t,icon,desc,bg,bgLight]) => (
-          <button key={t} onClick={() => { setTyp(t); if (t === "Übung") setPruefungsart(null); }}
-            style={{ flex: 1, padding: "20px 16px", border: "2.5px solid", cursor: "pointer", textAlign: "center", borderRadius: "16px", transition: "all 0.15s",
-              borderColor: typ === t ? bg : "#e2e8f0",
-              background: typ === t ? bg : "#fff",
-              color: typ === t ? "#fff" : "#475569",
-              boxShadow: typ === t ? `0 4px 20px ${bg}44` : "none" }}>
-            <div style={{ fontSize: "32px", marginBottom: "8px" }}>{icon}</div>
-            <div style={{ fontWeight: 800, fontSize: "16px", marginBottom: "3px" }}>{t}</div>
-            <div style={{ fontSize: "11px", opacity: 0.7 }}>{desc}</div>
-          </button>
-        ))}
-        <button onClick={() => onSimulation && onSimulation()}
-          style={{ flex: 1, padding: "20px 16px", border: "2.5px solid #7c3aed", cursor: "pointer", textAlign: "center", borderRadius: "16px",
-            background: "linear-gradient(135deg,#4c1d95,#7c3aed)", color: "#fff",
-            boxShadow: "0 4px 20px #7c3aed44", transition: "all 0.15s" }}>
-          <div style={{ fontSize: "32px", marginBottom: "8px" }}>🏭</div>
-          <div style={{ fontWeight: 800, fontSize: "16px", marginBottom: "3px" }}>Simulation</div>
-          <div style={{ fontSize: "11px", color: "#c4b5fd" }}>Firma führen</div>
-        </button>
+        {[
+          ["Übung", PenLine, "Aufgaben üben", () => { setTyp("Übung"); setPruefungsart(null); }],
+          ["Prüfung", ClipboardList, "Schulaufgabe erstellen", () => setTyp("Prüfung")],
+          ["Simulation", Factory, "Firma führen", () => { setTyp("Simulation"); onSimulation && onSimulation(); }],
+        ].map(([t, icon, desc, onClick]) => {
+          const sel = typ === t;
+          const hov = hoveredCard === t && !sel;
+          return (
+            <button key={t} onClick={onClick}
+              onMouseEnter={() => setHoveredCard(t)}
+              onMouseLeave={() => setHoveredCard(null)}
+              style={{ flex: 1, padding: "20px 16px", cursor: "pointer", textAlign: "center",
+                borderRadius: "16px", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)",
+                border: `2.5px solid ${sel ? "#e8600a" : hov ? "rgba(240,236,227,0.32)" : "rgba(240,236,227,0.15)"}`,
+                background: sel ? "linear-gradient(135deg,rgba(20,16,8,0.9),rgba(40,28,12,0.95))"
+                  : hov ? "rgba(40,30,15,0.8)" : "rgba(30,22,10,0.6)",
+                color: sel || hov ? "#f0ece3" : "rgba(240,236,227,0.7)",
+                boxShadow: sel ? "0 4px 24px rgba(232,96,10,0.35)" : hov ? "0 2px 12px rgba(0,0,0,0.3)" : "none",
+                transform: hov ? "translateY(-1px)" : "none",
+                transition: "all 0.18s" }}>
+              <div style={{ marginBottom: "10px", display:"flex", justifyContent:"center", color:"rgba(240,236,227,0.75)" }}>{React.createElement(icon, { size: 36, strokeWidth: 1.5 })}</div>
+              <div style={{ fontWeight: 800, fontSize: "16px", marginBottom: "3px" }}>{t}</div>
+              <div style={{ fontSize: "11px", opacity: 0.7 }}>{desc}</div>
+            </button>
+          );
+        })}
           </div>
         </div>
       </div>
@@ -2258,38 +2286,49 @@ function SchrittTyp({ onWeiter, onBelegEditor, onEigeneBelege, onSimulation, ini
 
       {/* Beleg-Werkzeuge */}
       <div style={{ display: "flex", gap: "10px", marginBottom: "20px" }}>
-        <button onClick={onBelegEditor}
-          style={{ flex: 1, padding: "14px 16px", border: "1.5px solid #e2e8f0", borderRadius: "14px", background: "#fff", cursor: "pointer", display: "flex", alignItems: "center", gap: "10px", color: "#374151", fontWeight: 700, fontSize: "14px", minHeight: "56px" }}>
-          <span style={{ fontSize: "22px" }}>✏️</span>
-          <div style={{ textAlign: "left" }}>
-            <div style={S.bold}>Beleg-Editor</div>
-            <div style={{ fontSize: "11px", color: "#94a3b8", fontWeight: 500 }}>Beleg erstellen</div>
-          </div>
-        </button>
-        <button onClick={onEigeneBelege}
-          style={{ flex: 1, padding: "14px 16px", border: "1.5px solid #fde68a", borderRadius: "14px", background: "#fffbeb", cursor: "pointer", display: "flex", alignItems: "center", gap: "10px", color: "#374151", fontWeight: 700, fontSize: "14px", minHeight: "56px" }}>
-          <span style={{ fontSize: "22px" }}>📂</span>
-          <div style={{ textAlign: "left" }}>
-            <div style={S.bold}>Eigene Belege</div>
-            <div style={{ fontSize: "11px", color: "#92400e", fontWeight: 500 }}>Aufgabe aus Beleg</div>
-          </div>
-        </button>
+        {[
+          { key: "editor",  Icon: ReceiptEuro, label: "Beleg-Editor",  sub: "Beleg erstellen",   onClick: onBelegEditor   },
+          { key: "eigene",  Icon: FolderOpen,  label: "Eigene Belege", sub: "Aufgabe aus Beleg", onClick: onEigeneBelege  },
+        ].map(({ key, Icon, label, sub, onClick }) => {
+          const hov = hoveredTool === key;
+          return (
+            <button key={key} onClick={onClick}
+              onMouseEnter={() => setHoveredTool(key)}
+              onMouseLeave={() => setHoveredTool(null)}
+              style={{ flex: 1, padding: "14px 16px", borderRadius: "14px",
+                backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)",
+                border: `2px solid ${hov ? "rgba(240,236,227,0.32)" : "rgba(240,236,227,0.15)"}`,
+                background: hov ? "rgba(40,30,15,0.8)" : "rgba(30,22,10,0.6)",
+                cursor: "pointer", display: "flex", alignItems: "center", gap: "10px",
+                color: "#f0ece3", fontWeight: 700, fontSize: "14px", minHeight: "56px",
+                boxShadow: hov ? "0 2px 12px rgba(0,0,0,0.3)" : "none",
+                transform: hov ? "translateY(-1px)" : "none",
+                transition: "all 0.18s" }}>
+              <Icon size={22} strokeWidth={1.5} style={{ color: hov ? "#f0ece3" : "rgba(240,236,227,0.6)", flexShrink: 0 }} />
+              <div style={{ textAlign: "left" }}>
+                <div style={S.bold}>{label}</div>
+                <div style={{ fontSize: "11px", color: "rgba(240,236,227,0.45)", fontWeight: 500 }}>{sub}</div>
+              </div>
+            </button>
+          );
+        })}
       </div>
 
       {/* Prüfungsart — nur bei Prüfung */}
       {typ === "Prüfung" && (
         <div style={{ marginBottom: "20px" }}>
-          <label style={{ fontSize: "13px", fontWeight: 600, color: "#374151", display: "block", marginBottom: "8px" }}>Art der Prüfung</label>
+          <label style={{ fontSize: "13px", fontWeight: 600, color: "rgba(240,236,227,0.7)", display: "block", marginBottom: "8px" }}>Art der Prüfung</label>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
             {PRUEFUNGSARTEN.map(pa => (
               <button key={pa.id} onClick={() => setPruefungsart(pa.id)}
                 style={{ padding: "10px 14px", border: "2px solid", borderRadius: "10px", cursor: "pointer", textAlign: "left",
-                  borderColor: pruefungsart === pa.id ? "#0f172a" : "#e2e8f0",
-                  background: pruefungsart === pa.id ? "#0f172a" : "#fff",
-                  color: pruefungsart === pa.id ? "#fff" : "#374151" }}>
-                <span style={{ fontSize: "18px", marginRight: "8px" }}>{pa.icon}</span>
+                  borderColor: pruefungsart === pa.id ? "#e8600a" : "rgba(240,236,227,0.15)",
+                  background: pruefungsart === pa.id ? "linear-gradient(135deg,rgba(20,16,8,0.9),rgba(40,28,12,0.95))" : "rgba(30,22,10,0.6)",
+                  boxShadow: pruefungsart === pa.id ? "0 4px 24px rgba(232,96,10,0.35)" : "none",
+                  color: "#f0ece3" }}>
+                {React.createElement(pa.icon, { size: 18, style: { marginRight: "8px", verticalAlign: "middle" } })}
                 <span style={{ fontWeight: 700, fontSize: "14px" }}>{pa.id}</span>
-                <div style={{ fontSize: "11px", marginTop: "3px", color: pruefungsart === pa.id ? "#94a3b8" : "#9ca3af" }}>{pa.info}</div>
+                <div style={{ fontSize: "11px", marginTop: "3px", color: pruefungsart === pa.id ? "rgba(240,236,227,0.6)" : "rgba(240,236,227,0.4)" }}>{pa.info}</div>
               </button>
             ))}
           </div>
@@ -2299,16 +2338,17 @@ function SchrittTyp({ onWeiter, onBelegEditor, onEigeneBelege, onSimulation, ini
       {typ && (<>
         <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "20px", alignItems: "start", marginBottom: "20px" }}>
           <div>
-            <label style={{ fontSize: "13px", fontWeight: 600, color: "#374151", display: "block", marginBottom: "6px" }}>Datum</label>
+            <label style={{ fontSize: "13px", fontWeight: 600, color: "rgba(240,236,227,0.7)", display: "block", marginBottom: "6px" }}>Datum</label>
             <input type="date" value={datum} onChange={e => setDatum(e.target.value)} style={{ ...S.input, width: "170px" }} />
           </div>
           <div>
-            <label style={{ fontSize: "13px", fontWeight: 600, color: "#374151", display: "block", marginBottom: "8px" }}>Jahrgangsstufe</label>
+            <label style={{ fontSize: "13px", fontWeight: 600, color: "rgba(240,236,227,0.7)", display: "block", marginBottom: "8px" }}>Jahrgangsstufe</label>
             <div style={{ display: "flex", gap: "8px" }}>
               {[7, 8, 9, 10].map(k => (
                 <button key={k} onClick={() => onKlasseChange(k)} style={{ padding: "10px 18px", border: "2px solid", borderRadius: "10px", cursor: "pointer",
-                  borderColor: klasse === k ? "#0f172a" : "#e2e8f0", background: klasse === k ? "#0f172a" : "#fff",
-                  color: klasse === k ? "#fff" : "#475569", fontWeight: 700, fontSize: "17px" }}>{k}</button>
+                  borderColor: klasse === k ? "#e8600a" : "rgba(240,236,227,0.15)", background: klasse === k ? "linear-gradient(135deg,rgba(20,16,8,0.9),rgba(40,28,12,0.95))" : "rgba(30,22,10,0.6)",
+                  boxShadow: klasse === k ? "0 4px 24px rgba(232,96,10,0.35)" : "none",
+                  color: "#f0ece3", fontWeight: 700, fontSize: "17px" }}>{k}</button>
               ))}
             </div>
           </div>
@@ -2317,18 +2357,21 @@ function SchrittTyp({ onWeiter, onBelegEditor, onEigeneBelege, onSimulation, ini
         {klasse && (
           <div style={{ marginBottom: "20px" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
-              <label style={{ fontSize: "13px", fontWeight: 600, color: "#374151" }}>Lernbereiche & Themen <span style={{ fontWeight: 400, color: "#94a3b8" }}>— Mehrfachauswahl</span></label>
+              <label style={{ fontSize: "13px", fontWeight: 600, color: "rgba(240,236,227,0.7)" }}>Lernbereiche & Themen <span style={{ fontWeight: 400, color: "rgba(240,236,227,0.4)" }}>— Mehrfachauswahl</span></label>
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 {vorklassen.length > 0 && (
                   <button onClick={() => setWiederholungAn(w => !w)}
-                    style={{ fontSize:11, fontWeight:700, padding:"3px 10px", borderRadius:20, border:"1.5px solid", cursor:"pointer",
-                      borderColor: wiederholungAn ? "#f59e0b" : "#e2e8f0",
-                      background: wiederholungAn ? "#fffbeb" : "#f8fafc",
-                      color: wiederholungAn ? "#92400e" : "#94a3b8" }}>
-                    🔁 Wiederholung {wiederholungAn ? "ein" : "aus"}
+                    style={{ fontSize:12, fontWeight:700, padding:"6px 14px", borderRadius:20, border:"1.5px solid", cursor:"pointer",
+                      display:"flex", alignItems:"center", gap:6,
+                      borderColor: wiederholungAn ? "#e8600a" : "rgba(240,236,227,0.2)",
+                      background: wiederholungAn ? "rgba(232,96,10,0.15)" : "rgba(240,236,227,0.06)",
+                      color: wiederholungAn ? "#e8600a" : "rgba(240,236,227,0.55)",
+                      fontFamily:"'IBM Plex Sans',sans-serif" }}>
+                    <RefreshCw size={13} strokeWidth={2}/>
+                    Wiederholung {wiederholungAn ? "ein" : "aus"}
                   </button>
                 )}
-                {totalThemen > 0 && <span style={{ fontSize: "12px", color: "#f59e0b", fontWeight: 700, background: "#0f172a", padding: "2px 10px", borderRadius: "20px" }}>{totalThemen} Thema{totalThemen === 1 ? "" : "en"}</span>}
+                {totalThemen > 0 && <span style={{ fontSize: "12px", color: "#e8600a", fontWeight: 700, background: "#141008", padding: "2px 10px", borderRadius: "20px" }}>{totalThemen} Thema{totalThemen === 1 ? "" : "en"}</span>}
               </div>
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
@@ -2340,42 +2383,42 @@ function SchrittTyp({ onWeiter, onBelegEditor, onEigeneBelege, onSimulation, ini
                 const isActive = selSet.size > 0;
                 const isExpanded = expandedLBs[lb];
                 return (
-                  <div key={lb} style={{ border: `2px solid ${isActive ? meta.farbe : "#e2e8f0"}`, borderRadius: "16px", overflow: "hidden", background: isActive ? meta.farbe + "08" : "#fff" }}>
+                  <div key={lb} style={{ border: `2px solid ${isActive ? meta.farbe : "rgba(240,236,227,0.13)"}`, borderRadius: "16px", overflow: "hidden", background: isActive ? meta.farbe + "18" : "rgba(30,22,10,0.55)", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "14px 16px", cursor: "pointer" }} onClick={() => toggleLB(lb)}>
-                      <div style={{ width: "18px", height: "18px", borderRadius: "5px", border: `2px solid ${isActive ? meta.farbe : "#cbd5e1"}`, background: isActive ? meta.farbe : "#fff", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                      <div style={{ width: "18px", height: "18px", borderRadius: "5px", border: `2px solid ${isActive ? meta.farbe : "rgba(240,236,227,0.3)"}`, background: isActive ? meta.farbe : "rgba(240,236,227,0.06)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                         {isActive && <span style={{ color: "#fff", fontSize: "11px" }}>✓</span>}
                       </div>
-                      <span style={{ fontSize: "16px" }}>{meta.icon}</span>
-                      <span style={{ fontWeight: 700, fontSize: "13px", color: isActive ? meta.farbe : "#374151", flex: 1 }}>{lb}</span>
+                      <span style={{ color: isActive ? meta.farbe : "rgba(240,236,227,0.55)", display:"flex", alignItems:"center" }}><IconFor name={meta.icon} size={15} /></span>
+                      <span style={{ fontWeight: 700, fontSize: "13px", color: isActive ? meta.farbe : "#f0ece3", flex: 1 }}>{lb}</span>
                       {isActive && <span style={{ fontSize: "11px", color: meta.farbe, fontWeight: 700, background: meta.farbe + "18", padding: "1px 8px", borderRadius: "12px" }}>{selSet.size}/{tasks.length}</span>}
                       <button onClick={e => { e.stopPropagation(); setExpandedLBs(p => ({ ...p, [lb]: !p[lb] })); }} style={{ background: "transparent", border: "none", cursor: "pointer", color: "#94a3b8", padding: "2px 6px" }}>{isExpanded ? "▲" : "▼"}</button>
                     </div>
                     {isExpanded && (
-                      <div style={{ borderTop: `1px solid ${meta.farbe}33`, padding: "10px 14px", background: "#fff" }}>
+                      <div style={{ borderTop: `1px solid ${meta.farbe}33`, padding: "10px 14px", background: "rgba(240,236,227,0.03)" }}>
                         <div style={{ display: "flex", gap: "6px", marginBottom: "8px" }}>
                           <button onClick={() => setSelectedThemen(p => ({ ...p, [lb]: new Set(tasks.map(t => t.id)) }))} style={{ fontSize: "11px", fontWeight: 700, color: meta.farbe, background: meta.farbe + "18", border: `1px solid ${meta.farbe}44`, borderRadius: "5px", padding: "2px 8px", cursor: "pointer" }}>✓ Alle</button>
-                          <button onClick={() => setSelectedThemen(p => ({ ...p, [lb]: new Set() }))} style={{ fontSize: "11px", fontWeight: 600, color: "#94a3b8", background: "#f1f5f9", border: "1px solid #e2e8f0", borderRadius: "5px", padding: "2px 8px", cursor: "pointer" }}>✗ Keine</button>
+                          <button onClick={() => setSelectedThemen(p => ({ ...p, [lb]: new Set() }))} style={{ fontSize: "11px", fontWeight: 600, color: "#94a3b8", background: "#f1f5f9", border: "1px solid rgba(240,236,227,0.12)", borderRadius: "5px", padding: "2px 8px", cursor: "pointer" }}>✗ Keine</button>
                         </div>
 
                         {/* ── Werkstoff-Auswahl direkt in LB 2 ── */}
                         {lb.includes("Werkstoffe") && (
-                          <div style={{ background: "#fffbeb", border: "1.5px solid #fbbf24", borderRadius: "8px", padding: "10px 12px", marginBottom: "10px" }}>
-                            <div style={{ fontSize: "11px", fontWeight: 700, color: "#92400e", marginBottom: "7px" }}>📦 Werkstoff-Typ</div>
+                          <div style={{ background: "rgba(232,96,10,0.1)", border: "1.5px solid rgba(232,96,10,0.3)", borderRadius: "8px", padding: "10px 12px", marginBottom: "10px" }}>
+                            <div style={{ fontSize: "11px", fontWeight: 700, color: "#f0c090", marginBottom: "7px", display:"flex", alignItems:"center", gap:4 }}><Package size={12} strokeWidth={1.5}/>Werkstoff-Typ</div>
                             <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
                               {WERKSTOFF_TYPEN.map(wt => (
                                 <button key={wt.id} onClick={() => setWerkstoffId(wt.id)}
-                                  style={{ padding: "4px 11px", borderRadius: "16px", border: "1.5px solid " + (werkstoffId === wt.id ? "#d97706" : "#e5e7eb"),
-                                    background: werkstoffId === wt.id ? "#fef3c7" : "#fff",
-                                    color: werkstoffId === wt.id ? "#92400e" : "#374151",
+                                  style={{ padding: "4px 11px", borderRadius: "16px", border: "1.5px solid " + (werkstoffId === wt.id ? "#d97706" : "rgba(240,236,227,0.12)"),
+                                    background: werkstoffId === wt.id ? "rgba(232,96,10,0.2)" : "rgba(240,236,227,0.06)",
+                                    color: werkstoffId === wt.id ? "#f0c090" : "rgba(240,236,227,0.7)",
                                     fontWeight: werkstoffId === wt.id ? 700 : 400, cursor: "pointer", fontSize: "12px" }}>
-                                  {wt.icon} {wt.label}
-                                  <span style={{ fontSize: "10px", marginLeft: "5px", color: "#6b7280" }}>(<KürzelSpan nr={wt.aw.nr} style={{ fontSize: "10px", color: "#6b7280" }} />)</span>
+                                  <IconFor name={wt.icon} size={12} style={{ verticalAlign:"middle", marginRight:4 }} />{wt.label}
+                                  <span style={{ fontSize: "10px", marginLeft: "5px", color: "rgba(240,236,227,0.4)" }}>(<KürzelSpan nr={wt.aw.nr} style={{ fontSize: "10px", color: "rgba(240,236,227,0.4)" }} />)</span>
                                 </button>
                               ))}
                             </div>
-                            <div style={{ fontSize: "10px", color: "#78350f", marginTop: "6px" }}>
-                              Einkauf → <strong>{WERKSTOFF_TYPEN.find(w=>w.id===werkstoffId)?.aw.nr} <KürzelSpan nr={WERKSTOFF_TYPEN.find(w=>w.id===werkstoffId)?.aw.nr} style={{ fontWeight:700, fontSize:"10px", color:"#78350f" }} /></strong> &nbsp;|&nbsp;
-                              Nachlass/Skonto → <strong>{WERKSTOFF_TYPEN.find(w=>w.id===werkstoffId)?.nl.nr} <KürzelSpan nr={WERKSTOFF_TYPEN.find(w=>w.id===werkstoffId)?.nl.nr} style={{ fontWeight:700, fontSize:"10px", color:"#78350f" }} /></strong>
+                            <div style={{ fontSize: "10px", color: "rgba(240,236,227,0.5)", marginTop: "6px" }}>
+                              Einkauf → <strong>{WERKSTOFF_TYPEN.find(w=>w.id===werkstoffId)?.aw.nr} <KürzelSpan nr={WERKSTOFF_TYPEN.find(w=>w.id===werkstoffId)?.aw.nr} style={{ fontWeight:700, fontSize:"10px", color:"rgba(240,236,227,0.6)" }} /></strong> &nbsp;|&nbsp;
+                              Nachlass/Skonto → <strong>{WERKSTOFF_TYPEN.find(w=>w.id===werkstoffId)?.nl.nr} <KürzelSpan nr={WERKSTOFF_TYPEN.find(w=>w.id===werkstoffId)?.nl.nr} style={{ fontWeight:700, fontSize:"10px", color:"rgba(240,236,227,0.6)" }} /></strong>
                             </div>
                           </div>
                         )}
@@ -2396,50 +2439,50 @@ function SchrittTyp({ onWeiter, onBelegEditor, onEigeneBelege, onSimulation, ini
                                 <div onClick={() => toggleThema(lb, task.id)} style={{ width: "14px", height: "14px", borderRadius: "3px", border: `2px solid ${checked ? meta.farbe : "#cbd5e1"}`, background: checked ? meta.farbe : "#fff", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                                   {checked && <span style={{ color: "#fff", fontSize: "9px" }}>✓</span>}
                                 </div>
-                                <span onClick={() => toggleThema(lb, task.id)} style={{ fontSize: "13px", color: checked ? "#0f172a" : "#64748b", fontWeight: checked ? 600 : 400, flex: 1 }}>{task.titel}</span>
-                                {task.taskTyp === "rechnung" && <span style={{ fontSize: "10px", color: "#7c3aed", background: "#ede9fe", padding: "1px 5px", borderRadius: "8px", fontWeight: 700 }}>Rechnung</span>}
-                                {task.taskTyp === "komplex" && <span style={{ fontSize: "10px", color: "#f59e0b", background: "#fffbeb", border: "1px solid #fde68a", padding: "1px 5px", borderRadius: "8px", fontWeight: 700 }}>Kette</span>}
+                                <span onClick={() => toggleThema(lb, task.id)} style={{ fontSize: "13px", color: checked ? "#f0ece3" : "rgba(240,236,227,0.5)", fontWeight: checked ? 600 : 400, flex: 1 }}>{task.titel}</span>
+                                {task.taskTyp === "rechnung" && <span style={{ fontSize: "10px", color: "rgba(240,236,227,0.7)", background: "rgba(240,236,227,0.1)", padding: "1px 5px", borderRadius: "8px", fontWeight: 700 }}>Rechnung</span>}
+                                {task.taskTyp === "komplex" && <span style={{ fontSize: "10px", color: "#e8600a", background: "rgba(232,96,10,0.12)", border: "1px solid rgba(232,96,10,0.3)", padding: "1px 5px", borderRadius: "8px", fontWeight: 700 }}>Kette</span>}
                               </label>
 
                               {/* ── Inline-Konfiguratoren ── */}
                               {showConfig && isKomplexEK && (
-                                <div style={{ margin: "4px 0 6px 22px", background: "#f0f9ff", border: "1.5px solid #38bdf8", borderRadius: "10px", padding: "12px 14px" }}>
-                                  <div style={{ fontSize: "11px", fontWeight: 800, color: "#0c4a6e", marginBottom: "10px", letterSpacing: "0.04em", textTransform: "uppercase" }}>⚙️ Einkauf-Kette konfigurieren</div>
+                                <div style={{ margin: "4px 0 6px 22px", background: "rgba(232,96,10,0.06)", border: "1.5px solid rgba(232,96,10,0.25)", borderRadius: "10px", padding: "12px 14px" }}>
+                                  <div style={{ fontSize: "11px", fontWeight: 800, color: "#e8600a", marginBottom: "10px", letterSpacing: "0.04em", textTransform: "uppercase" }}>Einkauf-Kette konfigurieren</div>
 
                                   {/* Schrittfolge-Vorschau */}
                                   <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "3px", marginBottom: "10px", fontSize: "11px" }}>
                                     {(komplexOpts.kalkulation || komplexOpts.angebotsvergleich) && <>
-                                      <span style={{ background: "#0f172a", color: "#f59e0b", borderRadius: "6px", padding: "2px 7px", fontWeight: 700 }}>
-                                        {komplexOpts.angebotsvergleich ? "📊 Angebotsvergleich" : "📊 Kalkulation"}
+                                      <span style={{ background: "#141008", color: "#e8600a", borderRadius: "6px", padding: "2px 7px", fontWeight: 700 }}>
+                                        {komplexOpts.angebotsvergleich ? <><BarChart2 size={11} strokeWidth={1.5} style={{verticalAlign:"middle",marginRight:3}}/>Angebotsvergleich</> : <><BarChart2 size={11} strokeWidth={1.5} style={{verticalAlign:"middle",marginRight:3}}/>Kalkulation</>}
                                       </span>
                                       <span style={S.muted}>→</span>
                                     </>}
-                                    <span style={S.badgeDark}>📄 Einkauf</span>
-                                    {komplexOpts.ruecksendung && <><span style={S.muted}>→</span><span style={S.badgeWarn}>↩️ Rücksendung</span></>}
-                                    {komplexOpts.nachlass && <><span style={S.muted}>→</span><span style={S.badgeWarn}>💸 Nachlass</span></>}
+                                    <span style={{ ...S.badgeDark, display:"inline-flex", alignItems:"center", gap:3 }}><Download size={11} strokeWidth={1.5}/>Einkauf</span>
+                                    {komplexOpts.ruecksendung && <><span style={S.muted}>→</span><span style={{ ...S.badgeWarn, display:"inline-flex", alignItems:"center", gap:3 }}><RefreshCw size={10} strokeWidth={1.5}/>Rücksendung</span></>}
+                                    {komplexOpts.nachlass && <><span style={S.muted}>→</span><span style={{ ...S.badgeWarn, display:"inline-flex", alignItems:"center", gap:3 }}><Tag size={10} strokeWidth={1.5}/>Nachlass</span></>}
                                     <span style={S.muted}>→</span>
-                                    <span style={{ background: "#f0fdf4", color: "#15803d", border: "1px solid #bbf7d0", borderRadius: "6px", padding: "2px 7px", fontWeight: 700 }}>🏦 {komplexOpts.skonto ? "Zahlung+Skonto" : "Zahlung"}</span>
+                                    <span style={{ background: "#f0fdf4", color: "#15803d", border: "1px solid #bbf7d0", borderRadius: "6px", padding: "2px 7px", fontWeight: 700, display:"inline-flex", alignItems:"center", gap:3 }}><Building2 size={11} strokeWidth={1.5}/>{komplexOpts.skonto ? "Zahlung+Skonto" : "Zahlung"}</span>
                                   </div>
 
                                   {/* Schritt 1: Kalkulation + Sofortrabatt */}
                                   <div style={S.mb8}>
-                                    <div style={{ fontSize: "11px", fontWeight: 700, color: "#374151", marginBottom: "4px" }}>Schritt 1 – Kalkulation</div>
+                                    <div style={{ fontSize: "11px", fontWeight: 700, color: "rgba(240,236,227,0.6)", marginBottom: "4px" }}>Schritt 1 – Kalkulation</div>
                                     <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
                                       {[["none","Keine"],["kalkulation","Einfache Kalkulation"],["angebotsvergleich","Angebotsvergleich (2 Angebote)"]].map(([v, l]) => {
                                         const active = v === "none" ? !komplexOpts.kalkulation && !komplexOpts.angebotsvergleich : !!komplexOpts[v];
                                         return (
                                           <button key={v} onClick={() => setKomplexOpts(o => ({ ...o, kalkulation: v === "kalkulation", angebotsvergleich: v === "angebotsvergleich" }))}
                                             style={{ padding: "4px 10px", borderRadius: "14px", cursor: "pointer", fontSize: "11px", fontWeight: active ? 700 : 400,
-                                              border: "1.5px solid " + (active ? "#0ea5e9" : "#e5e7eb"),
-                                              background: active ? "#e0f2fe" : "#fff", color: active ? "#0c4a6e" : "#64748b" }}>
+                                              border: "1.5px solid " + (active ? "#e8600a" : "rgba(240,236,227,0.12)"),
+                                              background: active ? "rgba(232,96,10,0.12)" : "rgba(240,236,227,0.04)", color: active ? "#e8600a" : "rgba(240,236,227,0.55)" }}>
                                             {l}
                                           </button>
                                         );
                                       })}
                                     </div>
                                     {(komplexOpts.kalkulation || komplexOpts.angebotsvergleich) && (
-                                      <div style={{ marginTop: "8px", background: "#fffbeb", border: "1.5px solid #fde68a", borderRadius: "8px", padding: "8px 10px" }}>
-                                        <div style={{ fontSize: "10px", fontWeight: 700, color: "#92400e", marginBottom: "6px" }}>
+                                      <div style={{ marginTop: "8px", background: "rgba(232,96,10,0.06)", border: "1.5px solid rgba(232,96,10,0.2)", borderRadius: "8px", padding: "8px 10px" }}>
+                                        <div style={{ fontSize: "10px", fontWeight: 700, color: "rgba(240,236,227,0.6)", marginBottom: "6px" }}>
                                           💡 Sofortrabatt (auf Rechnung ausgewiesen, kein eigenes Konto – wird direkt vom LEP abgezogen)
                                         </div>
                                         {/* Rabattart */}
@@ -2449,8 +2492,8 @@ function SchrittTyp({ onWeiter, onBelegEditor, onEigeneBelege, onSimulation, ini
                                             return (
                                               <button key={rt} onClick={() => setKomplexOpts(o => ({ ...o, rabattTyp: rt }))}
                                                 style={{ padding: "2px 8px", borderRadius: "12px", cursor: "pointer", fontSize: "10px", fontWeight: active ? 700 : 400,
-                                                  border: "1.5px solid " + (active ? "#f59e0b" : "#e5e7eb"),
-                                                  background: active ? "#fef3c7" : "#fff", color: active ? "#92400e" : "#6b7280" }}>
+                                                  border: "1.5px solid " + (active ? "#e8600a" : "rgba(240,236,227,0.12)"),
+                                                  background: active ? "rgba(232,96,10,0.12)" : "rgba(240,236,227,0.04)", color: active ? "#e8600a" : "rgba(240,236,227,0.55)" }}>
                                                 {rt}
                                               </button>
                                             );
@@ -2458,12 +2501,12 @@ function SchrittTyp({ onWeiter, onBelegEditor, onEigeneBelege, onSimulation, ini
                                         </div>
                                         {/* Rabatthöhe: % oder € */}
                                         <div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap" }}>
-                                          <div style={{ fontSize: "10px", color: "#374151", fontWeight: 600 }}>Höhe:</div>
+                                          <div style={{ fontSize: "10px", color: "rgba(240,236,227,0.6)", fontWeight: 600 }}>Höhe:</div>
                                           {[["pct","in %"],["euro","in €"]].map(([v, l]) => (
                                             <button key={v} onClick={() => setKomplexOpts(o => ({ ...o, rabattArt: v }))}
                                               style={{ padding: "2px 8px", borderRadius: "10px", cursor: "pointer", fontSize: "10px", fontWeight: (komplexOpts.rabattArt||"pct") === v ? 700 : 400,
-                                                border: "1.5px solid " + ((komplexOpts.rabattArt||"pct") === v ? "#0ea5e9" : "#e5e7eb"),
-                                                background: (komplexOpts.rabattArt||"pct") === v ? "#e0f2fe" : "#fff", color: (komplexOpts.rabattArt||"pct") === v ? "#0c4a6e" : "#6b7280" }}>
+                                                border: "1.5px solid " + ((komplexOpts.rabattArt||"pct") === v ? "#e8600a" : "rgba(240,236,227,0.12)"),
+                                                background: (komplexOpts.rabattArt||"pct") === v ? "rgba(232,96,10,0.12)" : "rgba(240,236,227,0.04)", color: (komplexOpts.rabattArt||"pct") === v ? "#e8600a" : "rgba(240,236,227,0.55)" }}>
                                               {l}
                                             </button>
                                           ))}
@@ -2473,8 +2516,8 @@ function SchrittTyp({ onWeiter, onBelegEditor, onEigeneBelege, onSimulation, ini
                                                 value={komplexOpts.rabattPct || ""}
                                                 placeholder="zuf."
                                                 onChange={e => setKomplexOpts(o => ({ ...o, rabattPct: e.target.value ? parseFloat(e.target.value) : null }))}
-                                                style={{ width: "52px", padding: "2px 5px", border: "1.5px solid #cbd5e1", borderRadius: "5px", fontSize: "11px", fontWeight: 700, textAlign: "right" }} />
-                                              <span style={{ color: "#6b7280" }}>%</span>
+                                                style={{ width: "52px", padding: "2px 5px", border: "1.5px solid rgba(240,236,227,0.18)", borderRadius: "5px", fontSize: "11px", fontWeight: 700, textAlign: "right", background: "rgba(240,236,227,0.06)", color: "#f0ece3" }} />
+                                              <span style={{ color: "rgba(240,236,227,0.45)" }}>%</span>
                                             </label>
                                           ) : (
                                             <label style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "10px" }}>
@@ -2482,25 +2525,25 @@ function SchrittTyp({ onWeiter, onBelegEditor, onEigeneBelege, onSimulation, ini
                                                 value={komplexOpts.rabattEuro || ""}
                                                 placeholder="Betrag"
                                                 onChange={e => setKomplexOpts(o => ({ ...o, rabattEuro: e.target.value ? parseFloat(e.target.value) : null }))}
-                                                style={{ width: "80px", padding: "2px 5px", border: "1.5px solid #cbd5e1", borderRadius: "5px", fontSize: "11px" }} />
-                                              <span style={{ color: "#6b7280" }}>€ (netto)</span>
+                                                style={{ width: "80px", padding: "2px 5px", border: "1.5px solid rgba(240,236,227,0.18)", borderRadius: "5px", fontSize: "11px", background: "rgba(240,236,227,0.06)", color: "#f0ece3" }} />
+                                              <span style={{ color: "rgba(240,236,227,0.45)" }}>€ (netto)</span>
                                             </label>
                                           )}
-                                          <span style={{ fontSize: "10px", color: "#9ca3af" }}>Leer = zufällig</span>
+                                          <span style={{ fontSize: "10px", color: "rgba(240,236,227,0.35)" }}>Leer = zufällig</span>
                                         </div>
-                                        <div style={{ fontSize: "10px", color: "#0369a1", marginTop: "6px" }}>⚠️ Buchungsbasis = <strong>Zieleinkaufspreis</strong> (nach Sofortrabatt, vor Skonto)</div>
+                                        <div style={{ fontSize: "10px", color: "rgba(240,236,227,0.55)", marginTop: "6px", display:"flex", alignItems:"center", gap:3 }}><AlertTriangle size={10} strokeWidth={1.5}/>Buchungsbasis = <strong>Zieleinkaufspreis</strong> (nach Sofortrabatt, vor Skonto)</div>
                                       </div>
                                     )}
                                   </div>
 
                                   {/* Zwischenschritte */}
                                   <div style={S.mb8}>
-                                    <div style={{ fontSize: "11px", fontWeight: 700, color: "#374151", marginBottom: "4px" }}>Zwischenschritte (optional)</div>
+                                    <div style={{ fontSize: "11px", fontWeight: 700, color: "rgba(240,236,227,0.6)", marginBottom: "4px" }}>Zwischenschritte (optional)</div>
                                     <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-                                      {[["ruecksendung","↩️ Rücksendung"],["nachlass","💸 Nachlass"]].map(([k, l]) => (
+                                      {[["ruecksendung","Rücksendung"],["nachlass","Nachlass"]].map(([k, l]) => (
                                         <label key={k} style={{ display: "flex", alignItems: "center", gap: "5px", cursor: "pointer", fontSize: "11px", fontWeight: komplexOpts[k] ? 700 : 400,
-                                          padding: "4px 10px", borderRadius: "14px", border: "1.5px solid " + (komplexOpts[k] ? "#f59e0b" : "#e5e7eb"),
-                                          background: komplexOpts[k] ? "#fffbeb" : "#fff", color: komplexOpts[k] ? "#92400e" : "#64748b" }}>
+                                          padding: "4px 10px", borderRadius: "14px", border: "1.5px solid " + (komplexOpts[k] ? "#e8600a" : "rgba(240,236,227,0.12)"),
+                                          background: komplexOpts[k] ? "rgba(232,96,10,0.12)" : "rgba(240,236,227,0.04)", color: komplexOpts[k] ? "#e8600a" : "rgba(240,236,227,0.55)" }}>
                                           <input type="checkbox" checked={!!komplexOpts[k]} onChange={e => setKomplexOpts(o => ({ ...o, [k]: e.target.checked }))} style={{ width: "12px", height: "12px" }} />
                                           {l}
                                         </label>
@@ -2511,15 +2554,15 @@ function SchrittTyp({ onWeiter, onBelegEditor, onEigeneBelege, onSimulation, ini
                                   {/* Anteilsangabe */}
                                   {hasAnteil && (
                                     <div style={S.mb8}>
-                                      <div style={{ fontSize: "11px", fontWeight: 700, color: "#374151", marginBottom: "4px" }}>Anteilsangabe</div>
+                                      <div style={{ fontSize: "11px", fontWeight: 700, color: "rgba(240,236,227,0.6)", marginBottom: "4px" }}>Anteilsangabe</div>
 
                                       {/* Einheit wählen */}
                                       <div style={{ display: "flex", gap: "4px", flexWrap: "wrap", marginBottom: "8px" }}>
                                         {[["pct","in %"],["euro","in €"]].map(([v, l]) => (
                                           <button key={v} onClick={() => setKomplexOpts(o => ({ ...o, anteilArt: v }))}
                                             style={{ padding: "3px 9px", borderRadius: "12px", cursor: "pointer", fontSize: "11px", fontWeight: komplexOpts.anteilArt === v ? 700 : 400,
-                                              border: "1.5px solid " + (komplexOpts.anteilArt === v ? "#0ea5e9" : "#e5e7eb"),
-                                              background: komplexOpts.anteilArt === v ? "#e0f2fe" : "#fff", color: komplexOpts.anteilArt === v ? "#0c4a6e" : "#64748b" }}>
+                                              border: "1.5px solid " + (komplexOpts.anteilArt === v ? "#e8600a" : "rgba(240,236,227,0.12)"),
+                                              background: komplexOpts.anteilArt === v ? "rgba(232,96,10,0.12)" : "rgba(240,236,227,0.04)", color: komplexOpts.anteilArt === v ? "#e8600a" : "rgba(240,236,227,0.55)" }}>
                                             {l}
                                           </button>
                                         ))}
@@ -2529,20 +2572,20 @@ function SchrittTyp({ onWeiter, onBelegEditor, onEigeneBelege, onSimulation, ini
                                       {komplexOpts.anteilArt === "pct" && (
                                         <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
                                           {komplexOpts.ruecksendung && (
-                                            <label style={{ fontSize: "11px", color: "#374151", display: "flex", alignItems: "center", gap: "5px" }}>
-                                              ↩️ Rücksendung
+                                            <label style={{ fontSize: "11px", color: "rgba(240,236,227,0.6)", display: "flex", alignItems: "center", gap: "5px" }}>
+                                              Rücksendung
                                               <input type="number" min="1" max="99" value={komplexOpts.rueckPct}
                                                 onChange={e => setKomplexOpts(o => ({ ...o, rueckPct: Math.min(99, Math.max(1, parseInt(e.target.value)||20)) }))}
-                                                style={{ width: "52px", padding: "3px 6px", border: "1.5px solid #cbd5e1", borderRadius: "6px", fontSize: "12px", fontWeight: 700, textAlign: "right" }} />
+                                                style={{ width: "52px", padding: "3px 6px", border: "1.5px solid rgba(240,236,227,0.18)", borderRadius: "6px", fontSize: "12px", fontWeight: 700, textAlign: "right", background: "rgba(240,236,227,0.06)", color: "#f0ece3" }} />
                                               <span style={S.hint}>%</span>
                                             </label>
                                           )}
                                           {komplexOpts.nachlass && (
-                                            <label style={{ fontSize: "11px", color: "#374151", display: "flex", alignItems: "center", gap: "5px" }}>
+                                            <label style={{ fontSize: "11px", color: "rgba(240,236,227,0.6)", display: "flex", alignItems: "center", gap: "5px" }}>
                                               💸 Nachlass
                                               <input type="number" min="1" max="50" value={komplexOpts.nlPct}
                                                 onChange={e => setKomplexOpts(o => ({ ...o, nlPct: Math.min(50, Math.max(1, parseInt(e.target.value)||5)) }))}
-                                                style={{ width: "52px", padding: "3px 6px", border: "1.5px solid #cbd5e1", borderRadius: "6px", fontSize: "12px", fontWeight: 700, textAlign: "right" }} />
+                                                style={{ width: "52px", padding: "3px 6px", border: "1.5px solid rgba(240,236,227,0.18)", borderRadius: "6px", fontSize: "12px", fontWeight: 700, textAlign: "right", background: "rgba(240,236,227,0.06)", color: "#f0ece3" }} />
                                               <span style={S.hint}>%</span>
                                             </label>
                                           )}
@@ -2553,22 +2596,22 @@ function SchrittTyp({ onWeiter, onBelegEditor, onEigeneBelege, onSimulation, ini
                                       {komplexOpts.anteilArt === "euro" && (
                                         <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
                                           {komplexOpts.ruecksendung && (
-                                            <label style={{ fontSize: "11px", color: "#374151", display: "flex", alignItems: "center", gap: "5px" }}>
-                                              ↩️ Rücksendung
+                                            <label style={{ fontSize: "11px", color: "rgba(240,236,227,0.6)", display: "flex", alignItems: "center", gap: "5px" }}>
+                                              Rücksendung
                                               <input type="number" min="0" step="0.01" value={komplexOpts.rueckEuro}
                                                 placeholder="Betrag"
                                                 onChange={e => setKomplexOpts(o => ({ ...o, rueckEuro: e.target.value }))}
-                                                style={{ width: "90px", padding: "3px 6px", border: "1.5px solid #cbd5e1", borderRadius: "6px", fontSize: "12px" }} />
+                                                style={{ width: "90px", padding: "3px 6px", border: "1.5px solid rgba(240,236,227,0.18)", borderRadius: "6px", fontSize: "12px", background: "rgba(240,236,227,0.06)", color: "#f0ece3" }} />
                                               <span style={S.hint}>€</span>
                                             </label>
                                           )}
                                           {komplexOpts.nachlass && (
-                                            <label style={{ fontSize: "11px", color: "#374151", display: "flex", alignItems: "center", gap: "5px" }}>
+                                            <label style={{ fontSize: "11px", color: "rgba(240,236,227,0.6)", display: "flex", alignItems: "center", gap: "5px" }}>
                                               💸 Nachlass
                                               <input type="number" min="0" step="0.01" value={komplexOpts.nlEuro}
                                                 placeholder="Betrag"
                                                 onChange={e => setKomplexOpts(o => ({ ...o, nlEuro: e.target.value }))}
-                                                style={{ width: "90px", padding: "3px 6px", border: "1.5px solid #cbd5e1", borderRadius: "6px", fontSize: "12px" }} />
+                                                style={{ width: "90px", padding: "3px 6px", border: "1.5px solid rgba(240,236,227,0.18)", borderRadius: "6px", fontSize: "12px", background: "rgba(240,236,227,0.06)", color: "#f0ece3" }} />
                                               <span style={S.hint}>€</span>
                                             </label>
                                           )}
@@ -2580,8 +2623,8 @@ function SchrittTyp({ onWeiter, onBelegEditor, onEigeneBelege, onSimulation, ini
                                               return (
                                                 <button key={v} onClick={() => setKomplexOpts(o => ({ ...o, euroIsBrutto: isBrutto }))}
                                                   style={{ padding: "3px 9px", borderRadius: "10px", cursor: "pointer", fontSize: "11px", fontWeight: active ? 700 : 400,
-                                                    border: "1.5px solid " + (active ? "#0ea5e9" : "#e5e7eb"),
-                                                    background: active ? "#e0f2fe" : "#fff", color: active ? "#0c4a6e" : "#64748b" }}>
+                                                    border: "1.5px solid " + (active ? "#e8600a" : "rgba(240,236,227,0.12)"),
+                                                    background: active ? "rgba(232,96,10,0.12)" : "rgba(240,236,227,0.04)", color: active ? "#e8600a" : "rgba(240,236,227,0.55)" }}>
                                                   {l}
                                                 </button>
                                               );
@@ -2596,8 +2639,8 @@ function SchrittTyp({ onWeiter, onBelegEditor, onEigeneBelege, onSimulation, ini
                                   <div>
                                     <div style={{ fontSize: "11px", fontWeight: 700, color: "#374151", marginBottom: "4px" }}>Zahlung</div>
                                     <label style={{ display: "inline-flex", alignItems: "center", gap: "5px", cursor: "pointer", fontSize: "11px", fontWeight: komplexOpts.skonto ? 700 : 400,
-                                      padding: "4px 10px", borderRadius: "14px", border: "1.5px solid " + (komplexOpts.skonto ? "#22c55e" : "#e5e7eb"),
-                                      background: komplexOpts.skonto ? "#f0fdf4" : "#fff", color: komplexOpts.skonto ? "#15803d" : "#64748b" }}>
+                                      padding: "4px 10px", borderRadius: "14px", border: "1.5px solid " + (komplexOpts.skonto ? "#e8600a" : "rgba(240,236,227,0.12)"),
+                                      background: komplexOpts.skonto ? "rgba(232,96,10,0.12)" : "rgba(240,236,227,0.04)", color: komplexOpts.skonto ? "#e8600a" : "rgba(240,236,227,0.55)" }}>
                                       <input type="checkbox" checked={!!komplexOpts.skonto} onChange={e => setKomplexOpts(o => ({ ...o, skonto: e.target.checked }))} style={{ width: "12px", height: "12px" }} />
                                       Mit Skonto
                                     </label>
@@ -2609,44 +2652,44 @@ function SchrittTyp({ onWeiter, onBelegEditor, onEigeneBelege, onSimulation, ini
                               {showConfig && isKomplexVK && (() => {
                                 const vHasAnteil = verkaufOpts.ruecksendung || verkaufOpts.nachlass;
                                 return (
-                                  <div style={{ margin: "4px 0 6px 22px", background: "#fdf4ff", border: "1.5px solid #c084fc", borderRadius: "10px", padding: "12px 14px" }}>
-                                    <div style={{ fontSize: "11px", fontWeight: 800, color: "#581c87", marginBottom: "10px", letterSpacing: "0.04em", textTransform: "uppercase" }}>⚙️ Verkauf-Kette konfigurieren</div>
+                                  <div style={{ margin: "4px 0 6px 22px", background: "rgba(232,96,10,0.06)", border: "1.5px solid rgba(232,96,10,0.25)", borderRadius: "10px", padding: "12px 14px" }}>
+                                    <div style={{ fontSize: "11px", fontWeight: 800, color: "#e8600a", marginBottom: "10px", letterSpacing: "0.04em", textTransform: "uppercase" }}>Verkauf-Kette konfigurieren</div>
 
                                     {/* Schrittfolge-Vorschau */}
                                     <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "3px", marginBottom: "10px", fontSize: "11px" }}>
                                       {verkaufOpts.vorkalkulation && <>
-                                        <span style={{ background: "#581c87", color: "#e9d5ff", borderRadius: "6px", padding: "2px 7px", fontWeight: 700 }}>📊 Vorkalkulation</span>
+                                        <span style={{ background: "rgba(232,96,10,0.18)", color: "#f0c090", borderRadius: "6px", padding: "2px 7px", fontWeight: 700, display:"inline-flex", alignItems:"center", gap:3 }}><BarChart2 size={11} strokeWidth={1.5}/>Vorkalkulation</span>
                                         <span style={S.muted}>→</span>
                                       </>}
-                                      <span style={S.badgeDark}>🧾 Verkauf</span>
-                                      {verkaufOpts.ruecksendung && <><span style={S.muted}>→</span><span style={S.badgeWarn}>↩️ Rücksendung</span></>}
-                                      {verkaufOpts.nachlass && <><span style={S.muted}>→</span><span style={S.badgeWarn}>💸 Nachlass</span></>}
+                                      <span style={{ ...S.badgeDark, display:"inline-flex", alignItems:"center", gap:3 }}><Upload size={11} strokeWidth={1.5}/>Verkauf</span>
+                                      {verkaufOpts.ruecksendung && <><span style={S.muted}>→</span><span style={{ ...S.badgeWarn, display:"inline-flex", alignItems:"center", gap:3 }}><RefreshCw size={10} strokeWidth={1.5}/>Rücksendung</span></>}
+                                      {verkaufOpts.nachlass && <><span style={S.muted}>→</span><span style={{ ...S.badgeWarn, display:"inline-flex", alignItems:"center", gap:3 }}><Tag size={10} strokeWidth={1.5}/>Nachlass</span></>}
                                       <span style={S.muted}>→</span>
-                                      <span style={{ background: "#f0fdf4", color: "#15803d", border: "1px solid #bbf7d0", borderRadius: "6px", padding: "2px 7px", fontWeight: 700 }}>🏦 {verkaufOpts.skonto ? "Zahlungseingang + Skonto" : "Zahlungseingang"}</span>
+                                      <span style={{ background: "rgba(240,236,227,0.1)", color: "rgba(240,236,227,0.7)", border: "1px solid rgba(240,236,227,0.2)", borderRadius: "6px", padding: "2px 7px", fontWeight: 700, display:"inline-flex", alignItems:"center", gap:3 }}><Building2 size={11} strokeWidth={1.5}/>{verkaufOpts.skonto ? "Zahlungseingang + Skonto" : "Zahlungseingang"}</span>
                                     </div>
 
                                     {/* Schritt 0: Vorkalkulation */}
                                     <div style={S.mb8}>
-                                      <div style={{ fontSize: "11px", fontWeight: 700, color: "#374151", marginBottom: "4px" }}>Vorschritt – Kalkulation</div>
+                                      <div style={{ fontSize: "11px", fontWeight: 700, color: "rgba(240,236,227,0.6)", marginBottom: "4px" }}>Vorschritt – Kalkulation</div>
                                       <label style={{ display: "inline-flex", alignItems: "center", gap: "5px", cursor: "pointer", fontSize: "11px", fontWeight: verkaufOpts.vorkalkulation ? 700 : 400,
-                                        padding: "4px 10px", borderRadius: "14px", border: "1.5px solid " + (verkaufOpts.vorkalkulation ? "#9333ea" : "#e5e7eb"),
-                                        background: verkaufOpts.vorkalkulation ? "#f3e8ff" : "#fff", color: verkaufOpts.vorkalkulation ? "#581c87" : "#64748b" }}>
+                                        padding: "4px 10px", borderRadius: "14px", border: "1.5px solid " + (verkaufOpts.vorkalkulation ? "#e8600a" : "rgba(240,236,227,0.12)"),
+                                        background: verkaufOpts.vorkalkulation ? "rgba(232,96,10,0.12)" : "rgba(240,236,227,0.04)", color: verkaufOpts.vorkalkulation ? "#e8600a" : "rgba(240,236,227,0.55)" }}>
                                         <input type="checkbox" checked={!!verkaufOpts.vorkalkulation} onChange={e => setVerkaufOpts(o => ({ ...o, vorkalkulation: e.target.checked }))} style={{ width: "12px", height: "12px" }} />
                                         📊 Verkaufskalkulation (EKP → Aufschlag → VKP)
                                       </label>
                                       {verkaufOpts.vorkalkulation && (
-                                        <div style={{ fontSize: "10px", color: "#7e22ce", marginTop: "4px" }}>⚠️ Buchungsbasis = <strong>Zielverkaufspreis (ZVP)</strong></div>
+                                        <div style={{ fontSize: "10px", color: "rgba(240,236,227,0.55)", marginTop: "4px", display:"flex", alignItems:"center", gap:3 }}><AlertTriangle size={10} strokeWidth={1.5}/>Buchungsbasis = <strong>Zielverkaufspreis (ZVP)</strong></div>
                                       )}
                                     </div>
 
                                     {/* Zwischenschritte */}
                                     <div style={S.mb8}>
-                                      <div style={{ fontSize: "11px", fontWeight: 700, color: "#374151", marginBottom: "4px" }}>Zwischenschritte (optional)</div>
+                                      <div style={{ fontSize: "11px", fontWeight: 700, color: "rgba(240,236,227,0.6)", marginBottom: "4px" }}>Zwischenschritte (optional)</div>
                                       <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-                                        {[["ruecksendung","↩️ Rücksendung"],["nachlass","💸 Nachlass"]].map(([k, l]) => (
+                                        {[["ruecksendung","Rücksendung"],["nachlass","Nachlass"]].map(([k, l]) => (
                                           <label key={k} style={{ display: "flex", alignItems: "center", gap: "5px", cursor: "pointer", fontSize: "11px", fontWeight: verkaufOpts[k] ? 700 : 400,
-                                            padding: "4px 10px", borderRadius: "14px", border: "1.5px solid " + (verkaufOpts[k] ? "#f59e0b" : "#e5e7eb"),
-                                            background: verkaufOpts[k] ? "#fffbeb" : "#fff", color: verkaufOpts[k] ? "#92400e" : "#64748b" }}>
+                                            padding: "4px 10px", borderRadius: "14px", border: "1.5px solid " + (verkaufOpts[k] ? "#e8600a" : "rgba(240,236,227,0.12)"),
+                                            background: verkaufOpts[k] ? "rgba(232,96,10,0.12)" : "rgba(240,236,227,0.04)", color: verkaufOpts[k] ? "#e8600a" : "rgba(240,236,227,0.55)" }}>
                                             <input type="checkbox" checked={!!verkaufOpts[k]} onChange={e => setVerkaufOpts(o => ({ ...o, [k]: e.target.checked }))} style={{ width: "12px", height: "12px" }} />
                                             {l}
                                           </label>
@@ -2657,13 +2700,13 @@ function SchrittTyp({ onWeiter, onBelegEditor, onEigeneBelege, onSimulation, ini
                                     {/* Anteilsangabe */}
                                     {vHasAnteil && (
                                       <div style={S.mb8}>
-                                        <div style={{ fontSize: "11px", fontWeight: 700, color: "#374151", marginBottom: "4px" }}>Anteilsangabe</div>
+                                        <div style={{ fontSize: "11px", fontWeight: 700, color: "rgba(240,236,227,0.6)", marginBottom: "4px" }}>Anteilsangabe</div>
                                         <div style={{ display: "flex", gap: "4px", flexWrap: "wrap", marginBottom: "8px" }}>
                                           {[["pct","in %"],["euro","in €"]].map(([v, l]) => (
                                             <button key={v} onClick={() => setVerkaufOpts(o => ({ ...o, anteilArt: v }))}
                                               style={{ padding: "3px 9px", borderRadius: "12px", cursor: "pointer", fontSize: "11px", fontWeight: verkaufOpts.anteilArt === v ? 700 : 400,
-                                                border: "1.5px solid " + (verkaufOpts.anteilArt === v ? "#9333ea" : "#e5e7eb"),
-                                                background: verkaufOpts.anteilArt === v ? "#f3e8ff" : "#fff", color: verkaufOpts.anteilArt === v ? "#581c87" : "#64748b" }}>
+                                                border: "1.5px solid " + (verkaufOpts.anteilArt === v ? "#e8600a" : "rgba(240,236,227,0.12)"),
+                                                background: verkaufOpts.anteilArt === v ? "rgba(232,96,10,0.12)" : "rgba(240,236,227,0.04)", color: verkaufOpts.anteilArt === v ? "#e8600a" : "rgba(240,236,227,0.55)" }}>
                                               {l}
                                             </button>
                                           ))}
@@ -2671,20 +2714,20 @@ function SchrittTyp({ onWeiter, onBelegEditor, onEigeneBelege, onSimulation, ini
                                         {verkaufOpts.anteilArt === "pct" && (
                                           <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
                                             {verkaufOpts.ruecksendung && (
-                                              <label style={{ fontSize: "11px", color: "#374151", display: "flex", alignItems: "center", gap: "5px" }}>
-                                                ↩️ Rücksendung
+                                              <label style={{ fontSize: "11px", color: "rgba(240,236,227,0.6)", display: "flex", alignItems: "center", gap: "5px" }}>
+                                                Rücksendung
                                                 <input type="number" min="1" max="99" value={verkaufOpts.rueckPct}
                                                   onChange={e => setVerkaufOpts(o => ({ ...o, rueckPct: Math.min(99, Math.max(1, parseInt(e.target.value)||25)) }))}
-                                                  style={{ width: "52px", padding: "3px 6px", border: "1.5px solid #cbd5e1", borderRadius: "6px", fontSize: "12px", fontWeight: 700, textAlign: "right" }} />
+                                                  style={{ width: "52px", padding: "3px 6px", border: "1.5px solid rgba(240,236,227,0.18)", borderRadius: "6px", fontSize: "12px", fontWeight: 700, textAlign: "right", background: "rgba(240,236,227,0.06)", color: "#f0ece3" }} />
                                                 <span style={S.hint}>%</span>
                                               </label>
                                             )}
                                             {verkaufOpts.nachlass && (
-                                              <label style={{ fontSize: "11px", color: "#374151", display: "flex", alignItems: "center", gap: "5px" }}>
+                                              <label style={{ fontSize: "11px", color: "rgba(240,236,227,0.6)", display: "flex", alignItems: "center", gap: "5px" }}>
                                                 💸 Nachlass
                                                 <input type="number" min="1" max="50" value={verkaufOpts.nlPct}
                                                   onChange={e => setVerkaufOpts(o => ({ ...o, nlPct: Math.min(50, Math.max(1, parseInt(e.target.value)||5)) }))}
-                                                  style={{ width: "52px", padding: "3px 6px", border: "1.5px solid #cbd5e1", borderRadius: "6px", fontSize: "12px", fontWeight: 700, textAlign: "right" }} />
+                                                  style={{ width: "52px", padding: "3px 6px", border: "1.5px solid rgba(240,236,227,0.18)", borderRadius: "6px", fontSize: "12px", fontWeight: 700, textAlign: "right", background: "rgba(240,236,227,0.06)", color: "#f0ece3" }} />
                                                 <span style={S.hint}>%</span>
                                               </label>
                                             )}
@@ -2693,20 +2736,20 @@ function SchrittTyp({ onWeiter, onBelegEditor, onEigeneBelege, onSimulation, ini
                                         {verkaufOpts.anteilArt === "euro" && (
                                           <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
                                             {verkaufOpts.ruecksendung && (
-                                              <label style={{ fontSize: "11px", color: "#374151", display: "flex", alignItems: "center", gap: "5px" }}>
-                                                ↩️ Rücksendung
+                                              <label style={{ fontSize: "11px", color: "rgba(240,236,227,0.6)", display: "flex", alignItems: "center", gap: "5px" }}>
+                                                Rücksendung
                                                 <input type="number" min="0" step="0.01" value={verkaufOpts.rueckEuro} placeholder="Betrag"
                                                   onChange={e => setVerkaufOpts(o => ({ ...o, rueckEuro: e.target.value }))}
-                                                  style={{ width: "90px", padding: "3px 6px", border: "1.5px solid #cbd5e1", borderRadius: "6px", fontSize: "12px" }} />
+                                                  style={{ width: "90px", padding: "3px 6px", border: "1.5px solid rgba(240,236,227,0.18)", borderRadius: "6px", fontSize: "12px", background: "rgba(240,236,227,0.06)", color: "#f0ece3" }} />
                                                 <span style={S.hint}>€</span>
                                               </label>
                                             )}
                                             {verkaufOpts.nachlass && (
-                                              <label style={{ fontSize: "11px", color: "#374151", display: "flex", alignItems: "center", gap: "5px" }}>
+                                              <label style={{ fontSize: "11px", color: "rgba(240,236,227,0.6)", display: "flex", alignItems: "center", gap: "5px" }}>
                                                 💸 Nachlass
                                                 <input type="number" min="0" step="0.01" value={verkaufOpts.nlEuro} placeholder="Betrag"
                                                   onChange={e => setVerkaufOpts(o => ({ ...o, nlEuro: e.target.value }))}
-                                                  style={{ width: "90px", padding: "3px 6px", border: "1.5px solid #cbd5e1", borderRadius: "6px", fontSize: "12px" }} />
+                                                  style={{ width: "90px", padding: "3px 6px", border: "1.5px solid rgba(240,236,227,0.18)", borderRadius: "6px", fontSize: "12px", background: "rgba(240,236,227,0.06)", color: "#f0ece3" }} />
                                                 <span style={S.hint}>€</span>
                                               </label>
                                             )}
@@ -2717,8 +2760,8 @@ function SchrittTyp({ onWeiter, onBelegEditor, onEigeneBelege, onSimulation, ini
                                                 return (
                                                   <button key={v} onClick={() => setVerkaufOpts(o => ({ ...o, euroIsBrutto: isBrutto }))}
                                                     style={{ padding: "3px 9px", borderRadius: "10px", cursor: "pointer", fontSize: "11px", fontWeight: active ? 700 : 400,
-                                                      border: "1.5px solid " + (active ? "#9333ea" : "#e5e7eb"),
-                                                      background: active ? "#f3e8ff" : "#fff", color: active ? "#581c87" : "#64748b" }}>
+                                                      border: "1.5px solid " + (active ? "#e8600a" : "rgba(240,236,227,0.12)"),
+                                                      background: active ? "rgba(232,96,10,0.12)" : "rgba(240,236,227,0.04)", color: active ? "#e8600a" : "rgba(240,236,227,0.55)" }}>
                                                     {l}
                                                   </button>
                                                 );
@@ -2731,10 +2774,10 @@ function SchrittTyp({ onWeiter, onBelegEditor, onEigeneBelege, onSimulation, ini
 
                                     {/* Zahlung */}
                                     <div>
-                                      <div style={{ fontSize: "11px", fontWeight: 700, color: "#374151", marginBottom: "4px" }}>Zahlung</div>
+                                      <div style={{ fontSize: "11px", fontWeight: 700, color: "rgba(240,236,227,0.6)", marginBottom: "4px" }}>Zahlung</div>
                                       <label style={{ display: "inline-flex", alignItems: "center", gap: "5px", cursor: "pointer", fontSize: "11px", fontWeight: verkaufOpts.skonto ? 700 : 400,
-                                        padding: "4px 10px", borderRadius: "14px", border: "1.5px solid " + (verkaufOpts.skonto ? "#22c55e" : "#e5e7eb"),
-                                        background: verkaufOpts.skonto ? "#f0fdf4" : "#fff", color: verkaufOpts.skonto ? "#15803d" : "#64748b" }}>
+                                        padding: "4px 10px", borderRadius: "14px", border: "1.5px solid " + (verkaufOpts.skonto ? "#e8600a" : "rgba(240,236,227,0.12)"),
+                                        background: verkaufOpts.skonto ? "rgba(232,96,10,0.12)" : "rgba(240,236,227,0.04)", color: verkaufOpts.skonto ? "#e8600a" : "rgba(240,236,227,0.55)" }}>
                                         <input type="checkbox" checked={!!verkaufOpts.skonto} onChange={e => setVerkaufOpts(o => ({ ...o, skonto: e.target.checked }))} style={{ width: "12px", height: "12px" }} />
                                         Mit Skonto
                                       </label>
@@ -2746,47 +2789,47 @@ function SchrittTyp({ onWeiter, onBelegEditor, onEigeneBelege, onSimulation, ini
                               {/* ── Inline-Konfigurator Forderungskette ── */}
                               {showConfig && isKomplexFO && (() => {
                                 const ausgangLabels = {
-                                  totalausfall: "💀 Totalausfall",
-                                  teilausfall:  "⚠️ Teilausfall",
-                                  wiederzahlung: "✅ Wiederzahlung",
+                                  totalausfall: "Totalausfall",
+                                  teilausfall:  "Teilausfall",
+                                  wiederzahlung: "Wiederzahlung",
                                 };
                                 return (
-                                  <div style={{ margin: "4px 0 6px 22px", background: "#fff1f2", border: "1.5px solid #f87171", borderRadius: "10px", padding: "12px 14px" }}>
-                                    <div style={{ fontSize: "11px", fontWeight: 800, color: "#7f1d1d", marginBottom: "10px", letterSpacing: "0.04em", textTransform: "uppercase" }}>⚙️ Forderungskette konfigurieren</div>
+                                  <div style={{ margin: "4px 0 6px 22px", background: "rgba(232,96,10,0.06)", border: "1.5px solid rgba(232,96,10,0.25)", borderRadius: "10px", padding: "12px 14px" }}>
+                                    <div style={{ fontSize: "11px", fontWeight: 800, color: "#e8600a", marginBottom: "10px", letterSpacing: "0.04em", textTransform: "uppercase" }}>Forderungskette konfigurieren</div>
 
                                     {/* Schrittfolge-Vorschau */}
                                     <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "3px", marginBottom: "10px", fontSize: "11px" }}>
-                                      <span style={S.badgeDark}>🧾 Verkauf</span>
+                                      <span style={{ ...S.badgeDark, display:"inline-flex", alignItems:"center", gap:3 }}><Upload size={11} strokeWidth={1.5}/>Verkauf</span>
                                       <span style={S.muted}>→</span>
-                                      <span style={S.badgeWarn}>⚠️ Umbuchung ZWFO</span>
+                                      <span style={{ ...S.badgeWarn, display:"inline-flex", alignItems:"center", gap:3 }}><AlertTriangle size={10} strokeWidth={1.5}/>Umbuchung ZWFO</span>
                                       {forderungOpts.ewb && <>
                                         <span style={S.muted}>→</span>
-                                        <span style={{ background: "#ede9fe", color: "#4c1d95", borderRadius: "6px", padding: "2px 7px", fontWeight: 700 }}>📉 EWB {forderungOpts.ewbPct} %</span>
+                                        <span style={{ background: "rgba(240,236,227,0.1)", color: "rgba(240,236,227,0.7)", borderRadius: "6px", padding: "2px 7px", fontWeight: 700, display:"inline-flex", alignItems:"center", gap:3 }}><TrendingDown size={10} strokeWidth={1.5}/>EWB {forderungOpts.ewbPct} %</span>
                                       </>}
                                       <span style={S.muted}>→</span>
-                                      <span style={{ background: "#fee2e2", color: "#7f1d1d", borderRadius: "6px", padding: "2px 7px", fontWeight: 700 }}>
+                                      <span style={{ background: "rgba(239,68,68,0.15)", color: "#f87171", borderRadius: "6px", padding: "2px 7px", fontWeight: 700 }}>
                                         {ausgangLabels[forderungOpts.ausgang]}
                                       </span>
                                     </div>
 
                                     {/* EWB */}
                                     <div style={S.mb8}>
-                                      <div style={{ fontSize: "11px", fontWeight: 700, color: "#374151", marginBottom: "4px" }}>Jahresabschluss (optional)</div>
+                                      <div style={{ fontSize: "11px", fontWeight: 700, color: "rgba(240,236,227,0.6)", marginBottom: "4px" }}>Jahresabschluss (optional)</div>
                                       <label style={{ display: "inline-flex", alignItems: "center", gap: "5px", cursor: "pointer", fontSize: "11px",
                                         fontWeight: forderungOpts.ewb ? 700 : 400,
                                         padding: "4px 10px", borderRadius: "14px",
-                                        border: "1.5px solid " + (forderungOpts.ewb ? "#8b5cf6" : "#e5e7eb"),
-                                        background: forderungOpts.ewb ? "#ede9fe" : "#fff",
-                                        color: forderungOpts.ewb ? "#4c1d95" : "#64748b" }}>
+                                        border: "1.5px solid " + (forderungOpts.ewb ? "#e8600a" : "rgba(240,236,227,0.15)"),
+                                        background: forderungOpts.ewb ? "rgba(232,96,10,0.12)" : "rgba(240,236,227,0.04)",
+                                        color: forderungOpts.ewb ? "#e8600a" : "rgba(240,236,227,0.5)" }}>
                                         <input type="checkbox" checked={!!forderungOpts.ewb} onChange={e => setForderungOpts(o => ({ ...o, ewb: e.target.checked }))} style={{ width: "12px", height: "12px" }} />
-                                        📉 EWB bilden am Jahresende
+                                        <TrendingDown size={12} strokeWidth={1.5} style={{verticalAlign:"middle",marginRight:3}}/>EWB bilden am Jahresende
                                       </label>
                                       {forderungOpts.ewb && (
-                                        <label style={{ display: "inline-flex", alignItems: "center", gap: "5px", fontSize: "11px", color: "#374151", marginLeft: "10px", marginTop: "6px" }}>
+                                        <label style={{ display: "inline-flex", alignItems: "center", gap: "5px", fontSize: "11px", color: "rgba(240,236,227,0.6)", marginLeft: "10px", marginTop: "6px" }}>
                                           Geschätzter Ausfall
                                           <input type="number" min="10" max="90" step="10" value={forderungOpts.ewbPct}
                                             onChange={e => setForderungOpts(o => ({ ...o, ewbPct: Math.min(90, Math.max(10, parseInt(e.target.value)||50)) }))}
-                                            style={{ width: "52px", padding: "3px 6px", border: "1.5px solid #cbd5e1", borderRadius: "6px", fontSize: "12px", fontWeight: 700, textAlign: "right" }} />
+                                            style={{ width: "52px", padding: "3px 6px", border: "1.5px solid rgba(240,236,227,0.18)", borderRadius: "6px", fontSize: "12px", fontWeight: 700, textAlign: "right", background: "rgba(240,236,227,0.06)", color: "#f0ece3" }} />
                                           <span style={S.hint}>%</span>
                                         </label>
                                       )}
@@ -2794,15 +2837,15 @@ function SchrittTyp({ onWeiter, onBelegEditor, onEigeneBelege, onSimulation, ini
 
                                     {/* Ausgang */}
                                     <div style={S.mb8}>
-                                      <div style={{ fontSize: "11px", fontWeight: 700, color: "#374151", marginBottom: "4px" }}>Ausgang</div>
+                                      <div style={{ fontSize: "11px", fontWeight: 700, color: "rgba(240,236,227,0.6)", marginBottom: "4px" }}>Ausgang</div>
                                       <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
                                         {Object.entries(ausgangLabels).map(([v, l]) => (
                                           <button key={v} onClick={() => setForderungOpts(o => ({ ...o, ausgang: v }))}
                                             style={{ padding: "4px 10px", borderRadius: "14px", cursor: "pointer", fontSize: "11px",
                                               fontWeight: forderungOpts.ausgang === v ? 700 : 400,
-                                              border: "1.5px solid " + (forderungOpts.ausgang === v ? "#ef4444" : "#e5e7eb"),
-                                              background: forderungOpts.ausgang === v ? "#fee2e2" : "#fff",
-                                              color: forderungOpts.ausgang === v ? "#7f1d1d" : "#64748b" }}>
+                                              border: "1.5px solid " + (forderungOpts.ausgang === v ? "#f87171" : "rgba(240,236,227,0.12)"),
+                                              background: forderungOpts.ausgang === v ? "rgba(239,68,68,0.15)" : "rgba(240,236,227,0.04)",
+                                              color: forderungOpts.ausgang === v ? "#fca5a5" : "rgba(240,236,227,0.55)" }}>
                                             {l}
                                           </button>
                                         ))}
@@ -2812,11 +2855,11 @@ function SchrittTyp({ onWeiter, onBelegEditor, onEigeneBelege, onSimulation, ini
                                     {/* Quote bei Teilausfall */}
                                     {forderungOpts.ausgang === "teilausfall" && (
                                       <div>
-                                        <label style={{ display: "inline-flex", alignItems: "center", gap: "5px", fontSize: "11px", color: "#374151" }}>
+                                        <label style={{ display: "inline-flex", alignItems: "center", gap: "5px", fontSize: "11px", color: "rgba(240,236,227,0.6)" }}>
                                           Insolvenzquote
                                           <input type="number" min="10" max="80" step="10" value={forderungOpts.quotePct}
                                             onChange={e => setForderungOpts(o => ({ ...o, quotePct: Math.min(80, Math.max(10, parseInt(e.target.value)||30)) }))}
-                                            style={{ width: "52px", padding: "3px 6px", border: "1.5px solid #cbd5e1", borderRadius: "6px", fontSize: "12px", fontWeight: 700, textAlign: "right" }} />
+                                            style={{ width: "52px", padding: "3px 6px", border: "1.5px solid rgba(240,236,227,0.18)", borderRadius: "6px", fontSize: "12px", fontWeight: 700, textAlign: "right", background: "rgba(240,236,227,0.06)", color: "#f0ece3" }} />
                                           <span style={S.hint}>%</span>
                                         </label>
                                       </div>
@@ -2828,16 +2871,16 @@ function SchrittTyp({ onWeiter, onBelegEditor, onEigeneBelege, onSimulation, ini
                               {/* ── Inline-Konfigurator Abschluss-Kette ── */}
                               {showConfig && isKomplexABS && (() => {
                                 const schrittBadges = [
-                                  { key: "ara",        label: "📅 ARA",       color: "#7c3aed", bg: "#ede9fe" },
-                                  { key: "rst",        label: "⚠️ RST",        color: "#b45309", bg: "#fef3c7" },
-                                  { key: "afa",        label: "📉 AfA",        color: "#0369a1", bg: "#e0f2fe" },
-                                  { key: "ewb",        label: "🔴 EWB",        color: "#b91c1c", bg: "#fee2e2" },
-                                  { key: "guv",        label: "📊 GuV",        color: "#065f46", bg: "#d1fae5" },
-                                  { key: "kennzahlen", label: "🔢 Kennzahlen", color: "#4338ca", bg: "#eef2ff" },
+                                  { key: "ara",        label: "ARA",       color: "#f0ece3",              bg: "rgba(240,236,227,0.1)" },
+                                  { key: "rst",        label: "RST",       color: "#f0c090",              bg: "rgba(232,96,10,0.18)" },
+                                  { key: "afa",        label: "AfA",       color: "rgba(240,236,227,0.7)", bg: "rgba(240,236,227,0.1)" },
+                                  { key: "ewb",        label: "EWB",       color: "#fca5a5",              bg: "rgba(239,68,68,0.15)" },
+                                  { key: "guv",        label: "GuV",       color: "#4ade80",              bg: "rgba(74,222,128,0.12)" },
+                                  { key: "kennzahlen", label: "Kennzahlen", color: "rgba(240,236,227,0.6)", bg: "rgba(240,236,227,0.08)" },
                                 ];
                                 return (
-                                  <div style={{ margin: "4px 0 6px 22px", background: "#f5f3ff", border: "1.5px solid #7c3aed", borderRadius: "10px", padding: "12px 14px" }}>
-                                    <div style={{ fontSize: "11px", fontWeight: 800, color: "#3b0764", marginBottom: "10px", letterSpacing: "0.04em", textTransform: "uppercase" }}>⚙️ Abschluss-Kette konfigurieren</div>
+                                  <div style={{ margin: "4px 0 6px 22px", background: "rgba(28,20,10,0.8)", border: "1.5px solid rgba(240,236,227,0.12)", borderRadius: "10px", padding: "12px 14px" }}>
+                                    <div style={{ fontSize: "11px", fontWeight: 800, color: "rgba(240,236,227,0.5)", marginBottom: "10px", letterSpacing: "0.04em", textTransform: "uppercase", display:"flex", alignItems:"center", gap:4 }}><Settings size={11} strokeWidth={1.5}/>Abschluss-Kette konfigurieren</div>
 
                                     {/* Schrittfolge-Vorschau */}
                                     <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "3px", marginBottom: "10px", fontSize: "11px" }}>
@@ -2894,22 +2937,22 @@ function SchrittTyp({ onWeiter, onBelegEditor, onEigeneBelege, onSimulation, ini
 
                               {/* ── Inline-Konfigurator Prozentrechnung ── */}
                               {showConfig && isPct && (
-                                <div style={{ margin: "4px 0 6px 22px", background: "#fefce8", border: "1.5px solid #fde047", borderRadius: "10px", padding: "12px 14px" }}>
-                                  <div style={{ fontSize: "11px", fontWeight: 800, color: "#713f12", marginBottom: "10px", letterSpacing: "0.04em", textTransform: "uppercase" }}>⚙️ Prozentrechnung konfigurieren</div>
+                                <div style={{ margin: "4px 0 6px 22px", background: "rgba(232,96,10,0.06)", border: "1.5px solid rgba(232,96,10,0.25)", borderRadius: "10px", padding: "12px 14px" }}>
+                                  <div style={{ fontSize: "11px", fontWeight: 800, color: "#e8600a", marginBottom: "10px", letterSpacing: "0.04em", textTransform: "uppercase", display:"flex", alignItems:"center", gap:5 }}><Settings size={11} strokeWidth={1.5}/>Prozentrechnung konfigurieren</div>
 
                                   {/* Schwierigkeit */}
                                   <div style={S.mb8}>
-                                    <div style={{ fontSize: "11px", fontWeight: 700, color: "#374151", marginBottom: "4px" }}>Schwierigkeitsgrad</div>
+                                    <div style={{ fontSize: "11px", fontWeight: 700, color: "rgba(240,236,227,0.6)", marginBottom: "4px" }}>Schwierigkeitsgrad</div>
                                     <div style={{ display: "flex", gap: "4px" }}>
-                                      {[["einfach","🟢 Einfach","runde Zahlen, einfache %"],["gemischt","🟡 Gemischt","variiert"],["schwer","🔴 Schwer","unrunde Zahlen, krumme %"]].map(([v, l, desc]) => {
+                                      {[["einfach","Einfach","runde Zahlen, einfache %"],["gemischt","Gemischt","variiert"],["schwer","Schwer","unrunde Zahlen, krumme %"]].map(([v, l, desc]) => {
                                         const active = (pctOpts.schwierigkeit || "gemischt") === v;
                                         return (
                                           <button key={v} onClick={() => setPctOpts(o => ({ ...o, schwierigkeit: v }))}
                                             style={{ flex: 1, padding: "5px 6px", borderRadius: "8px", cursor: "pointer", fontSize: "10px", fontWeight: active ? 700 : 400, textAlign: "center",
-                                              border: "1.5px solid " + (active ? "#eab308" : "#e5e7eb"),
-                                              background: active ? "#fefce8" : "#fff", color: active ? "#713f12" : "#6b7280" }}>
+                                              border: "1.5px solid " + (active ? "#e8600a" : "rgba(240,236,227,0.12)"),
+                                              background: active ? "rgba(232,96,10,0.12)" : "rgba(240,236,227,0.04)", color: active ? "#e8600a" : "rgba(240,236,227,0.55)" }}>
                                             <div>{l}</div>
-                                            <div style={{ fontSize: "9px", color: active ? "#92400e" : "#9ca3af", marginTop: "2px" }}>{desc}</div>
+                                            <div style={{ fontSize: "9px", color: active ? "rgba(240,236,227,0.5)" : "rgba(240,236,227,0.3)", marginTop: "2px" }}>{desc}</div>
                                           </button>
                                         );
                                       })}
@@ -2919,13 +2962,13 @@ function SchrittTyp({ onWeiter, onBelegEditor, onEigeneBelege, onSimulation, ini
                                   {/* Skonto bei kombinierter Aufgabe */}
                                   {task.id === "7_pct_kombiniert" && (
                                     <div>
-                                      <div style={{ fontSize: "11px", fontWeight: 700, color: "#374151", marginBottom: "4px" }}>Optionen</div>
+                                      <div style={{ fontSize: "11px", fontWeight: 700, color: "rgba(240,236,227,0.6)", marginBottom: "4px" }}>Optionen</div>
                                       <label style={{ display: "inline-flex", alignItems: "center", gap: "5px", cursor: "pointer", fontSize: "11px",
                                         fontWeight: pctOpts.mitSkonto !== false ? 700 : 400,
                                         padding: "4px 10px", borderRadius: "14px",
-                                        border: "1.5px solid " + (pctOpts.mitSkonto !== false ? "#22c55e" : "#e5e7eb"),
-                                        background: pctOpts.mitSkonto !== false ? "#f0fdf4" : "#fff",
-                                        color: pctOpts.mitSkonto !== false ? "#15803d" : "#64748b" }}>
+                                        border: "1.5px solid " + (pctOpts.mitSkonto !== false ? "#e8600a" : "rgba(240,236,227,0.12)"),
+                                        background: pctOpts.mitSkonto !== false ? "rgba(232,96,10,0.12)" : "rgba(240,236,227,0.04)",
+                                        color: pctOpts.mitSkonto !== false ? "#e8600a" : "rgba(240,236,227,0.55)" }}>
                                         <input type="checkbox" checked={pctOpts.mitSkonto !== false}
                                           onChange={e => setPctOpts(o => ({ ...o, mitSkonto: e.target.checked }))}
                                           style={{ width: "12px", height: "12px" }} />
@@ -2947,24 +2990,24 @@ function SchrittTyp({ onWeiter, onBelegEditor, onEigeneBelege, onSimulation, ini
 
               {/* Wiederholungs-Themen aus Vorklassen */}
               {wiederholungAn && vorklassen.length > 0 && (
-                <div style={{ marginTop:8, borderTop:"2px dashed #fde68a", paddingTop:8 }}>
-                  <div style={{ fontSize:10, fontWeight:700, color:"#92400e", letterSpacing:".1em", textTransform:"uppercase", marginBottom:6, display:"flex", alignItems:"center", gap:6 }}>
+                <div style={{ marginTop:8, borderTop:"2px dashed rgba(232,96,10,0.35)", paddingTop:8 }}>
+                  <div style={{ fontSize:10, fontWeight:700, color:"rgba(240,236,227,0.5)", letterSpacing:".1em", textTransform:"uppercase", marginBottom:6, display:"flex", alignItems:"center", gap:6 }}>
                     🔁 Wiederholungsstoff aus {vorklassen.map(k=>`Klasse ${k}`).join(" + ")}
                   </div>
                   {vorLernbereiche.map(({ lb, k }) => {
-                    const meta = LB_INFO[lb] || { icon: "📌", farbe: "#f59e0b" };
+                    const meta = LB_INFO[lb] || { icon: "📌", farbe: "#e8600a" };
                     const tasks = AUFGABEN_POOL[k][lb];
                     const selSet = selectedThemen[lb] || new Set();
                     const isActive = selSet.size > 0;
                     const isExpanded = expandedLBs[lb + "_vor"];
                     return (
-                      <div key={`vor_${k}_${lb}`} style={{ border:`2px solid ${isActive ? "#f59e0b" : "#fde68a"}`, borderRadius:12, overflow:"hidden", background: isActive ? "#fffbeb" : "#fffdf5", marginBottom:5 }}>
+                      <div key={`vor_${k}_${lb}`} style={{ border:`2px solid ${isActive ? "#e8600a" : "#fde68a"}`, borderRadius:12, overflow:"hidden", background: isActive ? "#fffbeb" : "#fffdf5", marginBottom:5 }}>
                         <div style={{ display:"flex", alignItems:"center", gap:8, padding:"10px 14px", cursor:"pointer" }}
                           onClick={() => setExpandedLBs(p => ({ ...p, [lb+"_vor"]: !p[lb+"_vor"] }))}>
-                          <div style={{ width:16, height:16, borderRadius:4, border:`2px solid ${isActive?"#f59e0b":"#fbbf24"}`, background:isActive?"#f59e0b":"#fff", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+                          <div style={{ width:16, height:16, borderRadius:4, border:`2px solid ${isActive?"#e8600a":"#fbbf24"}`, background:isActive?"#e8600a":"#fff", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
                             {isActive && <span style={{ color:"#fff", fontSize:10 }}>✓</span>}
                           </div>
-                          <span style={{ fontSize:14 }}>{meta.icon}</span>
+                          <span style={{ color: isActive ? "#92400e" : "#b45309", display:"flex", alignItems:"center" }}><IconFor name={meta.icon} size={14} /></span>
                           <span style={{ fontWeight:700, fontSize:12, color:"#92400e", flex:1 }}>{lb}</span>
                           <span style={{ fontSize:10, fontWeight:800, background:"#fef3c7", color:"#92400e", padding:"1px 7px", borderRadius:10, border:"1px solid #fde68a" }}>Kl. {k}</span>
                           {isActive && <span style={{ fontSize:10, color:"#92400e", fontWeight:700 }}>{selSet.size}/{tasks.length}</span>}
@@ -2981,7 +3024,7 @@ function SchrittTyp({ onWeiter, onBelegEditor, onEigeneBelege, onSimulation, ini
                               return (
                                 <label key={task.id} style={{ display:"flex", alignItems:"center", gap:8, padding:"5px 4px", cursor:"pointer", borderRadius:6 }}>
                                   <input type="checkbox" checked={checked} onChange={() => toggleThema(lb, task.id)}
-                                    style={{ width:15, height:15, accentColor:"#f59e0b", cursor:"pointer" }} />
+                                    style={{ width:15, height:15, accentColor:"#e8600a", cursor:"pointer" }} />
                                   <span style={{ fontSize:12, color:"#374151" }}>{task.titel}</span>
                                   <span style={{ marginLeft:"auto", fontSize:10, color:"#94a3b8" }}>{task.nrPunkte||2}P</span>
                                 </label>
@@ -3000,10 +3043,10 @@ function SchrittTyp({ onWeiter, onBelegEditor, onEigeneBelege, onSimulation, ini
 
         {/* Anzahl / Punktziel */}
         {totalThemen > 0 && (
-          <div style={{ marginBottom: "20px", background: "#f8fafc", border: "1.5px solid #e2e8f0", borderRadius: "12px", padding: "16px" }}>
+          <div style={{ marginBottom: "20px", background: "rgba(240,236,227,0.05)", border: "1.5px solid rgba(240,236,227,0.15)", borderRadius: "12px", padding: "16px" }}>
             {/* Modus-Toggle */}
             <div style={{ display: "flex", gap: "8px", marginBottom: "14px" }}>
-              {[["anzahl","🔢 Anzahl Aufgaben"],["punkte","🎯 Punktziel"]].map(([m, label]) => (
+              {[["anzahl","Anzahl Aufgaben"],["punkte","Punktziel"]].map(([m, label]) => (
                 <button key={m} onClick={() => setPunkteModus(m)} style={{
                   padding: "6px 16px", borderRadius: "8px", border: "2px solid",
                   borderColor: punkteModus === m ? "#0f172a" : "#e2e8f0",
@@ -3044,12 +3087,12 @@ function SchrittTyp({ onWeiter, onBelegEditor, onEigeneBelege, onSimulation, ini
                     <div>
                       <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", marginBottom: "4px" }}>
                         <span style={S.sub}>Ø Punktwert der gewählten Themen</span>
-                        <span style={{ fontWeight: 700, color: isOver ? "#dc2626" : "#15803d" }}>{estPunkte} / {maxPunkte} P</span>
+                        <span style={{ fontWeight: 700, color: isOver ? "#f87171" : "rgba(240,236,227,0.7)" }}>{estPunkte} / {maxPunkte} P</span>
                       </div>
-                      <div style={{ height: "8px", background: "#e2e8f0", borderRadius: "4px", overflow: "hidden" }}>
-                        <div style={{ height: "100%", width: pct + "%", background: isOver ? "#dc2626" : pct > 80 ? "#f59e0b" : "#22c55e", borderRadius: "4px", transition: "all 0.3s" }} />
+                      <div style={{ height: "8px", background: "rgba(240,236,227,0.1)", borderRadius: "4px", overflow: "hidden" }}>
+                        <div style={{ height: "100%", width: pct + "%", background: isOver ? "#f87171" : pct > 80 ? "#e8600a" : "rgba(240,236,227,0.5)", borderRadius: "4px", transition: "all 0.3s" }} />
                       </div>
-                      {isOver && <div style={{ fontSize: "11px", color: "#dc2626", marginTop: "4px", fontWeight: 600 }}>⚠️ Themenauswahl überschreitet Punktziel — bitte Themen reduzieren oder Punktziel erhöhen.</div>}
+                      {isOver && <div style={{ fontSize: "11px", color: "#dc2626", marginTop: "4px", fontWeight: 600, display:"flex", alignItems:"flex-start", gap:4 }}><AlertTriangle size={11} strokeWidth={1.5} style={{flexShrink:0,marginTop:1}}/><span>Themenauswahl überschreitet Punktziel — bitte Themen reduzieren oder Punktziel erhöhen.</span></div>}
                     </div>
                   );
                 })()}
@@ -3079,10 +3122,10 @@ function SchrittTyp({ onWeiter, onBelegEditor, onEigeneBelege, onSimulation, ini
 function SchrittFirma({ config, onWeiter, onZurueck }) {
   const [selected, setSelected] = useState(null);
   return (
-    <div style={{ background: "#f8fafc", minHeight: "calc(100vh - 56px)" }}>
-      <div style={{ background: "linear-gradient(160deg,#0f172a,#1e293b)", padding: "28px 20px 36px" }}>
+    <div style={{ background: "transparent", minHeight: "calc(100vh - 56px)" }}>
+      <div style={{ background: "linear-gradient(160deg,#1a1208,#251a0a)", padding: "28px 20px 36px" }}>
         <div style={{ maxWidth: "860px", margin: "0 auto" }}>
-          <div style={{ fontSize: "12px", fontWeight: 700, letterSpacing: "0.15em", textTransform: "uppercase", color: "#f59e0b", marginBottom: "6px" }}>Schritt 2 von 3</div>
+          <div style={{ fontSize: "12px", fontWeight: 700, letterSpacing: "0.15em", textTransform: "uppercase", color: "#e8600a", marginBottom: "6px" }}>Schritt 2 von 3</div>
           <div style={{ fontSize: "26px", fontWeight: 900, color: "#fff", letterSpacing: "-0.03em" }}>Modellunternehmen wählen</div>
           <p style={{ color: "#94a3b8", marginTop: "6px", marginBottom: 0, fontSize: "14px" }}>
             {config.typ}{config.pruefungsart ? ` · ${config.pruefungsart}` : ""} · Klasse {config.klasse} · {Object.values(config.selectedThemen).reduce((s, ids) => s + ids.length, 0)} Themen{config.anzahl ? ` · ${config.anzahl} Aufgaben` : ` · Ziel: ${config.maxPunkte} P`}
@@ -3092,14 +3135,14 @@ function SchrittFirma({ config, onWeiter, onZurueck }) {
       <div style={{ maxWidth: "860px", margin: "0 auto", padding: "24px 16px" }}>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "20px" }}>
           {UNTERNEHMEN.map(u => (
-            <button key={u.id} onClick={() => setSelected(u.id)} style={{ padding: 0, border: "2px solid", cursor: "pointer", textAlign: "left", overflow: "hidden", borderRadius: "12px", borderColor: selected === u.id ? u.farbe : "#e2e8f0", background: selected === u.id ? u.farbe + "0a" : "#fff" }}>
+            <button key={u.id} onClick={() => setSelected(u.id)} style={{ padding: 0, border: "2px solid", cursor: "pointer", textAlign: "left", overflow: "hidden", borderRadius: "12px", borderColor: selected === u.id ? u.farbe : "rgba(240,236,227,0.15)", background: selected === u.id ? u.farbe + "22" : "rgba(30,22,10,0.6)", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)" }}>
               <div style={{ background: u.farbe, padding: "10px 16px", display: "flex", alignItems: "center", gap: "8px" }}>
-                <span style={{ fontSize: "20px" }}>{u.icon}</span>
+                <span style={{ color: "rgba(255,255,255,0.9)", display:"flex" }}><IconFor name={u.icon} size={20} /></span>
                 <span style={{ fontWeight: 800, fontSize: "14px", color: "#fff" }}>{u.name}</span>
               </div>
               <div style={{ padding: "12px 16px" }}>
-                <div style={{ fontSize: "13px", color: "#374151", fontWeight: 600 }}>{u.ort} · {u.rechtsform}</div>
-                <div style={{ fontSize: "12px", color: "#64748b" }}>{u.branche}</div>
+                <div style={{ fontSize: "13px", color: "#f0ece3", fontWeight: 600 }}>{u.ort} · {u.rechtsform}</div>
+                <div style={{ fontSize: "12px", color: "rgba(240,236,227,0.5)" }}>{u.branche}</div>
               </div>
             </button>
           ))}
@@ -3264,7 +3307,7 @@ function generateExportHTML({ aufgaben, config, firma, modus, kiHistorie, kopfze
     .bw-logo span { color: #d97706; }
     .bw-meta { text-align: right; font-size: 10px; color: #64748b; line-height: 1.6; }
     .bw-meta strong { color: #0f172a; }
-    .print-btn { display:inline-block; margin-bottom:16px; padding:8px 18px; background:#0f172a; color:#f59e0b; border:none; border-radius:6px; font-weight:700; font-size:13px; cursor:pointer; }
+    .print-btn { display:inline-block; margin-bottom:16px; padding:8px 18px; background:#0f172a; color:#e8600a; border:none; border-radius:6px; font-weight:700; font-size:13px; cursor:pointer; }
     .doc-titel { font-size: 16px; font-weight: 800; color: #0f172a; margin: 0 0 4px; }
     .doc-sub { font-size: 11px; color: #475569; margin-bottom: 14px; display: flex; gap: 12px; flex-wrap: wrap; }
     .doc-sub span { background: #f1f5f9; padding: 2px 7px; border-radius: 8px; }
@@ -3278,7 +3321,7 @@ function generateExportHTML({ aufgaben, config, firma, modus, kiHistorie, kopfze
     .aufgabe-header { background: #f8fafc; padding: 8px 13px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid #e2e8f0; border-radius: 7px 7px 0 0; }
     .aufg-nr { width: 22px; height: 22px; background: #0f172a; border-radius: 50%; color: #fff; font-size: 10px; font-weight: 800; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
     .aufg-titel { font-weight: 700; font-size: 12px; flex: 1; }
-    .punkte-badge { background: #0f172a; color: #f59e0b; border-radius: 20px; padding: 2px 9px; font-size: 10px; font-weight: 800; white-space: nowrap; }
+    .punkte-badge { background: #0f172a; color: #e8600a; border-radius: 20px; padding: 2px 9px; font-size: 10px; font-weight: 800; white-space: nowrap; }
     .aufgabe-body { padding: 10px 14px; }
     .aufgabe-text { font-size: 12px; font-weight: 600; color: #374151; margin-bottom: 9px; }
     .leerzeile { border: 1px solid #cbd5e1; height: 36px; margin-bottom: 8px; background: #f8fafc; }
@@ -3299,7 +3342,7 @@ function generateExportHTML({ aufgaben, config, firma, modus, kiHistorie, kopfze
     .nr-lbl { font-weight: 600; color: #374151; }
     .nr-wert { font-family: monospace; font-weight: 700; }
     .nr-hint { color: #64748b; font-size: 10px; }
-    .erkl { margin-top: 7px; padding: 5px 9px; background: #fffbeb; border-left: 3px solid #f59e0b; font-size: 10px; color: #92400e; }
+    .erkl { margin-top: 7px; padding: 5px 9px; background: #fffbeb; border-left: 3px solid #e8600a; font-size: 10px; color: #92400e; }
     .schritt-block { margin-bottom: 9px; padding: 7px 9px; border: 1px solid #e2e8f0; border-radius: 5px; }
     .schritt-header { font-size: 12px; font-weight: 600; color: #374151; margin-bottom: 5px; }
     .schritt-label { color: #0f172a; font-weight: 800; }
@@ -3746,7 +3789,7 @@ function generateExportHTML({ aufgaben, config, firma, modus, kiHistorie, kopfze
   ${isMSA ? "" : `<div class="bw-header">
     <div class="bw-logo">Buchungs<span>Werk</span></div>
     <div class="bw-meta">
-      <strong>BwR Bayern · Realschule · 2025</strong><br>
+      <strong>BwR Bayern · Realschule · 2026</strong><br>
       ${firma.name || ""} · ${datum}<br>
       Klasse ${config.klasse} · ${gesamtP} Punkte
     </div>
@@ -3814,7 +3857,7 @@ function MaterialienModal({ onSchliessen, onLaden }) {
           {[null,7,8,9,10].map(s => (
             <button key={s??'alle'} onClick={() => setStufe(s)}
               style={{ padding:"5px 12px", borderRadius:"7px", border:"none", cursor:"pointer", fontSize:"12px", fontWeight:stufe===s?700:500,
-                background: stufe===s ? "#f59e0b" : "#1e293b", color: stufe===s ? "#0f172a" : "#94a3b8" }}>
+                background: stufe===s ? "#e8600a" : "#1e293b", color: stufe===s ? "#0f172a" : "#94a3b8" }}>
               {s ? `Klasse ${s}` : "Alle"}
             </button>
           ))}
@@ -3849,7 +3892,7 @@ function MaterialienModal({ onSchliessen, onLaden }) {
                   </div>
                   <div style={{ display:"flex", gap:"6px", flexShrink:0 }}>
                     <button onClick={() => material_laden(m.id)}
-                      style={{ padding:"6px 12px", borderRadius:"7px", border:"none", background:"#f59e0b", color:"#0f172a", fontWeight:700, fontSize:"12px", cursor:"pointer" }}>
+                      style={{ padding:"6px 12px", borderRadius:"7px", border:"none", background:"#e8600a", color:"#0f172a", fontWeight:700, fontSize:"12px", cursor:"pointer" }}>
                       Laden
                     </button>
                     <button onClick={() => loeschen(m.id, m.titel)}
@@ -4352,10 +4395,10 @@ function ExportModal({ aufgaben, config, firma, kiHistorie, onSchliessen }) {
   const [zeigeKopfEditor, setZeigeKopfEditor] = useState(false);
 
   const modusOpts = [
-    { key: "aufgaben",  icon: "📝", label: "Aufgabenblatt",   desc: "Ohne Lösung (für Schüler)" },
-    { key: "loesungen", icon: "✔",  label: "Lösungsblatt",    desc: "Mit Buchungssatz + Haken" },
-    { key: "beides",    icon: "📋", label: "Aufgabe + Lösung", desc: "Lösung auf Folgeseite" },
-    { key: "ki",        icon: "🤖", label: "KI-Aufgaben",      desc: "Eigene Belege / KI-Output" },
+    { key: "aufgaben",  icon: FileText,    label: "Aufgabenblatt",   desc: "Ohne Lösung (für Schüler)" },
+    { key: "loesungen", icon: CheckSquare, label: "Lösungsblatt",    desc: "Mit Buchungssatz + Haken" },
+    { key: "beides",    icon: Files,       label: "Aufgabe + Lösung", desc: "Lösung auf Folgeseite" },
+    { key: "ki",        icon: Bot,         label: "KI-Aufgaben",      desc: "Eigene Belege / KI-Output" },
   ];
 
   // PDF: öffnet HTML in neuem Tab → Drucken / Als PDF speichern
@@ -4377,7 +4420,7 @@ function ExportModal({ aufgaben, config, firma, kiHistorie, onSchliessen }) {
       const klasseStr = kl.klasse || String(config.klasse);
       const url = URL.createObjectURL(pdfBlob);
       const el  = document.createElement("a");
-      el.href = url; el.download = `${pruefArt}_Kl${klasseStr}_${kl.datum || config.datum || "2025"}.pdf`;
+      el.href = url; el.download = `${pruefArt}_Kl${klasseStr}_${kl.datum || config.datum || "2026"}.pdf`;
       document.body.appendChild(el); el.click(); document.body.removeChild(el);
       setTimeout(() => URL.revokeObjectURL(url), 15000);
     } catch(err) {
@@ -4824,7 +4867,7 @@ function ExportModal({ aufgaben, config, firma, kiHistorie, onSchliessen }) {
       const url  = URL.createObjectURL(blob);
       const el   = document.createElement("a");
       el.href    = url;
-      el.download = `${pruefArt.replace(/[^a-zA-Z0-9äöüÄÖÜß_\- ]/g, "")}_Kl${klasseStr}_${kl.datum || config.datum || "2025"}.${ext}`;
+      el.download = `${pruefArt.replace(/[^a-zA-Z0-9äöüÄÖÜß_\- ]/g, "")}_Kl${klasseStr}_${kl.datum || config.datum || "2026"}.${ext}`;
       document.body.appendChild(el); el.click(); document.body.removeChild(el);
       setTimeout(() => URL.revokeObjectURL(url), 15000);
     } catch (err) {
@@ -4839,7 +4882,7 @@ function ExportModal({ aufgaben, config, firma, kiHistorie, onSchliessen }) {
         <div style={{ padding:"20px 24px 16px", borderBottom:"1px solid #1e293b", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
           <div>
             <div style={{ fontSize:"11px", fontWeight:700, letterSpacing:"0.1em", textTransform:"uppercase", color:"#64748b", marginBottom:"4px" }}>Export</div>
-            <div style={{ fontSize:"20px", fontWeight:900, color:"#fff" }}>📄 Buchungs<span style={{color:"#f59e0b"}}>Werk</span></div>
+            <div style={{ fontSize:"20px", fontWeight:900, color:"#fff" }}>📄 Buchungs<span style={{color:"#e8600a"}}>Werk</span></div>
           </div>
           <button onClick={onSchliessen} style={{ background:"transparent", border:"1px solid #334155", borderRadius:"8px", color:"#94a3b8", width:"36px", height:"36px", cursor:"pointer", fontSize:"18px", display:"flex", alignItems:"center", justifyContent:"center" }}>×</button>
         </div>
@@ -4853,12 +4896,12 @@ function ExportModal({ aufgaben, config, firma, kiHistorie, onSchliessen }) {
               const disabled = opt.key === "ki" && !kiHistorie?.length;
               return (
                 <button key={opt.key} onClick={() => !disabled && setModus(opt.key)}
-                  style={{ padding:"12px 14px", borderRadius:"10px", border:`2px solid ${isActive ? "#f59e0b" : "#1e293b"}`,
+                  style={{ padding:"12px 14px", borderRadius:"10px", border:`2px solid ${isActive ? "#e8600a" : "#1e293b"}`,
                     background: isActive ? "#1e3a5f" : "#1e293b",
                     cursor: disabled ? "not-allowed" : "pointer",
                     textAlign:"left", opacity: disabled ? 0.4 : 1, transition:"all 0.15s" }}>
-                  <div style={{ fontSize:"16px", marginBottom:"3px" }}>{opt.icon}</div>
-                  <div style={{ fontSize:"13px", fontWeight:700, color: isActive ? "#f59e0b" : "#e2e8f0" }}>{opt.label}</div>
+                  <div style={{ marginBottom:"6px", color: isActive ? "#e8600a" : "#64748b" }}>{React.createElement(opt.icon, { size: 20, strokeWidth: 1.5 })}</div>
+                  <div style={{ fontSize:"13px", fontWeight:700, color: isActive ? "#e8600a" : "#e2e8f0" }}>{opt.label}</div>
                   <div style={{ fontSize:"11px", color:"#64748b", marginTop:"2px" }}>{opt.desc}</div>
                 </button>
               );
@@ -4869,9 +4912,9 @@ function ExportModal({ aufgaben, config, firma, kiHistorie, onSchliessen }) {
           <div style={{ marginBottom:"14px" }}>
             <button onClick={() => setZeigeKopfEditor(p => !p)}
               style={{ width:"100%", padding:"9px 14px", borderRadius:"8px", border:"1px solid #334155",
-                background: zeigeKopfEditor ? "#1e3a5f" : "#1e293b", color: zeigeKopfEditor ? "#f59e0b" : "#94a3b8",
+                background: zeigeKopfEditor ? "#1e3a5f" : "#1e293b", color: zeigeKopfEditor ? "#e8600a" : "#94a3b8",
                 fontWeight:700, fontSize:12, cursor:"pointer", textAlign:"left", display:"flex", justifyContent:"space-between" }}>
-              <span>📋 Kopfzeile bearbeiten</span>
+              <span style={{display:"flex",alignItems:"center",gap:5}}><ClipboardList size={12} strokeWidth={1.5}/>Kopfzeile bearbeiten</span>
               <span>{zeigeKopfEditor ? "▲" : "▼"}</span>
             </button>
             {zeigeKopfEditor && (
@@ -4885,18 +4928,22 @@ function ExportModal({ aufgaben, config, firma, kiHistorie, onSchliessen }) {
           <div style={{ fontSize:"11px", fontWeight:700, letterSpacing:"0.08em", textTransform:"uppercase", color:"#64748b", marginBottom:"10px" }}>Format</div>
           <div style={{ display:"flex", gap:"8px", flexWrap:"wrap" }}>
             <button onClick={() => exportWord("docx")}
-              style={{ flex:1, minWidth:"120px", padding:"12px 14px", borderRadius:"10px", border:"none",
-                background:"#2563eb", color:"#fff", fontWeight:800, fontSize:"13px", cursor:"pointer",
-                display:"flex", alignItems:"center", justifyContent:"center", gap:"6px",
-                boxShadow:"0 2px 8px rgba(37,99,235,0.3)" }}>
-              📝 Word / Pages
+              style={{ flex:1, minWidth:"120px", padding:"12px 14px", borderRadius:"10px",
+                background:"linear-gradient(180deg,rgba(37,99,235,0.22) 0%,rgba(37,99,235,0.10) 100%)",
+                border:"1.5px solid rgba(37,99,235,0.55)", color:"#93c5fd", fontWeight:800, fontSize:"13px", cursor:"pointer",
+                display:"flex", alignItems:"center", justifyContent:"center", gap:"8px",
+                boxShadow:"0 3px 0 rgba(0,0,0,0.5), 0 0 18px rgba(37,99,235,0.25), inset 0 1px 0 rgba(147,197,253,0.15)" }}>
+              <FilePen size={18} strokeWidth={1.5}/>
+              Word / Pages
             </button>
             <button onClick={() => exportPDF()}
-              style={{ flex:1, minWidth:"120px", padding:"12px 14px", borderRadius:"10px", border:"none",
-                background:"#dc2626", color:"#fff", fontWeight:800, fontSize:"13px", cursor:"pointer",
-                display:"flex", alignItems:"center", justifyContent:"center", gap:"6px",
-                boxShadow:"0 2px 8px rgba(220,38,38,0.3)" }}>
-              📄 PDF
+              style={{ flex:1, minWidth:"120px", padding:"12px 14px", borderRadius:"10px",
+                background:"linear-gradient(180deg,rgba(220,38,38,0.22) 0%,rgba(220,38,38,0.10) 100%)",
+                border:"1.5px solid rgba(220,38,38,0.55)", color:"#fca5a5", fontWeight:800, fontSize:"13px", cursor:"pointer",
+                display:"flex", alignItems:"center", justifyContent:"center", gap:"8px",
+                boxShadow:"0 3px 0 rgba(0,0,0,0.5), 0 0 18px rgba(220,38,38,0.25), inset 0 1px 0 rgba(252,165,165,0.15)" }}>
+              <Printer size={18} strokeWidth={1.5}/>
+              PDF
             </button>
           </div>
           <div style={{ marginTop:"10px", fontSize:"10px", color:"#64748b", textAlign:"center" }}>
@@ -5020,41 +5067,46 @@ function SchrittAufgaben({ config, firma, onNeu, onMaterialLaden, onThemen, onFi
             </div>
             <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginTop: "8px" }}>
               <span style={{ display:"inline-flex", alignItems:"center", gap:6, ...S.tag(firma.farbe) }}><FirmaLogoSVG firma={firma} size={18}/>{firma.name}</span>
-              {config.pruefungsart && <span style={S.tag("#0f172a")}>📋 {config.pruefungsart}</span>}
-              {activeLBs.map(lb => { const m = LB_INFO[lb] || { icon: "📌", farbe: "#475569" }; return <span key={lb} style={S.tag(m.farbe)}>{m.icon} {lb.split("·")[0].trim()}</span>; })}
-              <span style={S.tag("#475569")}>📅 {fmt_datum(config.datum)}</span>
-              <span style={S.tag("#475569")}>📋 {aufgaben.reduce((s,a) => s + (a.teilaufgaben || 1), 0)} Aufg. · {gesamtPunkte} P</span>
+              {config.pruefungsart && <span style={{ display:"inline-flex", alignItems:"center", gap:4, ...S.tag("#0f172a") }}><ClipboardList size={11} strokeWidth={1.5}/>{config.pruefungsart}</span>}
+              {activeLBs.map(lb => { const m = LB_INFO[lb] || { icon: "FileText", farbe: "#475569" }; return <span key={lb} style={{ display:"inline-flex", alignItems:"center", gap:3, ...S.tag(m.farbe) }}><IconFor name={m.icon} size={11} />{lb.split("·")[0].trim()}</span>; })}
+              <span style={{ display:"inline-flex", alignItems:"center", gap:4, ...S.tag("#475569") }}><Calendar size={11} strokeWidth={1.5}/>{fmt_datum(config.datum)}</span>
+              <span style={{ display:"inline-flex", alignItems:"center", gap:4, ...S.tag("#475569") }}><ClipboardList size={11} strokeWidth={1.5}/>{aufgaben.reduce((s,a) => s + (a.teilaufgaben || 1), 0)} Aufg. · {gesamtPunkte} P</span>
             </div>
             {/* Fortschrittsleiste bei Punktziel */}
             {config.maxPunkte && (
               <div style={{ marginTop: "10px", maxWidth: "360px" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", color: "#64748b", marginBottom: "3px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", color: "rgba(240,236,227,0.45)", marginBottom: "3px" }}>
                   <span>Punkteausnutzung</span>
                   <span style={S.bold}>{gesamtPunkte} / {config.maxPunkte} P ({Math.round(gesamtPunkte/config.maxPunkte*100)} %)</span>
                 </div>
-                <div style={{ height: "8px", background: "#e2e8f0", borderRadius: "4px", overflow: "hidden" }}>
-                  <div style={{ height: "100%", width: Math.min(100, Math.round(gesamtPunkte/config.maxPunkte*100)) + "%", background: "#22c55e", borderRadius: "4px" }} />
+                <div style={{ height: "8px", background: "rgba(240,236,227,0.1)", borderRadius: "4px", overflow: "hidden" }}>
+                  <div style={{ height: "100%", width: Math.min(100, Math.round(gesamtPunkte/config.maxPunkte*100)) + "%", background: "#e8600a", borderRadius: "4px" }} />
                 </div>
               </div>
             )}
           </div>
           <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
 
-            {/* ── Globaler Modus-Schalter ── */}
-            <div style={{ display: "flex", flexDirection: "column", gap: "3px" }}>
+            {/* ── Globaler Modus-Schalter (Pill-Slider) ── */}
+            <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
               <div style={{ fontSize: "10px", color: "#94a3b8", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", textAlign: "center" }}>Alle Aufgaben</div>
-              <div style={{ display: "flex", border: "1.5px solid #334155", borderRadius: "8px", overflow: "hidden" }}>
-                {[
-                  { key: "beleg", label: "📄 Beleg" },
-                  { key: "text",  label: "📝 Geschäftsfall" },
-                ].map(opt => (
-                  <button key={opt.key} onClick={() => setGlobalMode(opt.key)} style={{
-                    padding: "6px 14px", border: "none", cursor: "pointer", fontSize: "12px", fontWeight: globalMode === opt.key ? 700 : 500,
-                    background: globalMode === opt.key ? "#0f172a" : "#f8fafc",
-                    color: globalMode === opt.key ? "#f59e0b" : "#64748b",
-                    transition: "all 0.15s",
-                  }}>{opt.label}</button>
-                ))}
+              <div
+                onClick={() => setGlobalMode(globalMode === "beleg" ? "text" : "beleg")}
+                title={globalMode === "beleg" ? "Zum Geschäftsfall wechseln" : "Zum Beleg wechseln"}
+                style={{ position:"relative", display:"flex", background:"rgba(20,16,8,0.8)", border:"1.5px solid rgba(240,236,227,0.18)", borderRadius:"24px", padding:"3px", cursor:"pointer", userSelect:"none", width:"168px", flexShrink:0 }}>
+                {/* Gleitender Thumb */}
+                <div style={{
+                  position:"absolute", top:3,
+                  left: globalMode === "beleg" ? 3 : "calc(50% + 1px)",
+                  width:"calc(50% - 4px)", height:"calc(100% - 6px)",
+                  background:"linear-gradient(180deg,#f07320 0%,#e8600a 55%,#c24f08 100%)",
+                  borderRadius:"20px",
+                  transition:"left 0.22s cubic-bezier(.4,0,.2,1)",
+                  boxShadow:"0 2px 6px rgba(232,96,10,0.5), inset 0 1px 0 rgba(255,200,80,0.18)",
+                  pointerEvents:"none",
+                }}/>
+                <span style={{ position:"relative", zIndex:1, padding:"5px 0", color: globalMode === "beleg" ? "#f0ece3" : "rgba(240,236,227,0.4)", fontWeight:700, fontSize:"11px", letterSpacing:"0.03em", transition:"color 0.15s", flex:1, textAlign:"center" }}>Beleg</span>
+                <span style={{ position:"relative", zIndex:1, padding:"5px 0", color: globalMode === "text" ? "#f0ece3" : "rgba(240,236,227,0.4)", fontWeight:700, fontSize:"11px", letterSpacing:"0.03em", transition:"color 0.15s", flex:1, textAlign:"center" }}>GF</span>
               </div>
             </div>
 
@@ -5065,11 +5117,13 @@ function SchrittAufgaben({ config, firma, onNeu, onMaterialLaden, onThemen, onFi
                 setKiHistorie(ki);
               } catch { setKiHistorie([]); }
               setExportOffen(true);
-            }} style={{ ...S.btnPrimary, background: "#16a34a" }}>📄 Word/PDF</button>
-            <button onClick={() => setH5pOffen(true)} style={{ ...S.btnPrimary, background: "#7c3aed" }}>🖥 H5P</button>
-            <button onClick={() => setMaterialienOffen(true)} style={{ ...S.btnSecondary }}>📚 Materialien</button>
-            <button onClick={onFirma} style={{ padding:"6px 14px", borderRadius:"8px", border:"1.5px solid #334155", background:"#1e293b", color:"#94a3b8", fontWeight:700, fontSize:12, cursor:"pointer", display:"flex", alignItems:"center", gap:5 }}>‹ Unternehmen</button>
-            <button onClick={onThemen} style={{ padding:"6px 14px", borderRadius:"8px", border:"1.5px solid #334155", background:"#1e293b", color:"#94a3b8", fontWeight:700, fontSize:12, cursor:"pointer", display:"flex", alignItems:"center", gap:5 }}>‹‹ Themen</button>
+            }} style={{ ...S.btnPrimary, display:"flex", alignItems:"center", gap:"7px" }}>
+              <Download size={14} strokeWidth={1.5}/>Export
+            </button>
+            <button onClick={() => setH5pOffen(true)} style={{ ...S.btnSecondary, display:"flex", alignItems:"center", gap:6, padding:"10px 16px", fontSize:"13px" }}><Monitor size={14} strokeWidth={1.5}/>H5P</button>
+            <button onClick={() => setMaterialienOffen(true)} style={{ ...S.btnSecondary, display:"flex", alignItems:"center", gap:6 }}><Library size={14} strokeWidth={1.5}/>Materialien</button>
+            <button onClick={onFirma} style={{ padding:"6px 14px", borderRadius:"8px", border:"1px solid rgba(240,236,227,0.15)", background:"rgba(240,236,227,0.05)", color:"rgba(240,236,227,0.45)", fontWeight:700, fontSize:12, cursor:"pointer", display:"flex", alignItems:"center", gap:5 }}>‹ Unternehmen</button>
+            <button onClick={onThemen} style={{ padding:"6px 14px", borderRadius:"8px", border:"1px solid rgba(240,236,227,0.15)", background:"rgba(240,236,227,0.05)", color:"rgba(240,236,227,0.45)", fontWeight:700, fontSize:12, cursor:"pointer", display:"flex", alignItems:"center", gap:5 }}>‹‹ Themen</button>
             <button onClick={async () => {
               setSpeichernStatus("saving");
               const titel = `${config.typ}${config.pruefungsart ? " · " + config.pruefungsart : ""} · Kl. ${config.klasse} · ${firma.name}`;
@@ -5086,8 +5140,8 @@ function SchrittAufgaben({ config, firma, onNeu, onMaterialLaden, onThemen, onFi
               setSpeichernStatus(res ? "ok" : "err");
               if (speichernTimerRef.current) clearTimeout(speichernTimerRef.current);
               speichernTimerRef.current = setTimeout(() => setSpeichernStatus(""), 3000);
-            }} style={{ ...S.btnPrimary, background: speichernStatus === "ok" ? "#16a34a" : speichernStatus === "err" ? "#dc2626" : "#0369a1" }}>
-              {speichernStatus === "saving" ? "⏳" : speichernStatus === "ok" ? "✓ Gespeichert" : speichernStatus === "err" ? "✗ Fehler" : "💾 Speichern"}
+            }} style={{ ...S.btnPrimary, display:"flex", alignItems:"center", gap:6, ...(speichernStatus === "ok" && { background: "rgba(74,222,128,0.85)", boxShadow: "0 3px 0 rgba(0,0,0,0.5), 0 0 16px rgba(74,222,128,0.35)" }), ...(speichernStatus === "err" && { background: "rgba(239,68,68,0.9)" }), ...(speichernStatus === "saving" && { opacity: 0.7 }) }}>
+              {speichernStatus === "saving" ? <><Save size={14} strokeWidth={1.5}/>…</> : speichernStatus === "ok" ? <><CheckSquare size={14} strokeWidth={1.5}/>Gespeichert</> : speichernStatus === "err" ? "✗ Fehler" : <><Save size={14} strokeWidth={1.5}/>Speichern</>}
             </button>
           </div>
         </div>
@@ -5104,26 +5158,26 @@ function SchrittAufgaben({ config, firma, onNeu, onMaterialLaden, onThemen, onFi
             ["Betriebsstoffe", firma.betriebsstoffe],
           ].filter(([, list]) => list?.length);
           return (
-            <div style={{ marginTop: "18px", padding: "14px 18px", background: firma.farbe + "0d", border: `1px solid ${firma.farbe}33`, borderLeft: `4px solid ${firma.farbe}`, borderRadius: "10px", textAlign: "left" }}>
-              <div style={{ fontSize: "13px", color: "#374151", marginBottom: "8px", textAlign: "left" }}>
-                <strong>{firma.icon} {firma.name}</strong>, {firma.plz} {firma.ort} – {firma.slogan} {intro}
+            <div style={{ marginTop: "18px", padding: "14px 18px", background: "rgba(240,236,227,0.04)", border: `1px solid rgba(240,236,227,0.1)`, borderLeft: `4px solid ${firma.farbe}`, borderRadius: "10px", textAlign: "left", backdropFilter:"blur(8px)" }}>
+              <div style={{ fontSize: "13px", color: "rgba(240,236,227,0.9)", marginBottom: "8px", textAlign: "left" }}>
+                <strong style={{color:"#f0ece3"}}><IconFor name={firma.icon} size={13} style={{ verticalAlign:"middle", marginRight:4 }} />{firma.name}</strong>, {firma.plz} {firma.ort} – {firma.slogan} {intro}
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(200px,1fr))", gap: "5px", fontSize: "12px", color: "#374151", marginBottom: "8px", textAlign: "left" }}>
-                <div><strong>Rechtsform:</strong> {firma.rechtsform}</div>
-                <div><strong>Inhaber/in:</strong> {firma.inhaber}</div>
-                <div><strong>Branche:</strong> {firma.branche}</div>
-                <div><strong>IBAN:</strong> {fmtIBAN(firma.iban).slice(0, 18)}…</div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(200px,1fr))", gap: "5px", fontSize: "12px", color: "rgba(240,236,227,0.7)", marginBottom: "8px", textAlign: "left" }}>
+                <div><strong style={{color:"rgba(240,236,227,0.85)"}}>Rechtsform:</strong> {firma.rechtsform}</div>
+                <div><strong style={{color:"rgba(240,236,227,0.85)"}}>Inhaber/in:</strong> {firma.inhaber}</div>
+                <div><strong style={{color:"rgba(240,236,227,0.85)"}}>Branche:</strong> {firma.branche}</div>
+                <div><strong style={{color:"rgba(240,236,227,0.85)"}}>IBAN:</strong> {fmtIBAN(firma.iban).slice(0, 18)}…</div>
               </div>
               {/* Werkstoffe */}
               <div style={{ display: "flex", flexDirection: "column", gap: "3px", marginBottom: "8px", textAlign: "left" }}>
                 {wtLabels.map(([label, list]) => (
-                  <div key={label} style={{ fontSize: "12px", color: "#374151" }}>
-                    <strong>{label}:</strong> {list.join(", ")}
+                  <div key={label} style={{ fontSize: "12px", color: "rgba(240,236,227,0.7)" }}>
+                    <strong style={{color:"rgba(240,236,227,0.85)"}}>{label}:</strong> {list.join(", ")}
                   </div>
                 ))}
               </div>
-              <div style={{ padding: "6px 10px", background: "rgba(255,255,255,0.6)", borderRadius: "6px", fontSize: "11px", color: "#475569", textAlign: "left" }}>
-                <strong>Formale Vorgaben:</strong> Bei Buchungssätzen sind Kontonummer, Kontobezeichnung und Betrag anzugeben. Ergebnisse auf zwei Nachkommastellen runden. Sofern nicht anders angegeben: USt-Satz 19 %.
+              <div style={{ padding: "6px 10px", background: "rgba(240,236,227,0.08)", borderRadius: "6px", fontSize: "11px", color: "rgba(240,236,227,0.6)", textAlign: "left", border:"1px solid rgba(240,236,227,0.12)" }}>
+                <strong style={{color:"rgba(240,236,227,0.8)"}}>Formale Vorgaben:</strong> Bei Buchungssätzen sind Kontonummer, Kontobezeichnung und Betrag anzugeben. Ergebnisse auf zwei Nachkommastellen runden. Sofern nicht anders angegeben: USt-Satz 19 %.
               </div>
             </div>
           );
@@ -5176,7 +5230,7 @@ function SchrittAufgaben({ config, firma, onNeu, onMaterialLaden, onThemen, onFi
 
       <div style={{ display: "flex", gap: "10px", marginTop: "8px", flexWrap: "wrap", alignItems:"center" }}>
         <button onClick={onFirma} style={{ padding:"8px 16px", borderRadius:"8px", border:"1.5px solid #334155", background:"transparent", color:"#94a3b8", fontWeight:700, fontSize:12, cursor:"pointer" }}>‹ Unternehmen</button>
-        <button onClick={onThemen} style={{ padding:"8px 16px", borderRadius:"8px", border:"1.5px solid #334155", background:"transparent", color:"#94a3b8", fontWeight:700, fontSize:12, cursor:"pointer" }}>‹‹ Themen</button>
+        <button onClick={onThemen} style={{ padding:"8px 16px", borderRadius:"8px", border:"1px solid rgba(240,236,227,0.15)", background:"rgba(240,236,227,0.05)", color:"rgba(240,236,227,0.45)", fontWeight:700, fontSize:12, cursor:"pointer" }}>‹‹ Themen</button>
         <button onClick={onNeu} style={S.btnSecondary}>✕ Neu starten</button>
         <button onClick={() => {
           try {
@@ -5184,8 +5238,15 @@ function SchrittAufgaben({ config, firma, onNeu, onMaterialLaden, onThemen, onFi
             setKiHistorie(ki);
           } catch { setKiHistorie([]); }
           setExportOffen(true);
-        }} style={{ ...S.btnPrimary, background: "#16a34a" }}>📄 Word/PDF exportieren</button>
-        <button onClick={() => setH5pOffen(true)} style={{ ...S.btnPrimary, background: "#7c3aed" }}>🖥 H5P exportieren</button>
+        }} style={{ ...S.btnPrimary, display:"flex", alignItems:"center", gap:"7px" }}>
+          <FilePen size={15} strokeWidth={2}/>
+          <Printer size={15} strokeWidth={2}/>
+          Exportieren
+        </button>
+        <button onClick={() => setH5pOffen(true)} style={{ ...S.btnPrimary, display:"flex", alignItems:"center", gap:"7px" }}>
+          <Monitor size={15} strokeWidth={2}/>
+          H5P exportieren
+        </button>
       </div>
     </div>
   );
@@ -5202,12 +5263,12 @@ const be_fmt = n => (isNaN(n) ? "0,00" : Number(n).toLocaleString("de-DE", { min
 const be_uid = () => Math.random().toString(36).slice(2, 8);
 
 const BELEGTYPEN = [
-  { id: "eingangsrechnung", label: "Eingangsrechnung", icon: "📥" },
-  { id: "ausgangsrechnung", label: "Ausgangsrechnung", icon: "📤" },
-  { id: "kontoauszug",      label: "Kontoauszug",      icon: "🏦" },
-  { id: "ueberweisung",     label: "Überweisung",       icon: "💸" },
-  { id: "email",            label: "E-Mail",            icon: "✉️"  },
-  { id: "quittung",         label: "Quittung",          icon: "🧾" },
+  { id: "eingangsrechnung", label: "Eingangsrechnung", icon: Download },
+  { id: "ausgangsrechnung", label: "Ausgangsrechnung", icon: Upload },
+  { id: "kontoauszug",      label: "Kontoauszug",      icon: Landmark },
+  { id: "ueberweisung",     label: "Überweisung",      icon: ArrowLeftRight },
+  { id: "email",            label: "E-Mail",            icon: Mail },
+  { id: "quittung",         label: "Quittung",          icon: Receipt },
 ];
 
 const MODELLUNTERNEHMEN = [
@@ -5223,7 +5284,7 @@ const defaultEingangsrechnung = () => {
   return {
     lieferantName: "Müller GmbH", lieferantStrasse: "Industriestr. 7",
     lieferantPlz: "80333", lieferantOrt: "München", lieferantUStId: "DE123456789",
-    rechnungsNr: `RE-2025-${Math.floor(1000 + Math.random()*9000)}`,
+    rechnungsNr: `RE-2026-${Math.floor(1000 + Math.random()*9000)}`,
     datum: new Date().toISOString().slice(0, 10), zahlungsziel: "30", ustSatz: "19",
     skontoPct: "2", skontoTage: "14",
     positionen: [{ id: be_uid(), artikel: "Rohstoffe", menge: "500", einheit: "kg", ep: "12,00", highlight: false }],
@@ -5237,7 +5298,7 @@ const defaultAusgangsrechnung = () => {
   return {
     kundeName: "Technik Handel GmbH", kundeStrasse: "Marktplatz 3",
     kundePlz: "85049", kundeOrt: "Ingolstadt", kundeUStId: "DE987654321",
-    rechnungsNr: `AR-2025-${Math.floor(1000 + Math.random()*9000)}`,
+    rechnungsNr: `AR-2026-${Math.floor(1000 + Math.random()*9000)}`,
     datum: new Date().toISOString().slice(0, 10), zahlungsziel: "30", ustSatz: "19",
     skontoPct: "2", skontoTage: "14",
     positionen: [{ id: be_uid(), artikel: "Fertigerzeugnisse", menge: "100", einheit: "Stk", ep: "45,00", highlight: false }],
@@ -5258,12 +5319,12 @@ const defaultKontoauszug = () => ({
 const defaultUeberweisung = () => ({
   auftraggeberName: "LumiTec GmbH", auftraggeberIban: "DE12 3456 7890 1234 5678 90",
   empfaengerName: "Müller GmbH",    empfaengerIban:   "DE98 7654 3210 9876 5432 10",
-  betrag: "3.200,00", verwendung: "RE-2025-1042",
+  betrag: "3.200,00", verwendung: "RE-2026-1042",
   datum: new Date().toISOString().slice(0, 10), skontoBetrag: "0",
 });
 const defaultEmail = () => ({
   von: "bestellung@lumitec-gmbh.de", an: "vertrieb@mueller-gmbh.de",
-  datum: new Date().toISOString().slice(0, 10), betreff: "Bestellung Nr. 2025-042",
+  datum: new Date().toISOString().slice(0, 10), betreff: "Bestellung Nr. 2026-042",
   text: "Sehr geehrte Damen und Herren,\n\nhiermit bestellen wir:\n\n500 kg Rohstoffe à 12,00 € netto\n\nMit freundlichen Grüßen\nLumiTec GmbH",
 });
 const defaultQuittung = () => ({
@@ -5281,7 +5342,7 @@ const BE_CSS = `
   .be-typ-bar { background: #fff; border-bottom: 1px solid #e2e8f0; display: flex; padding: 0 20px; gap: 4px; flex-shrink: 0; }
   .be-typ-tab { padding: 10px 14px; font-size: 12px; font-weight: 600; color: #64748b; cursor: pointer; border: none; background: none; border-bottom: 3px solid transparent; transition: all .15s; white-space: nowrap; font-family: inherit; }
   .be-typ-tab:hover { color: #0f172a; }
-  .be-typ-tab.active { color: #0f172a; border-bottom-color: #f59e0b; }
+  .be-typ-tab.active { color: #0f172a; border-bottom-color: #e8600a; }
   .be-body { display: grid; grid-template-columns: 360px 1fr; gap: 16px; padding: 16px 20px; flex: 1; overflow: hidden; align-items: start; }
   .be-panel { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden; }
   .be-panel-head { background: #f8fafc; border-bottom: 1px solid #e2e8f0; padding: 10px 16px; font-size: 10px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: #94a3b8; }
@@ -5307,7 +5368,7 @@ const BE_CSS = `
   .be-btn-add { width: 100%; padding: 6px; border: 1.5px dashed #e2e8f0; border-radius: 6px; background: none; font-size: 11px; font-weight: 600; color: #94a3b8; cursor: pointer; transition: all .15s; font-family: inherit; }
   .be-btn-add:hover { border-color: #0f172a; color: #0f172a; background: #f8fafc; }
   .be-hl-toggle { width: 28px; height: 16px; background: #e2e8f0; border: none; border-radius: 8px; cursor: pointer; position: relative; transition: background .2s; flex-shrink: 0; }
-  .be-hl-toggle.on { background: #f59e0b; }
+  .be-hl-toggle.on { background: #e8600a; }
   .be-hl-toggle::after { content: ''; position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; background: #fff; border-radius: 50%; transition: left .2s; }
   .be-hl-toggle.on::after { left: 14px; }
   .be-action-bar { display: flex; gap: 8px; padding: 12px 16px; border-top: 1px solid #e2e8f0; background: #f8fafc; flex-direction: column; }
@@ -5332,7 +5393,7 @@ const BE_CSS = `
   .be-re-head { background: #0f172a; color: #fff; padding: 12px 16px; display: flex; justify-content: space-between; align-items: flex-start; }
   .be-re-head-firma { font-weight: 700; font-size: 13px; }
   .be-re-head-sub { font-size: 10px; color: #94a3b8; margin-top: 2px; }
-  .be-re-head-badge { background: #f59e0b; color: #0f172a; font-weight: 800; font-size: 10px; padding: 2px 8px; border-radius: 3px; text-transform: uppercase; letter-spacing: .06em; }
+  .be-re-head-badge { background: #e8600a; color: #0f172a; font-weight: 800; font-size: 10px; padding: 2px 8px; border-radius: 3px; text-transform: uppercase; letter-spacing: .06em; }
   .be-re-body { padding: 14px 16px; }
   .be-re-adressen { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
   .be-re-adr-label { font-size: 9px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: #94a3b8; margin-bottom: 3px; }
@@ -5346,7 +5407,7 @@ const BE_CSS = `
   .be-re-table th { background: #f8fafc; padding: 6px 7px; text-align: left; font-size: 9px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #94a3b8; border-bottom: 2px solid #e2e8f0; }
   .be-re-table th:last-child, .be-re-table td:last-child { text-align: right; }
   .be-re-table td { padding: 6px 7px; border-bottom: 1px solid #f1f5f9; }
-  .be-re-table tr.hl td { background: #fffbeb; border-left: 3px solid #f59e0b; font-weight: 700; }
+  .be-re-table tr.hl td { background: #fffbeb; border-left: 3px solid #e8600a; font-weight: 700; }
   .be-re-summen { display: flex; justify-content: flex-end; }
   .be-re-summen-box { width: 200px; }
   .be-re-sum-row { display: flex; justify-content: space-between; font-size: 11px; padding: 2px 0; }
@@ -5363,10 +5424,10 @@ const BE_CSS = `
   .be-ka-table td { padding: 7px 10px; border-bottom: 1px solid #f1f5f9; }
   .be-ka-table td.right { text-align: right; font-family: 'IBM Plex Mono', monospace; font-weight: 600; }
   .be-ka-table tr.hl td { background: #fffbeb; }
-  .be-ka-table tr.hl td.text-col { border-left: 3px solid #f59e0b; font-weight: 700; }
+  .be-ka-table tr.hl td.text-col { border-left: 3px solid #e8600a; font-weight: 700; }
   .be-ka-pos { color: #059669; }
   .be-ka-neg { color: #dc2626; }
-  .be-ka-hl-badge { display: inline-block; background: #f59e0b; color: #0f172a; font-size: 8px; font-weight: 800; padding: 1px 5px; border-radius: 3px; margin-left: 5px; vertical-align: middle; }
+  .be-ka-hl-badge { display: inline-block; background: #e8600a; color: #0f172a; font-size: 8px; font-weight: 800; padding: 1px 5px; border-radius: 3px; margin-left: 5px; vertical-align: middle; }
   .be-ub { background: #fff; border: 2px solid #0f172a; border-radius: 7px; overflow: hidden; font-size: 11px; }
   .be-ub-head { background: #0f172a; color: #fff; padding: 9px 14px; display: flex; justify-content: space-between; align-items: center; }
   .be-ub-head-title { font-weight: 800; font-size: 12px; letter-spacing: .05em; text-transform: uppercase; }
@@ -5380,7 +5441,7 @@ const BE_CSS = `
   .be-ub-feld-val.normal { font-family: inherit; }
   .be-ub-betrag-box { background: #0f172a; color: #fff; border-radius: 7px; padding: 10px 14px; display: flex; justify-content: space-between; align-items: center; margin: 10px 0; }
   .be-ub-betrag-label { font-size: 10px; color: #94a3b8; }
-  .be-ub-betrag-val { font-size: 18px; font-weight: 800; font-family: 'IBM Plex Mono', monospace; color: #f59e0b; }
+  .be-ub-betrag-val { font-size: 18px; font-weight: 800; font-family: 'IBM Plex Mono', monospace; color: #e8600a; }
   .be-ub-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
   .be-email { background: #fff; border: 1px solid #e2e8f0; border-radius: 7px; overflow: hidden; font-size: 12px; }
   .be-em-head { background: #f8fafc; border-bottom: 1px solid #e2e8f0; padding: 10px 14px; }
@@ -5485,7 +5546,7 @@ const BE_RABATT_ARTEN = ["Mengenrabatt", "Treuerabatt", "Sonderrabatt", "Wiederv
 function BeVorlageBar({ label, onSelect }) {
   return (
     <div className="be-vorlage-bar">
-      <span className="be-vorlage-label">⚡ {label}:</span>
+      <span className="be-vorlage-label"><Zap size={12} strokeWidth={1.5} style={{ verticalAlign:"middle", marginRight:4 }} />{label}:</span>
       {MODELLUNTERNEHMEN.map(m => (
         <button key={m.name} className="be-vorlage-btn" onClick={() => onSelect(m)}>{m.name}</button>
       ))}
@@ -5688,11 +5749,11 @@ const BV = {
   // Rechnung: zweispaltiger Header, Accent-Streifen links, saubere Tabelle
   re: {
     wrap: { fontFamily:"'IBM Plex Sans',system-ui,sans-serif", fontSize:12, background:"#fff", border:"1px solid #e2e8f0", borderRadius:10, overflow:"hidden", boxShadow:"0 1px 6px rgba(0,0,0,.07)" },
-    accent: { height:4, background:"linear-gradient(90deg,#0f172a 0%,#334155 60%,#f59e0b 100%)" },
+    accent: { height:4, background:"linear-gradient(90deg,#0f172a 0%,#334155 60%,#e8600a 100%)" },
     header: { display:"grid", gridTemplateColumns:"1fr auto", gap:16, padding:"18px 20px 14px", borderBottom:"1px solid #f1f5f9" },
     firma: { fontWeight:800, fontSize:15, color:"#0f172a", marginBottom:2 },
     adrsub: { fontSize:11, color:"#64748b", lineHeight:1.6 },
-    typBadge: active => ({ display:"inline-block", padding:"4px 12px", borderRadius:20, fontSize:11, fontWeight:700, letterSpacing:".04em", background: active ? "#f59e0b" : "#f1f5f9", color: active ? "#0f172a" : "#64748b", border: active ? "none" : "1px solid #e2e8f0", alignSelf:"flex-start" }),
+    typBadge: active => ({ display:"inline-block", padding:"4px 12px", borderRadius:20, fontSize:11, fontWeight:700, letterSpacing:".04em", background: active ? "#e8600a" : "#f1f5f9", color: active ? "#0f172a" : "#64748b", border: active ? "none" : "1px solid #e2e8f0", alignSelf:"flex-start" }),
     body: { padding:"14px 20px" },
     adressgrid: { display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, marginBottom:14 },
     adrlabel: { fontSize:9, fontWeight:700, letterSpacing:".1em", textTransform:"uppercase", color:"#94a3b8", marginBottom:4 },
@@ -5704,7 +5765,7 @@ const BV = {
     th: { background:"#f8fafc", padding:"7px 8px", textAlign:"left", fontSize:9, fontWeight:700, letterSpacing:".08em", textTransform:"uppercase", color:"#94a3b8", borderBottom:"2px solid #e2e8f0" },
     td: { padding:"7px 8px", borderBottom:"1px solid #f8fafc", verticalAlign:"middle" },
     tdR: { padding:"7px 8px", borderBottom:"1px solid #f8fafc", textAlign:"right", fontFamily:"'IBM Plex Mono',monospace" },
-    hlRow: { background:"#fffbeb", borderLeft:"3px solid #f59e0b" },
+    hlRow: { background:"#fffbeb", borderLeft:"3px solid #e8600a" },
     sumBox: { display:"flex", justifyContent:"flex-end", marginTop:4 },
     sumInner: { width:220, borderTop:"1px solid #e2e8f0", paddingTop:10 },
     sumRow: { display:"flex", justifyContent:"space-between", fontSize:11, padding:"2px 0", color:"#475569" },
@@ -5779,8 +5840,8 @@ function BeVorschauRechnung({ data, typ }) {
               const hl = p.highlight;
               return (
                 <tr key={p.id} style={hl ? R.hlRow : {}}>
-                  <td style={{...R.td, ...(hl?{borderLeft:"3px solid #f59e0b"}:{})}}>{i+1}</td>
-                  <td style={{...R.td, fontWeight: hl ? 700 : 400}}>{p.artikel}{hl && <span style={{marginLeft:6,fontSize:9,background:"#f59e0b",color:"#0f172a",padding:"1px 5px",borderRadius:3,fontWeight:800}}>BUCHEN</span>}</td>
+                  <td style={{...R.td, ...(hl?{borderLeft:"3px solid #e8600a"}:{})}}>{i+1}</td>
+                  <td style={{...R.td, fontWeight: hl ? 700 : 400}}>{p.artikel}{hl && <span style={{marginLeft:6,fontSize:9,background:"#e8600a",color:"#0f172a",padding:"1px 5px",borderRadius:3,fontWeight:800}}>BUCHEN</span>}</td>
                   <td style={{...R.tdR}}>{p.menge}</td>
                   <td style={{...R.td}}>{p.einheit}</td>
                   <td style={{...R.tdR}}>{be_fmt(parseGeld(p.ep))} €</td>
@@ -5865,9 +5926,9 @@ function BeVorschauKontoauszug({ data }) {
           {rows.map((b,i) => (
             <tr key={b.id} style={{background: b.highlight ? "#fffbeb" : i%2===0 ? "#fff" : "#fafafa"}}>
               <td style={{padding:"8px 12px",borderBottom:"1px solid #f1f5f9",color:"#64748b",whiteSpace:"nowrap"}}>{fmtDatum(b.datum)}</td>
-              <td style={{padding:"8px 12px",borderBottom:"1px solid #f1f5f9",fontWeight: b.highlight ? 700 : 400, borderLeft: b.highlight ? "3px solid #f59e0b" : "3px solid transparent"}}>
+              <td style={{padding:"8px 12px",borderBottom:"1px solid #f1f5f9",fontWeight: b.highlight ? 700 : 400, borderLeft: b.highlight ? "3px solid #e8600a" : "3px solid transparent"}}>
                 {b.text}
-                {b.highlight && <span style={{marginLeft:8,fontSize:9,background:"#f59e0b",color:"#0f172a",padding:"2px 6px",borderRadius:3,fontWeight:800}}>▶ BUCHEN</span>}
+                {b.highlight && <span style={{marginLeft:8,fontSize:9,background:"#e8600a",color:"#0f172a",padding:"2px 6px",borderRadius:3,fontWeight:800}}>▶ BUCHEN</span>}
               </td>
               <td style={{padding:"8px 12px",borderBottom:"1px solid #f1f5f9",textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",fontWeight:600,color: b.betragNum >= 0 ? "#059669" : "#dc2626"}}>
                 {b.betragNum >= 0 ? "+" : ""}{be_fmt(b.betragNum)} €
@@ -5914,7 +5975,7 @@ function BeVorschauUeberweisung({ data }) {
             <div style={{fontSize:9,color:"#94a3b8",fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",marginBottom:3}}>Überweisungsbetrag</div>
             {skontoNum > 0 && <div style={{fontSize:10,color:"#64748b"}}>{be_fmt(betragNum)} € − {be_fmt(skontoNum)} € Skonto</div>}
           </div>
-          <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:22,fontWeight:900,color:"#f59e0b"}}>{be_fmt(ueberBetrag)} €</div>
+          <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:22,fontWeight:900,color:"#e8600a"}}>{be_fmt(ueberBetrag)} €</div>
         </div>
         <div style={{background:"#f8fafc",border:"1px solid #e2e8f0",borderRadius:8,padding:"9px 14px"}}>
           <div style={{fontSize:9,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#94a3b8",marginBottom:3}}>Verwendungszweck</div>
@@ -5935,7 +5996,7 @@ function BeVorschauEmail({ data }) {
       {/* E-Mail-Kopf */}
       <div style={{background:"#f8fafc",borderBottom:"1px solid #e2e8f0",padding:"14px 18px"}}>
         <div style={{display:"flex",gap:10,marginBottom:10,alignItems:"center"}}>
-          <div style={{width:32,height:32,borderRadius:"50%",background:"#e2e8f0",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>✉️</div>
+          <div style={{width:32,height:32,borderRadius:"50%",background:"#e2e8f0",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><Mail size={16} strokeWidth={1.5} color="#475569"/></div>
           <div style={{fontWeight:700,fontSize:15,color:"#0f172a",lineHeight:1.3}}>{data.betreff || "(kein Betreff)"}</div>
         </div>
         {[["Von", data.von],["An", data.an],["Datum", fmtDatum(data.datum)]].map(([l,v]) => (
@@ -6037,10 +6098,10 @@ function BelegEditorModal({ onSchliessen }) {
     <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.55)", zIndex:1100, display:"flex", flexDirection:"column" }}>
       <style>{BE_CSS}</style>
       {/* Modal-Header */}
-      <div style={{ background:"#0f172a", borderBottom:"2px solid #f59e0b", padding:"0 24px", height:"52px", display:"flex", alignItems:"center", justifyContent:"space-between", flexShrink:0 }}>
+      <div style={{ background:"#0f172a", borderBottom:"2px solid #e8600a", padding:"0 24px", height:"52px", display:"flex", alignItems:"center", justifyContent:"space-between", flexShrink:0 }}>
         <div style={{ display:"flex", alignItems:"center", gap:"12px" }}>
-          <span style={{ color:"#fff", fontWeight:800, fontSize:"17px" }}>Buchungs<span style={{color:"#f59e0b"}}>Werk</span></span>
-          <span style={{ fontSize:"10px", fontWeight:700, background:"#f59e0b22", color:"#f59e0b", border:"1px solid #f59e0b55", borderRadius:"4px", padding:"2px 8px", letterSpacing:".06em", textTransform:"uppercase" }}>Beleg-Editor</span>
+          <span style={{ color:"#fff", fontWeight:800, fontSize:"17px" }}>Buchungs<span style={{color:"#e8600a"}}>Werk</span></span>
+          <span style={{ fontSize:"10px", fontWeight:700, background:"#e8600a22", color:"#e8600a", border:"1px solid #e8600a55", borderRadius:"4px", padding:"2px 8px", letterSpacing:".06em", textTransform:"uppercase" }}>Beleg-Editor</span>
         </div>
         <button onClick={onSchliessen} style={{ background:"none", border:"1px solid #334155", color:"#94a3b8", borderRadius:"7px", padding:"5px 14px", cursor:"pointer", fontSize:"12px", fontWeight:700 }}>✕ Schließen</button>
       </div>
@@ -6048,7 +6109,7 @@ function BelegEditorModal({ onSchliessen }) {
       <div className="be-typ-bar">
         {BELEGTYPEN.map(t => (
           <button key={t.id} className={`be-typ-tab ${typ === t.id ? "active" : ""}`} onClick={() => setTyp(t.id)}>
-            {t.icon} {t.label}
+            {React.createElement(t.icon, { size: 13, style: { verticalAlign: "middle", marginRight: "4px" } })}{t.label}
           </button>
         ))}
       </div>
@@ -6057,7 +6118,7 @@ function BelegEditorModal({ onSchliessen }) {
         <div className="be-body">
           {/* Formular */}
           <div className="be-panel be-panel-form">
-            <div className="be-panel-head">✏️ {typLabel} · Felder bearbeiten</div>
+            <div className="be-panel-head" style={{display:"flex",alignItems:"center",gap:6}}><PenLine size={12} strokeWidth={1.5}/>{typLabel} · Felder bearbeiten</div>
             <div className="be-panel-body">
               {typ === "eingangsrechnung" && <BeFormEingangsrechnung data={dataER} setData={setDataER} />}
               {typ === "ausgangsrechnung" && <BeFormAusgangsrechnung data={dataAR} setData={setDataAR} />}
@@ -6102,12 +6163,12 @@ function BelegEditorModal({ onSchliessen }) {
 // ══════════════════════════════════════════════════════════════════════════════
 
 const BELEGTYP_LABELS = {
-  eingangsrechnung: "📥 Eingangsrechnung",
-  ausgangsrechnung: "📤 Ausgangsrechnung",
-  kontoauszug:      "🏦 Kontoauszug",
-  ueberweisung:     "💸 Überweisung",
-  email:            "✉️ E-Mail",
-  quittung:         "🧾 Quittung",
+  eingangsrechnung: "Eingangsrechnung",
+  ausgangsrechnung: "Ausgangsrechnung",
+  kontoauszug:      "Kontoauszug",
+  ueberweisung:     "Überweisung",
+  email:            "E-Mail",
+  quittung:         "Quittung",
 };
 
 function belegZuText(b) {
@@ -6398,7 +6459,7 @@ Antworte NUR mit JSON (kein Markdown):
       const restRows = zeilen.slice(1).map(z => `<tr><td style="padding:7px 10px;color:#94a3b8;text-align:center;font-weight:400">an</td><td style="padding:7px 10px;font-weight:700;color:#dc2626">${z.haben_nr} ${z.haben_name}</td><td style="padding:7px 10px;text-align:right;font-family:monospace;color:#059669;font-weight:700">${btFmt(z.betrag)} €</td><td style="padding:7px 10px;text-align:center;font-size:11px;font-weight:800;color:#fff;background:#0f172a;border-radius:4px">${z.punkte ?? 1} P</td></tr>`).join("");
       return firstRow + restRows;
     }).join("") || "";
-    const html = `<!DOCTYPE html><html lang="de"><head><meta charset="utf-8"><title>BuchungsWerk – Aufgabe</title><style>body{font-family:'Segoe UI',sans-serif;max-width:720px;margin:40px auto;color:#0f172a}.lbl{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:#94a3b8;margin:0 0 5px}.badge{display:inline-block;background:#0f172a;color:#f59e0b;padding:3px 10px;border-radius:4px;font-size:12px;font-weight:800;margin-left:8px}p{font-size:15px;line-height:1.7;margin:0 0 20px}table{width:100%;border-collapse:collapse;margin-bottom:20px;border:1px solid #e2e8f0}td{font-size:13px;border-bottom:1px solid #f1f5f9}.nr{font-family:monospace;font-size:12px;background:#f8fafc;padding:12px 14px;border-radius:6px;white-space:pre-wrap;margin-bottom:20px;border:1px solid #e2e8f0}.erkl{background:#fffbeb;border-left:4px solid #f59e0b;padding:12px 16px;font-size:12px;color:#92400e}@media print{.erkl{display:none}}</style></head><body><div class="lbl">Aufgabenstellung <span class="badge">${result.punkte_gesamt ?? "?"} Punkte</span></div><p>${result.aufgabe}</p>${result.nebenrechnung ? `<div class="lbl">Nebenrechnung <span class="badge">${result.nebenrechnung_punkte ?? 0} P</span></div><div class="nr">${result.nebenrechnung.replace(/\n/g,"<br>")}</div>` : ""}<div class="lbl">Buchungssatz</div><table>${bs}</table>${result.erklaerung ? `<div class="erkl"><strong>💡 Didaktik (Lehrer):</strong> ${result.erklaerung}</div>` : ""}</body></html>`;
+    const html = `<!DOCTYPE html><html lang="de"><head><meta charset="utf-8"><title>BuchungsWerk – Aufgabe</title><style>body{font-family:'Segoe UI',sans-serif;max-width:720px;margin:40px auto;color:#0f172a}.lbl{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:#94a3b8;margin:0 0 5px}.badge{display:inline-block;background:#0f172a;color:#e8600a;padding:3px 10px;border-radius:4px;font-size:12px;font-weight:800;margin-left:8px}p{font-size:15px;line-height:1.7;margin:0 0 20px}table{width:100%;border-collapse:collapse;margin-bottom:20px;border:1px solid #e2e8f0}td{font-size:13px;border-bottom:1px solid #f1f5f9}.nr{font-family:monospace;font-size:12px;background:#f8fafc;padding:12px 14px;border-radius:6px;white-space:pre-wrap;margin-bottom:20px;border:1px solid #e2e8f0}.erkl{background:#fffbeb;border-left:4px solid #e8600a;padding:12px 16px;font-size:12px;color:#92400e}@media print{.erkl{display:none}}</style></head><body><div class="lbl">Aufgabenstellung <span class="badge">${result.punkte_gesamt ?? "?"} Punkte</span></div><p>${result.aufgabe}</p>${result.nebenrechnung ? `<div class="lbl">Nebenrechnung <span class="badge">${result.nebenrechnung_punkte ?? 0} P</span></div><div class="nr">${result.nebenrechnung.replace(/\n/g,"<br>")}</div>` : ""}<div class="lbl">Buchungssatz</div><table>${bs}</table>${result.erklaerung ? `<div class="erkl"><strong>💡 Didaktik (Lehrer):</strong> ${result.erklaerung}</div>` : ""}</body></html>`;
     const w = window.open("", "_blank"); w.document.write(html); w.document.close(); w.print();
   };
 
@@ -6412,10 +6473,10 @@ Antworte NUR mit JSON (kein Markdown):
     <div style={{ borderTop: nr > 1 ? "2px dashed #e2e8f0" : "none", paddingTop: nr > 1 ? 16 : 0, display:"flex", flexDirection:"column", gap:10 }}>
       {/* Kopfzeile */}
       <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-        <div style={{ width:24, height:24, borderRadius:"50%", background: isLatest ? "#f59e0b" : "#e2e8f0", color: isLatest ? "#0f172a" : "#94a3b8", fontWeight:800, fontSize:11, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>{nr}</div>
+        <div style={{ width:24, height:24, borderRadius:"50%", background: isLatest ? "#e8600a" : "#e2e8f0", color: isLatest ? "#0f172a" : "#94a3b8", fontWeight:800, fontSize:11, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>{nr}</div>
         <span style={{ fontWeight:700, fontSize:13, color:"#0f172a" }}>{result._label}</span>
         {(result.punkte_gesamt ?? 0) > 0 && (
-          <span style={{ marginLeft:"auto", background:"#0f172a", color:"#f59e0b", borderRadius:20, padding:"2px 11px", fontSize:11, fontWeight:800 }}>{result.punkte_gesamt} P</span>
+          <span style={{ marginLeft:"auto", background:"#0f172a", color:"#e8600a", borderRadius:20, padding:"2px 11px", fontSize:11, fontWeight:800 }}>{result.punkte_gesamt} P</span>
         )}
       </div>
 
@@ -6491,7 +6552,7 @@ Antworte NUR mit JSON (kein Markdown):
                     <span style={{ marginLeft:"auto", fontFamily:"monospace", color:"#059669", fontWeight:700 }}>
                       {btFmt(z.betrag)} €
                     </span>
-                    <span style={{ background:"#0f172a", color:"#f59e0b", borderRadius:4, padding:"1px 7px", fontSize:10, fontWeight:800 }}>{z.punkte ?? 1} P</span>
+                    <span style={{ background:"#0f172a", color:"#e8600a", borderRadius:4, padding:"1px 7px", fontSize:10, fontWeight:800 }}>{z.punkte ?? 1} P</span>
                     {/* Erklärung */}
                     {z.erklaerung && <div style={{ width:"100%", fontSize:11, color:"#64748b", fontWeight:400, marginTop:2, paddingLeft:2 }}>{z.erklaerung}</div>}
                   </div>
@@ -6512,8 +6573,8 @@ Antworte NUR mit JSON (kein Markdown):
       {/* Export-Leiste */}
       <div style={{ display:"flex", gap:7 }}>
         <button onClick={() => exportText(result, nr)}
-          style={{ flex:1, padding:"8px 10px", background: kopiert===nr ? "#f0fdf4" : "#fff", border:`1.5px solid ${kopiert===nr?"#86efac":"#e2e8f0"}`, borderRadius:7, cursor:"pointer", fontSize:11, fontWeight:700, color: kopiert===nr?"#15803d":"#374151" }}>
-          {kopiert===nr ? "✓ Kopiert!" : "📋 Kopieren"}
+          style={{ flex:1, padding:"8px 10px", background: kopiert===nr ? "#f0fdf4" : "#fff", border:`1.5px solid ${kopiert===nr?"#86efac":"#e2e8f0"}`, borderRadius:7, cursor:"pointer", fontSize:11, fontWeight:700, color: kopiert===nr?"#15803d":"#374151", display:"flex", alignItems:"center", justifyContent:"center", gap:5 }}>
+          {kopiert===nr ? <><CheckSquare size={11} strokeWidth={1.5}/>Kopiert!</> : <><ClipboardList size={11} strokeWidth={1.5}/>Kopieren</>}
         </button>
         <button onClick={() => exportDruck(result)}
           style={{ flex:1, padding:"8px 10px", background:"#fff", border:"1.5px solid #e2e8f0", borderRadius:7, cursor:"pointer", fontSize:11, fontWeight:700, color:"#374151" }}>
@@ -6548,9 +6609,9 @@ Antworte NUR mit JSON (kein Markdown):
             ) : belege.map(b => (
               <div key={b.id}
                 onClick={() => { setSelected(b); setHistorie([]); setGenStatus(null); setVorschlaege(null); setVorschlaegeStatus(null); }}
-                style={{ padding:"14px 16px", borderBottom:"1px solid #f1f5f9", cursor:"pointer",
-                  background: selected?.id===b.id ? "#f0f9ff" : "#fff",
-                  borderLeft: selected?.id===b.id ? "3px solid #0ea5e9" : "3px solid transparent" }}>
+                style={{ padding:"14px 16px", borderBottom:"1px solid rgba(240,236,227,0.08)", cursor:"pointer",
+                  background: selected?.id===b.id ? "rgba(232,96,10,0.08)" : "transparent",
+                  borderLeft: selected?.id===b.id ? "3px solid #e8600a" : "3px solid transparent" }}>
                 <div style={{ fontWeight:700, fontSize:13, marginBottom:3 }}>{b.titel}</div>
                 <div style={{ fontSize:11, color:"#64748b" }}>{BELEGTYP_LABELS[b.typ]||b.typ} · {fmt_datum(b.erstellt)}</div>
                 <button onClick={e=>{e.stopPropagation();loeschen(b.id);}}
@@ -6589,8 +6650,8 @@ Antworte NUR mit JSON (kein Markdown):
                       </button>
                     ))}
                     <button onClick={() => generieren(null, "Aufgabe")} disabled={genStatus==="loading"}
-                      style={{ marginLeft:"auto", padding:"8px 20px", background:genStatus==="loading"?"#94a3b8":"#f59e0b", color:"#0f172a", border:"none", borderRadius:8, fontWeight:800, fontSize:13, cursor:genStatus==="loading"?"not-allowed":"pointer" }}>
-                      {genStatus==="loading" ? "⏳ Generiere…" : historie.length===0 ? "✨ Aufgabe generieren" : "✨ Weitere Aufgabe"}
+                      style={{ marginLeft:"auto", padding:"8px 20px", background:genStatus==="loading"?"#94a3b8":"#e8600a", color:"#0f172a", border:"none", borderRadius:8, fontWeight:800, fontSize:13, cursor:genStatus==="loading"?"not-allowed":"pointer", display:"flex", alignItems:"center", gap:6 }}>
+                      {genStatus==="loading" ? <><Zap size={13} strokeWidth={1.5}/>Generiere…</> : historie.length===0 ? <><Star size={13} strokeWidth={1.5}/>Aufgabe generieren</> : <><Star size={13} strokeWidth={1.5}/>Weitere Aufgabe</>}
                     </button>
                   </div>
 
@@ -7217,7 +7278,7 @@ function showIntro(){
   const nm=mk("div");nm.style.cssText="font-size:18px;font-weight:900;margin-bottom:2px";nm.textContent=FIRMA.icon+" "+FIRMA.name;
   const sub=mk("div");sub.style.cssText="font-size:11px;color:#94a3b8";sub.textContent=[FIRMA.rechtsform,FIRMA.plz+" "+FIRMA.ort,FIRMA.branche].filter(Boolean).join(" · ");
   hd.appendChild(nm);hd.appendChild(sub);
-  if(FIRMA.slogan){const sl=mk("div");sl.style.cssText="font-size:12px;color:#f59e0b;margin-top:5px;font-style:italic";sl.textContent="\u201e"+FIRMA.slogan+"\u201c";hd.appendChild(sl);}
+  if(FIRMA.slogan){const sl=mk("div");sl.style.cssText="font-size:12px;color:#e8600a;margin-top:5px;font-style:italic";sl.textContent="\u201e"+FIRMA.slogan+"\u201c";hd.appendChild(sl);}
   card.appendChild(hd);
   // Werkstoffe
   const wt=[["Rohstoffe",FIRMA.rohstoffe],["Hilfsstoffe",FIRMA.hilfsstoffe],["Fremdbauteile",FIRMA.fremdbauteile],["Betriebsstoffe",FIRMA.betriebsstoffe]].filter(([,l])=>l&&l.length);
@@ -7756,11 +7817,11 @@ rf();
 
 // ── H5PModal ──────────────────────────────────────────────────────────────────
 const QUIZ_TYPEN = [
-  { key: "drag_konten",   icon: "🗂",  label: "Kontenplan-Drag" },
-  { key: "fill_blanks",   icon: "✏️",  label: "Lückentext" },
-  { key: "single_choice", icon: "☑️",  label: "Multiple Choice" },
-  { key: "true_false",    icon: "⚖️",  label: "Wahr/Falsch" },
-  { key: "drag_kalk",     icon: "📊",  label: "Kalkulation" },
+  { key: "drag_konten",   label: "Kontenplan-Drag" },
+  { key: "fill_blanks",   label: "Lückentext" },
+  { key: "single_choice", label: "Multiple Choice" },
+  { key: "true_false",    label: "Wahr/Falsch" },
+  { key: "drag_kalk",     label: "Kalkulation" },
 ];
 
 // ── Beleg → HTML (für H5P-Aufgabenbeschreibung) ──────────────────────────────
@@ -7978,7 +8039,7 @@ function H5PModal({ aufgaben, config, firma, onSchliessen }) {
     const blob = new Blob([html], { type: "text/html;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = url; a.download = `BuchungsWerk_Quiz_Kl${config.klasse}_${config.datum || "2025"}.html`;
+    a.href = url; a.download = `BuchungsWerk_Quiz_Kl${config.klasse}_${config.datum || "2026"}.html`;
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     setTimeout(() => URL.revokeObjectURL(url), 10000);
   };
@@ -8024,18 +8085,18 @@ function H5PModal({ aufgaben, config, firma, onSchliessen }) {
   );
 
   const TABS = [
-    { key: "quiz", icon: "📱", label: "Interaktives Quiz" },
-    { key: "qr",   icon: "📷", label: "QR / Teilen" },
-    { key: "h5p",  icon: "🎓", label: "H5P (mebis)" },
+    { key: "quiz", icon: Monitor,       label: "Interaktives Quiz" },
+    { key: "qr",   icon: QrCode,        label: "QR / Teilen" },
+    { key: "h5p",  icon: GraduationCap, label: "H5P (mebis)" },
   ];
 
   const S2 = {
-    infoBox: { background:"#1e293b", borderRadius:"12px", padding:"13px 15px", marginBottom:"14px", fontSize:"13px", color:"#e2e8f0", lineHeight:1.7 },
-    sectionLbl: { fontSize:"11px", fontWeight:700, letterSpacing:"0.08em", textTransform:"uppercase", color:"#64748b", marginBottom:"9px" },
-    aufgRow: { display:"flex", alignItems:"center", gap:"8px", padding:"9px 12px", background:"#1e293b", borderRadius:"9px", marginBottom:"6px", flexWrap:"wrap" },
-    aufgNr: { fontSize:"11px", fontWeight:800, color:"#f59e0b", minWidth:"24px" },
+    infoBox: { background:"rgba(240,236,227,0.05)", borderRadius:"12px", padding:"13px 15px", marginBottom:"14px", fontSize:"13px", color:"rgba(240,236,227,0.75)", lineHeight:1.7, border:"1px solid rgba(240,236,227,0.1)" },
+    sectionLbl: { fontSize:"11px", fontWeight:700, letterSpacing:"0.08em", textTransform:"uppercase", color:"rgba(240,236,227,0.4)", marginBottom:"9px" },
+    aufgRow: { display:"flex", alignItems:"center", gap:"8px", padding:"9px 12px", background:"rgba(240,236,227,0.05)", borderRadius:"9px", marginBottom:"6px", flexWrap:"wrap" },
+    aufgNr: { fontSize:"11px", fontWeight:800, color:"#e8600a", minWidth:"24px" },
     aufgTxt: { fontSize:"12px", color:"#e2e8f0", flex:1, minWidth:"120px", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" },
-    typPill: (active) => ({ padding:"4px 8px", borderRadius:"6px", border:"1px solid", fontSize:"10px", fontWeight:700, cursor:"pointer", borderColor: active ? "#f59e0b" : "#334155", background: active ? "#f59e0b" : "transparent", color: active ? "#0f172a" : "#64748b" }),
+    typPill: (active) => ({ padding:"4px 8px", borderRadius:"6px", border:"1px solid", fontSize:"10px", fontWeight:700, cursor:"pointer", borderColor: active ? "#e8600a" : "#334155", background: active ? "#e8600a" : "transparent", color: active ? "#0f172a" : "#64748b" }),
     bigBtn: (bg) => ({ flex:1, padding:"12px", borderRadius:"10px", border:"none", background:bg, color:"#fff", fontWeight:800, fontSize:"13px", cursor:"pointer" }),
     outlineBtn: { flex:1, padding:"12px", borderRadius:"10px", border:"1.5px solid #334155", background:"transparent", color:"#e2e8f0", fontWeight:700, fontSize:"13px", cursor:"pointer" },
   };
@@ -8047,13 +8108,13 @@ function H5PModal({ aufgaben, config, firma, onSchliessen }) {
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"14px" }}>
             <div>
               <div style={{ fontSize:"11px", fontWeight:700, letterSpacing:"0.1em", textTransform:"uppercase", color:"#64748b", marginBottom:"3px" }}>Interaktiv & Teilen</div>
-              <div style={{ fontSize:"20px", fontWeight:900, color:"#fff" }}>🖥 Quiz & H5P</div>
+              <div style={{ fontSize:"20px", fontWeight:900, color:"#fff", display:"flex", alignItems:"center", gap:8 }}><Monitor size={20} strokeWidth={1.5}/>Quiz & H5P</div>
             </div>
             <button onClick={onSchliessen} style={{ background:"transparent", border:"1px solid #334155", borderRadius:"8px", color:"#94a3b8", width:"36px", height:"36px", cursor:"pointer", fontSize:"18px" }}>×</button>
           </div>
           <div style={{ display:"flex" }}>
             {TABS.map(t => (
-              <button key={t.key} onClick={() => setTab(t.key)} style={{ flex:1, padding:"9px 4px", border:"none", background:"transparent", borderBottom: tab===t.key?"3px solid #f59e0b":"3px solid transparent", color: tab===t.key?"#f59e0b":"#64748b", fontSize:"11px", fontWeight: tab===t.key?700:500, cursor:"pointer" }}>{t.icon} {t.label}</button>
+              <button key={t.key} onClick={() => setTab(t.key)} style={{ flex:1, padding:"9px 4px", border:"none", background:"transparent", borderBottom: tab===t.key?"3px solid #e8600a":"3px solid transparent", color: tab===t.key?"#e8600a":"#64748b", fontSize:"11px", fontWeight: tab===t.key?700:500, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:5 }}>{React.createElement(t.icon,{size:13,strokeWidth:1.5})} {t.label}</button>
             ))}
           </div>
         </div>
@@ -8062,7 +8123,7 @@ function H5PModal({ aufgaben, config, firma, onSchliessen }) {
           {tab==="quiz" && (
             <div>
               <div style={S2.infoBox}>
-                Self-contained HTML für iPad – kein Internet nötig. Neuer Modus: <strong style={{color:"#f59e0b"}}>Kontenplan-Drag</strong> – Schüler wählt Konten selbst aus dem vollständigen ISB-Kontenplan. Jeder Slot verlangt Nr. + Kürzel + Betrag (ISB-Vorgabe). Beleg wird vollständig angezeigt.
+                Self-contained HTML für iPad – kein Internet nötig. Neuer Modus: <strong style={{color:"#e8600a"}}>Kontenplan-Drag</strong> – Schüler wählt Konten selbst aus dem vollständigen Kontenplan. Jeder Slot verlangt Nr. + Kürzel + Betrag. Beleg wird vollständig angezeigt.
               </div>
               <div style={{ ...S2.sectionLbl, marginBottom:"7px" }}>Aufgaben · {frageAnzahl} Fragen</div>
               <div style={{ marginBottom:"16px" }}>
@@ -8082,7 +8143,7 @@ function H5PModal({ aufgaben, config, firma, onSchliessen }) {
                         {verfuegbar.filter(Boolean).map(t => (
                           <button key={t.key} onClick={() => setTyp(a.id, t.key)}
                             style={S2.typPill(aktTyp===t.key)} title={t.label}>
-                            {t.icon} {t.label}
+                            {t.label}
                           </button>
                         ))}
                       </div>
@@ -8091,11 +8152,11 @@ function H5PModal({ aufgaben, config, firma, onSchliessen }) {
                 })}
               </div>
               <div style={{ display:"flex", gap:"9px" }}>
-                <button onClick={vorschauQuiz} style={S2.outlineBtn}>👁 Vorschau</button>
-                <button onClick={downloadQuiz} style={S2.bigBtn("#7c3aed")}>⬇ Herunterladen (.html)</button>
+                <button onClick={vorschauQuiz} style={{...S2.outlineBtn,display:"flex",alignItems:"center",justifyContent:"center",gap:6}}><Eye size={13} strokeWidth={1.5}/>Vorschau</button>
+                <button onClick={downloadQuiz} style={{...S2.bigBtn("#e8600a"),display:"flex",alignItems:"center",justifyContent:"center",gap:6}}><Download size={13} strokeWidth={1.5}/>Herunterladen (.html)</button>
               </div>
               <div style={{ marginTop:"9px", fontSize:"11px", color:"#475569", textAlign:"center" }}>
-                iPad-optimiert · Offline · ISB-Kontenplan eingebettet · Belege vollständig
+                iPad-optimiert · Offline · Kontenplan eingebettet · Belege vollständig
               </div>
             </div>
           )}
@@ -8110,14 +8171,14 @@ function H5PModal({ aufgaben, config, firma, onSchliessen }) {
                   style={{ width:"100%", padding:"10px 13px", borderRadius:"9px", border:"1.5px solid #334155", background:"#1e293b", color:"#e2e8f0", fontSize:"13px", outline:"none", fontFamily:"inherit" }} />
               </div>
               <div style={{ display:"flex", gap:"7px", marginBottom:"14px" }}>
-                {[{label:"📡 Pi-Server",url:"http://buchungswerk.local"},{label:"🏫 mebis",url:"https://lernplattform.mebis.bycs.de/"}].map(p=>(
+                {[{label:"Pi-Server",url:"http://buchungswerk.local"},{label:"mebis",url:"https://lernplattform.mebis.bycs.de/"}].map(p=>(
                   <button key={p.label} onClick={()=>{setQrUrl(p.url);setQrReady(false);}}
                     style={{ flex:1, padding:"8px", borderRadius:"8px", border:"1px solid #334155", background:"#1e293b", color:"#94a3b8", fontSize:"11px", cursor:"pointer" }}>{p.label}</button>
                 ))}
               </div>
               <button onClick={generiereQR} disabled={!qrUrl||qrLoading}
-                style={{ width:"100%", padding:"12px", borderRadius:"10px", border:"none", background:qrUrl?"#f59e0b":"#334155", color:qrUrl?"#0f172a":"#64748b", fontWeight:800, fontSize:"14px", cursor:qrUrl?"pointer":"not-allowed", marginBottom:"14px" }}>
-                {qrLoading?"⏳ Lädt…":"📷 QR-Code generieren"}
+                style={{ width:"100%", padding:"12px", borderRadius:"10px", border:"none", background:qrUrl?"#e8600a":"#334155", color:qrUrl?"#0f172a":"#64748b", fontWeight:800, fontSize:"14px", cursor:qrUrl?"pointer":"not-allowed", marginBottom:"14px", display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
+                {qrLoading ? <><Zap size={14} strokeWidth={1.5}/>Lädt…</> : <><Monitor size={14} strokeWidth={1.5}/>QR-Code generieren</>}
               </button>
               {qrReady&&qrUrl
                 ?<div style={{ textAlign:"center", background:"#fff", borderRadius:"14px", padding:"20px" }}>
@@ -8132,8 +8193,8 @@ function H5PModal({ aufgaben, config, firma, onSchliessen }) {
 
           {tab==="h5p" && (
             <div>
-              <div style={{ ...S2.infoBox, borderLeft:"3px solid #7c3aed", fontSize:"12px" }}>
-                <div style={{ fontSize:"13px", color:"#a78bfa", fontWeight:700, marginBottom:"7px" }}>🎓 H5P-Export für bycs / mebis</div>
+              <div style={{ ...S2.infoBox, borderLeft:"3px solid #e8600a", fontSize:"12px" }}>
+                <div style={{ fontSize:"13px", color:"#e8600a", fontWeight:700, marginBottom:"7px" }}>🎓 H5P-Export für bycs / mebis</div>
                 Erzeugt eine echte <strong>.h5p-Datei</strong> (Question Set) die direkt in bycs hochgeladen werden kann. Jede Aufgabe wird als interaktive Frage exportiert.
               </div>
               <div style={S2.sectionLbl}>Enthaltene Aktivitäten</div>
@@ -8188,12 +8249,12 @@ function H5PModal({ aufgaben, config, firma, onSchliessen }) {
                     const url = URL.createObjectURL(blob);
                     const a = document.createElement("a");
                     a.href = url;
-                    a.download = `BuchungsWerk_Kl${config.klasse}_${config.datum || "2025"}.h5p`;
+                    a.download = `BuchungsWerk_Kl${config.klasse}_${config.datum || "2026"}.h5p`;
                     document.body.appendChild(a); a.click(); document.body.removeChild(a);
                     setTimeout(() => URL.revokeObjectURL(url), 10000);
                   } catch(e) { alert("H5P-Export Fehler: " + e.message); }
-                }} style={{ ...S2.bigBtn("#7c3aed") }}>
-                  ⬇️ .h5p herunterladen
+                }} style={{ ...S2.bigBtn("#e8600a"), display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}>
+                  <Download size={14} strokeWidth={1.5}/>.h5p herunterladen
                 </button>
               </div>
               <div style={{ marginTop:10, fontSize:"10px", color:"#475569", textAlign:"center" }}>
@@ -8245,53 +8306,53 @@ function SupportButton() {
     <>
       {/* Floating Button */}
       <button onClick={() => setOffen(true)}
-        style={{ position: "fixed", bottom: "24px", right: "24px", zIndex: 900,
+        style={{ position: "fixed", bottom: "72px", right: "24px", zIndex: 900,
           width: "52px", height: "52px", borderRadius: "50%", border: "none",
-          background: "#0f172a", color: "#f59e0b", fontSize: "22px", cursor: "pointer",
+          background: "#141008", color: "#e8600a", fontSize: "22px", cursor: "pointer",
           boxShadow: "0 4px 16px rgba(0,0,0,0.35)", display: "flex", alignItems: "center", justifyContent: "center" }}
         title="Feedback / Support">
-        💬
+        <MessageSquare size={22} strokeWidth={1.5}/>
       </button>
 
       {/* Modal */}
       {offen && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 1100, display: "flex", alignItems: "flex-end", justifyContent: "flex-end", padding: "24px" }}>
-          <div style={{ background: "#fff", borderRadius: "16px", width: "100%", maxWidth: "420px", padding: "24px", boxShadow: "0 16px 48px rgba(0,0,0,0.3)" }}>
+          <div style={{ background: "rgba(25,18,8,0.96)", backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", border: "1px solid rgba(240,236,227,0.12)", borderRadius: "16px", width: "100%", maxWidth: "420px", padding: "24px", boxShadow: "0 16px 48px rgba(0,0,0,0.6)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
-              <div style={{ fontWeight: 800, fontSize: "16px", color: "#0f172a" }}>💬 Feedback & Support</div>
+              <div style={{ fontWeight: 800, fontSize: "16px", color: "#f0ece3", display:"flex", alignItems:"center", gap:8 }}><MessageSquare size={16} strokeWidth={1.5}/>Feedback & Support</div>
               <button onClick={() => setOffen(false)} style={{ border: "none", background: "none", fontSize: "20px", cursor: "pointer", color: "#94a3b8" }}>✕</button>
             </div>
 
             {/* Typ-Auswahl */}
             <div style={{ display: "flex", gap: "8px", marginBottom: "14px" }}>
-              {[["bug","🐛 Fehler"],["idee","💡 Idee"],["lob","👍 Lob"]].map(([k, l]) => (
+              {[["bug", AlertTriangle, "Fehler"],["idee", Zap, "Idee"],["lob", Star, "Lob"]].map(([k, Icon, l]) => (
                 <button key={k} onClick={() => setTyp(k)}
-                  style={{ flex: 1, padding: "7px", borderRadius: "8px", border: "2px solid " + (typ===k ? "#0f172a" : "#e2e8f0"),
-                    background: typ===k ? "#0f172a" : "#fff", color: typ===k ? "#fff" : "#475569",
-                    fontWeight: 700, fontSize: "12px", cursor: "pointer" }}>
-                  {l}
+                  style={{ flex: 1, padding: "7px", borderRadius: "8px", border: "2px solid " + (typ===k ? "#e8600a" : "rgba(240,236,227,0.15)"),
+                    background: typ===k ? "#e8600a" : "rgba(240,236,227,0.06)", color: typ===k ? "#fff" : "rgba(240,236,227,0.7)",
+                    fontWeight: 700, fontSize: "12px", cursor: "pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:5 }}>
+                  <Icon size={12} strokeWidth={1.5}/>{l}
                 </button>
               ))}
             </div>
 
             <textarea value={text} onChange={e => setText(e.target.value)} rows={5}
               placeholder={typ === "bug" ? "Was ist passiert? Wie kann ich den Fehler reproduzieren?" : typ === "idee" ? "Welche Funktion würdest du dir wünschen?" : "Was gefällt dir besonders?"}
-              style={{ width: "100%", padding: "10px", border: "1.5px solid #e2e8f0", borderRadius: "8px", fontSize: "13px", fontFamily: "inherit", resize: "vertical", boxSizing: "border-box", marginBottom: "10px" }} />
+              style={{ width: "100%", padding: "10px", border: "1.5px solid rgba(240,236,227,0.18)", borderRadius: "8px", fontSize: "13px", fontFamily: "inherit", resize: "vertical", boxSizing: "border-box", marginBottom: "10px", background: "rgba(240,236,227,0.06)", color: "#f0ece3" }} />
 
             {/* Datei-Upload */}
             <label style={{ display: "block", marginBottom: "14px", cursor: "pointer" }}>
-              <div style={{ border: "1.5px dashed #cbd5e1", borderRadius: "8px", padding: "8px 12px", fontSize: "12px", color: "#64748b", textAlign: "center" }}>
-                {datei ? `📎 ${datei.name}` : "📎 Screenshot / Datei anhängen (optional)"}
+              <div style={{ border: "1.5px dashed rgba(240,236,227,0.2)", borderRadius: "8px", padding: "8px 12px", fontSize: "12px", color: "rgba(240,236,227,0.5)", textAlign: "center" }}>
+                {datei ? <span style={{display:"flex",alignItems:"center",gap:4}}><Paperclip size={12} strokeWidth={1.5}/>{datei.name}</span> : <span style={{display:"flex",alignItems:"center",gap:4,justifyContent:"center"}}><Paperclip size={12} strokeWidth={1.5}/>Screenshot / Datei anhängen (optional)</span>}
               </div>
               <input type="file" accept="image/*,.pdf,.docx" onChange={e => setDatei(e.target.files[0])} style={{ display: "none" }} />
             </label>
 
-            {status === "ok" && <div style={{ background: "#f0fdf4", color: "#15803d", padding: "10px", borderRadius: "8px", fontWeight: 700, textAlign: "center", marginBottom: "10px" }}>✅ Danke für dein Feedback!</div>}
-            {status === "err" && <div style={{ background: "#fef2f2", color: "#dc2626", padding: "10px", borderRadius: "8px", fontWeight: 700, textAlign: "center", marginBottom: "10px" }}>⚠️ Fehler beim Senden – bitte erneut versuchen.</div>}
+            {status === "ok" && <div style={{ background: "#f0fdf4", color: "#15803d", padding: "10px", borderRadius: "8px", fontWeight: 700, textAlign: "center", marginBottom: "10px", display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}><CheckSquare size={14} strokeWidth={1.5}/>Danke für dein Feedback!</div>}
+            {status === "err" && <div style={{ background: "#fef2f2", color: "#dc2626", padding: "10px", borderRadius: "8px", fontWeight: 700, textAlign: "center", marginBottom: "10px", display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}><AlertTriangle size={14} strokeWidth={1.5}/>Fehler beim Senden – bitte erneut versuchen.</div>}
 
             <button onClick={senden} disabled={!text.trim() || status === "sending"}
-              style={{ width: "100%", padding: "12px", background: "#0f172a", color: "#f59e0b", border: "none", borderRadius: "10px", fontWeight: 800, fontSize: "14px", cursor: text.trim() ? "pointer" : "not-allowed", opacity: text.trim() ? 1 : 0.5 }}>
-              {status === "sending" ? "⏳ Wird gesendet…" : "📤 Feedback senden"}
+              style={{ width: "100%", padding: "12px", background: "#141008", color: "#e8600a", border: "none", borderRadius: "10px", fontWeight: 800, fontSize: "14px", cursor: text.trim() ? "pointer" : "not-allowed", opacity: text.trim() ? 1 : 0.5, display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
+              {status === "sending" ? <><Zap size={14} strokeWidth={1.5}/>Wird gesendet…</> : <><Upload size={14} strokeWidth={1.5}/>Feedback senden</>}
             </button>
           </div>
         </div>
@@ -8527,31 +8588,31 @@ function SimulationModus({ onZurueck }) {
   // ── Setup ──────────────────────────────────────────────────────────────────
   if (phase === "setup") return (
     <div style={{ maxWidth: 520, margin: "0 auto", padding: "24px 16px" }}>
-      <button onClick={onZurueck} style={{ background:"none", border:"none", color:"#94a3b8", cursor:"pointer", fontSize:13, marginBottom:16 }}>← Zurück</button>
-      <div style={{ fontSize:28, fontWeight:900, color:"#0f172a", marginBottom:4 }}>🏭 Simulation</div>
-      <div style={{ fontSize:14, color:"#64748b", marginBottom:24 }}>Führe eine Firma durch ein Geschäftsjahr und buche alle Vorfälle korrekt.</div>
+      <button onClick={onZurueck} style={{ background:"none", border:"none", color:"rgba(240,236,227,0.45)", cursor:"pointer", fontSize:13, marginBottom:16 }}>← Zurück</button>
+      <div style={{ fontSize:28, fontWeight:900, color:"#f0ece3", marginBottom:4, display:"flex", alignItems:"center", gap:10 }}><Factory size={26} strokeWidth={1.5} style={{ color:"#e8600a", flexShrink:0 }}/>Simulation</div>
+      <div style={{ fontSize:14, color:"rgba(240,236,227,0.5)", marginBottom:24 }}>Führe eine Firma durch ein Geschäftsjahr und buche alle Vorfälle korrekt.</div>
 
       <div style={{ marginBottom:20 }}>
-        <div style={{ fontSize:12, fontWeight:700, color:"#374151", marginBottom:8 }}>Schwierigkeit</div>
+        <div style={{ fontSize:12, fontWeight:700, color:"rgba(240,236,227,0.5)", marginBottom:8 }}>Schwierigkeit</div>
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
           {SIM_SCHWIERIGKEITEN.map(s => (
             <button key={s.id} onClick={() => setSchwierigkeit(s.id)}
-              style={{ padding:"12px", border:`2px solid ${schwierigkeit===s.id?"#7c3aed":"#e2e8f0"}`, borderRadius:10, background:schwierigkeit===s.id?"#ede9fe":"#fff", cursor:"pointer", textAlign:"left" }}>
-              <div style={{ fontWeight:700, fontSize:13, color:schwierigkeit===s.id?"#5b21b6":"#374151" }}>{s.icon} {s.label}</div>
-              <div style={{ fontSize:11, color:"#94a3b8", marginTop:2 }}>{s.desc}</div>
+              style={{ padding:"12px", border:`2px solid ${schwierigkeit===s.id?"#e8600a":"rgba(240,236,227,0.12)"}`, borderRadius:10, background:schwierigkeit===s.id?"rgba(232,96,10,0.1)":"rgba(240,236,227,0.04)", cursor:"pointer", textAlign:"left" }}>
+              <div style={{ fontWeight:700, fontSize:13, color:schwierigkeit===s.id?"#e8600a":"#f0ece3" }}>{s.icon} {s.label}</div>
+              <div style={{ fontSize:11, color:"rgba(240,236,227,0.4)", marginTop:2 }}>{s.desc}</div>
             </button>
           ))}
         </div>
       </div>
 
       <div style={{ marginBottom:20 }}>
-        <div style={{ fontSize:12, fontWeight:700, color:"#374151", marginBottom:8 }}>Modus</div>
+        <div style={{ fontSize:12, fontWeight:700, color:"rgba(240,236,227,0.5)", marginBottom:8 }}>Modus</div>
         <div style={{ display:"flex", gap:8 }}>
           {[["solo","👤 Solo","Einzeln üben"],["klasse","👥 Klasse","Wettbewerb"]].map(([id,l,d]) => (
             <button key={id} onClick={() => setModus(id)}
-              style={{ flex:1, padding:"12px", border:`2px solid ${modus===id?"#0f172a":"#e2e8f0"}`, borderRadius:10, background:modus===id?"#0f172a":"#fff", cursor:"pointer" }}>
-              <div style={{ fontWeight:700, fontSize:13, color:modus===id?"#fff":"#374151" }}>{l}</div>
-              <div style={{ fontSize:11, color:modus===id?"#94a3b8":"#94a3b8", marginTop:2 }}>{d}</div>
+              style={{ flex:1, padding:"12px", border:`2px solid ${modus===id?"#e8600a":"rgba(240,236,227,0.12)"}`, borderRadius:10, background:modus===id?"rgba(232,96,10,0.1)":"rgba(240,236,227,0.04)", cursor:"pointer" }}>
+              <div style={{ fontWeight:700, fontSize:13, color:modus===id?"#e8600a":"#f0ece3" }}>{l}</div>
+              <div style={{ fontSize:11, color:"rgba(240,236,227,0.4)", marginTop:2 }}>{d}</div>
             </button>
           ))}
         </div>
@@ -8562,18 +8623,18 @@ function SimulationModus({ onZurueck }) {
           <div style={{ flex:1 }}>
             <div style={{ fontSize:12, fontWeight:700, color:"#374151", marginBottom:4 }}>Dein Name</div>
             <input value={spielerName} onChange={e=>setSpielerName(e.target.value)} placeholder="Vorname"
-              style={{ width:"100%", padding:"10px", border:"1.5px solid #e2e8f0", borderRadius:8, fontSize:13, boxSizing:"border-box" }} />
+              style={{ width:"100%", padding:"10px", border:"1.5px solid rgba(240,236,227,0.2)", borderRadius:8, fontSize:13, boxSizing:"border-box", background:"rgba(240,236,227,0.05)", color:"#f0ece3" }} />
           </div>
           <div style={{ flex:1 }}>
-            <div style={{ fontSize:12, fontWeight:700, color:"#374151", marginBottom:4 }}>Klassen-Code</div>
+            <div style={{ fontSize:12, fontWeight:700, color:"rgba(240,236,227,0.5)", marginBottom:4 }}>Klassen-Code</div>
             <input value={klassenCode} onChange={e=>setKlassenCode(e.target.value.toUpperCase())} placeholder="z.B. BwR8a"
-              style={{ width:"100%", padding:"10px", border:"1.5px solid #e2e8f0", borderRadius:8, fontSize:13, boxSizing:"border-box" }} />
+              style={{ width:"100%", padding:"10px", border:"1.5px solid rgba(240,236,227,0.2)", borderRadius:8, fontSize:13, boxSizing:"border-box", background:"rgba(240,236,227,0.05)", color:"#f0ece3" }} />
           </div>
         </div>
       )}
 
       <button onClick={() => setPhase("firma")}
-        style={{ width:"100%", padding:"14px", background:"linear-gradient(135deg,#1e1b4b,#7c3aed)", color:"#fff", border:"none", borderRadius:12, fontWeight:800, fontSize:15, cursor:"pointer" }}>
+        style={{ width:"100%", padding:"14px", background:"#e8600a", color:"#fff", border:"none", borderRadius:12, fontWeight:800, fontSize:15, cursor:"pointer" }}>
         Weiter: Firma wählen →
       </button>
     </div>
@@ -8582,17 +8643,17 @@ function SimulationModus({ onZurueck }) {
   // ── Firma wählen ───────────────────────────────────────────────────────────
   if (phase === "firma") return (
     <div style={{ maxWidth:520, margin:"0 auto", padding:"24px 16px" }}>
-      <button onClick={() => setPhase("setup")} style={{ background:"none", border:"none", color:"#94a3b8", cursor:"pointer", fontSize:13, marginBottom:16 }}>← Zurück</button>
-      <div style={{ fontSize:22, fontWeight:800, color:"#0f172a", marginBottom:16 }}>🏢 Firma wählen</div>
+      <button onClick={() => setPhase("setup")} style={{ background:"none", border:"none", color:"rgba(240,236,227,0.45)", cursor:"pointer", fontSize:13, marginBottom:16 }}>← Zurück</button>
+      <div style={{ fontSize:22, fontWeight:800, color:"#f0ece3", marginBottom:16 }}>🏢 Firma wählen</div>
       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
         {UNTERNEHMEN.slice(0, 12).map(u => (
           <button key={u.id} onClick={() => startSpiel(u)}
-            style={{ padding:"14px", border:"2px solid #e2e8f0", borderRadius:12, background:"#fff", cursor:"pointer", textAlign:"left",
+            style={{ padding:"14px", border:"1px solid rgba(240,236,227,0.12)", borderRadius:12, background:"rgba(240,236,227,0.05)", cursor:"pointer", textAlign:"left",
               transition:"all 0.15s" }}
-            onMouseOver={e=>e.currentTarget.style.borderColor="#7c3aed"}
-            onMouseOut={e=>e.currentTarget.style.borderColor="#e2e8f0"}>
-            <div style={{ fontWeight:700, fontSize:13, color:"#0f172a", marginBottom:2 }}>{u.name}</div>
-            <div style={{ fontSize:11, color:"#94a3b8" }}>{u.branche}</div>
+            onMouseOver={e=>e.currentTarget.style.borderColor="#e8600a"}
+            onMouseOut={e=>e.currentTarget.style.borderColor="rgba(240,236,227,0.12)"}>
+            <div style={{ fontWeight:700, fontSize:13, color:"#f0ece3", marginBottom:2 }}>{u.name}</div>
+            <div style={{ fontSize:11, color:"rgba(240,236,227,0.4)" }}>{u.branche}</div>
           </button>
         ))}
       </div>
@@ -8608,23 +8669,23 @@ function SimulationModus({ onZurueck }) {
           <div style={{ fontWeight:800, fontSize:14 }}>🏭 {firma?.name}</div>
           <div style={{ display:"flex", gap:12, fontSize:13 }}>
             <span>⏱ {fmtTime(Math.round(elapsed/1000))}</span>
-            <span style={{ color:"#f59e0b", fontWeight:700 }}>⭐ {punkte}/{maxPunkte} P</span>
+            <span style={{ color:"#e8600a", fontWeight:700, display:"flex", alignItems:"center", gap:4 }}><Star size={13} strokeWidth={1.5}/>{punkte}/{maxPunkte} P</span>
           </div>
         </div>
         {/* Fortschrittsbalken */}
-        <div style={{ height:6, background:"#1e293b", borderRadius:3, overflow:"hidden" }}>
-          <div style={{ height:"100%", width:fortschritt+"%", background:"#7c3aed", borderRadius:3, transition:"width 0.4s" }} />
+        <div style={{ height:6, background:"rgba(240,236,227,0.1)", borderRadius:3, overflow:"hidden" }}>
+          <div style={{ height:"100%", width:fortschritt+"%", background:"#e8600a", borderRadius:3, transition:"width 0.4s" }} />
         </div>
-        <div style={{ fontSize:11, color:"#64748b", marginTop:4 }}>Ereignis {aktuellesIdx+1} von {ereignisse.length}</div>
+        <div style={{ fontSize:11, color:"rgba(240,236,227,0.4)", marginTop:4 }}>Ereignis {aktuellesIdx+1} von {ereignisse.length}</div>
       </div>
 
       {/* Ereignis-Karte */}
-      <div style={{ background:"#fff", border:"2px solid #e2e8f0", borderRadius:14, padding:"18px", marginBottom:14 }}>
+      <div style={{ background:"rgba(28,20,10,0.7)", border:"1px solid rgba(240,236,227,0.12)", borderLeft:"3px solid #e8600a", borderRadius:14, padding:"18px", marginBottom:14 }}>
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
-          <div style={{ fontWeight:800, fontSize:15, color:"#0f172a" }}>{aktuellesEreignis.titel}</div>
-          <span style={{ background:"#ede9fe", color:"#7c3aed", fontWeight:700, fontSize:12, padding:"3px 10px", borderRadius:20 }}>{aktuellesEreignis.punkte} P</span>
+          <div style={{ fontWeight:800, fontSize:15, color:"#f0ece3" }}>{aktuellesEreignis.titel}</div>
+          <span style={{ background:"rgba(232,96,10,0.15)", color:"#e8600a", fontWeight:700, fontSize:12, padding:"3px 10px", borderRadius:20 }}>{aktuellesEreignis.punkte} P</span>
         </div>
-        <div style={{ fontSize:14, color:"#374151", lineHeight:1.6, marginBottom:14, padding:"12px", background:"#f8fafc", borderRadius:8 }}>
+        <div style={{ fontSize:14, color:"rgba(240,236,227,0.75)", lineHeight:1.6, marginBottom:14, padding:"12px", background:"rgba(240,236,227,0.04)", borderRadius:8 }}>
           {aktuellesEreignis.text}
         </div>
 
@@ -8648,15 +8709,15 @@ function SimulationModus({ onZurueck }) {
               </div>
             </div>
             <button onClick={pruefen} disabled={!antwort.soll || !antwort.haben}
-              style={{ marginTop:12, width:"100%", padding:"12px", background:"#7c3aed", color:"#fff", border:"none", borderRadius:10, fontWeight:700, fontSize:14, cursor:"pointer", opacity:(!antwort.soll||!antwort.haben)?0.5:1 }}>
+              style={{ marginTop:12, width:"100%", padding:"12px", background:"#e8600a", color:"#fff", border:"none", borderRadius:10, fontWeight:700, fontSize:14, cursor:"pointer", opacity:(!antwort.soll||!antwort.haben)?0.5:1 }}>
               ✓ Überprüfen
             </button>
           </div>
         ) : (
           <div>
             <div style={{ padding:"14px", borderRadius:10, background:feedback==="richtig"?"#f0fdf4":"#fef2f2", border:`2px solid ${feedback==="richtig"?"#86efac":"#fca5a5"}`, marginBottom:12 }}>
-              <div style={{ fontWeight:800, fontSize:15, color:feedback==="richtig"?"#15803d":"#dc2626", marginBottom:6 }}>
-                {feedback==="richtig" ? "✅ Richtig! +" + aktuellesEreignis.punkte + " Punkte" : "❌ Leider falsch"}
+              <div style={{ fontWeight:800, fontSize:15, color:feedback==="richtig"?"#15803d":"#dc2626", marginBottom:6, display:"flex", alignItems:"center", gap:6 }}>
+                {feedback==="richtig" ? <><CheckSquare size={14} strokeWidth={1.5}/>{"Richtig! +" + aktuellesEreignis.punkte + " Punkte"}</> : <><XCircle size={14} strokeWidth={1.5}/>Leider falsch</>}
               </div>
               <div style={{ fontSize:13, color:"#374151" }}>
                 <strong>Lösung:</strong>{" "}
@@ -8676,10 +8737,10 @@ function SimulationModus({ onZurueck }) {
 
       {/* Mini-Bilanz */}
       <div style={{ background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:12, padding:"12px 16px" }}>
-        <div style={{ fontSize:11, fontWeight:700, color:"#64748b", marginBottom:8, textTransform:"uppercase" }}>📊 Aktuelle Kontenstände</div>
+        <div style={{ fontSize:11, fontWeight:700, color:"#64748b", marginBottom:8, textTransform:"uppercase", display:"flex", alignItems:"center", gap:4 }}><BarChart2 size={11} strokeWidth={1.5}/>Aktuelle Kontenstände</div>
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6 }}>
           <div>
-            <div style={{ fontSize:10, fontWeight:700, color:"#0ea5e9", marginBottom:4 }}>AKTIVA</div>
+            <div style={{ fontSize:10, fontWeight:700, color:"rgba(240,236,227,0.55)", marginBottom:4 }}>AKTIVA</div>
             {konten.filter(k=>k.seite==="aktiv").map(k => (
               <div key={k.nr} style={{ display:"flex", justifyContent:"space-between", fontSize:11, padding:"2px 0" }}>
                 <span style={{ color:"#374151" }}>{k.name}</span>
@@ -8691,7 +8752,7 @@ function SimulationModus({ onZurueck }) {
             </div>
           </div>
           <div>
-            <div style={{ fontSize:10, fontWeight:700, color:"#f59e0b", marginBottom:4 }}>PASSIVA</div>
+            <div style={{ fontSize:10, fontWeight:700, color:"#e8600a", marginBottom:4 }}>PASSIVA</div>
             {konten.filter(k=>k.seite==="passiv").map(k => (
               <div key={k.nr} style={{ display:"flex", justifyContent:"space-between", fontSize:11, padding:"2px 0" }}>
                 <span style={{ color:"#374151" }}>{k.name}</span>
@@ -8713,11 +8774,11 @@ function SimulationModus({ onZurueck }) {
     const note = pct >= 92 ? "1" : pct >= 81 ? "2" : pct >= 67 ? "3" : pct >= 50 ? "4" : pct >= 30 ? "5" : "6";
     return (
       <div style={{ maxWidth:540, margin:"0 auto", padding:"24px 16px" }}>
-        <div style={{ background:"linear-gradient(135deg,#1e1b4b,#312e81)", borderRadius:16, padding:"28px", marginBottom:20, textAlign:"center", color:"#fff" }}>
-          <div style={{ fontSize:48, marginBottom:8 }}>{pct>=80?"🏆":pct>=60?"🥈":pct>=40?"🥉":"📚"}</div>
+        <div style={{ background:"rgba(28,20,10,0.9)", border:"2px solid #e8600a", borderRadius:16, padding:"28px", marginBottom:20, textAlign:"center", color:"#fff" }}>
+          <div style={{ fontSize:48, marginBottom:8, display:"flex", justifyContent:"center" }}>{pct>=80?<Trophy size={48} strokeWidth={1.5} color="#f59e0b"/>:pct>=60?<Award size={48} strokeWidth={1.5} color="#94a3b8"/>:pct>=40?<Award size={48} strokeWidth={1.5} color="#92400e"/>:<BookOpen size={48} strokeWidth={1.5} color="#3b82f6"/>}</div>
           <div style={{ fontSize:24, fontWeight:900, marginBottom:4 }}>{punkte} / {maxPunkte} Punkte</div>
-          <div style={{ fontSize:15, color:"#a5b4fc", marginBottom:8 }}>{pct} % – Tendenz Note {note}</div>
-          <div style={{ fontSize:13, color:"#c7d2fe" }}>⏱ {fmtTime(Math.round(elapsed/1000))} | {firma?.name}</div>
+          <div style={{ fontSize:15, color:"#e8600a", marginBottom:8 }}>{pct} % – Tendenz Note {note}</div>
+          <div style={{ fontSize:13, color:"rgba(240,236,227,0.5)", display:"flex", alignItems:"center", gap:6, justifyContent:"center" }}><Timer size={13} strokeWidth={1.5}/>{fmtTime(Math.round(elapsed/1000))} | {firma?.name}</div>
         </div>
 
         {/* Verlauf */}
@@ -8725,7 +8786,7 @@ function SimulationModus({ onZurueck }) {
           <div style={{ fontSize:13, fontWeight:700, color:"#374151", marginBottom:8 }}>Auswertung</div>
           {verlauf.map((v, i) => (
             <div key={i} style={{ display:"flex", alignItems:"center", gap:10, padding:"8px 12px", background:v.korrekt?"#f0fdf4":"#fef2f2", borderRadius:8, marginBottom:4, fontSize:12 }}>
-              <span>{v.korrekt?"✅":"❌"}</span>
+              <span style={{display:"flex"}}>{v.korrekt?<CheckSquare size={13} strokeWidth={1.5} color="#15803d"/>:<XCircle size={13} strokeWidth={1.5} color="#dc2626"/>}</span>
               <span style={{ flex:1, color:"#374151", fontWeight:600 }}>{v.titel}</span>
               <span style={{ color:v.korrekt?"#15803d":"#dc2626", fontWeight:700 }}>{v.gewPunkte}/{v.punkte} P</span>
             </div>
@@ -8735,9 +8796,9 @@ function SimulationModus({ onZurueck }) {
         {/* Rangliste (Klassenmodus) */}
         {rangliste.length > 0 && (
           <div style={{ background:"#0f172a", borderRadius:12, padding:"16px", marginBottom:20 }}>
-            <div style={{ fontSize:13, fontWeight:700, color:"#f59e0b", marginBottom:10 }}>🏆 Rangliste – {klassenCode}</div>
+            <div style={{ fontSize:13, fontWeight:700, color:"#e8600a", marginBottom:10, display:"flex", alignItems:"center", gap:5 }}><Trophy size={13} strokeWidth={1.5}/>Rangliste – {klassenCode}</div>
             {rangliste.slice(0,10).map((r, i) => (
-              <div key={i} style={{ display:"flex", gap:10, fontSize:12, padding:"5px 0", borderBottom:"1px solid #1e293b", color:r.spieler===spielerName?"#f59e0b":"#e2e8f0" }}>
+              <div key={i} style={{ display:"flex", gap:10, fontSize:12, padding:"5px 0", borderBottom:"1px solid #1e293b", color:r.spieler===spielerName?"#e8600a":"#e2e8f0" }}>
                 <span style={{ fontWeight:700, minWidth:20 }}>{i+1}.</span>
                 <span style={{ flex:1 }}>{r.spieler}</span>
                 <span style={{ fontWeight:700 }}>{r.punkte}/{r.max_punkte} P</span>
@@ -8787,7 +8848,7 @@ function MasteryModal({ onSchliessen }) {
   return (
     <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.55)", zIndex:2000,
       display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}>
-      <div style={{ background:"#fff", borderRadius:20, width:"100%", maxWidth:600,
+      <div style={{ background:"rgba(22,16,8,0.96)", backdropFilter:"blur(20px)", WebkitBackdropFilter:"blur(20px)", border:"1px solid rgba(240,236,227,0.12)", borderRadius:20, width:"100%", maxWidth:600,
         maxHeight:"90vh", overflow:"hidden", display:"flex", flexDirection:"column",
         boxShadow:"0 24px 64px rgba(0,0,0,0.25)" }}>
 
@@ -8795,7 +8856,7 @@ function MasteryModal({ onSchliessen }) {
         <div style={{ background:"linear-gradient(135deg,#0f172a,#1e293b)", padding:"20px 24px",
           display:"flex", justifyContent:"space-between", alignItems:"center" }}>
           <div>
-            <div style={{ fontSize:11, fontWeight:700, color:"#f59e0b", letterSpacing:".12em",
+            <div style={{ fontSize:11, fontWeight:700, color:"#e8600a", letterSpacing:".12em",
               textTransform:"uppercase", marginBottom:4 }}>BuchungsWerk</div>
             <div style={{ fontSize:20, fontWeight:900, color:"#fff" }}>📈 Mein Fortschritt</div>
           </div>
@@ -8809,10 +8870,10 @@ function MasteryModal({ onSchliessen }) {
             <span style={{ fontSize:13, fontWeight:700, color:"#374151" }}>
               Themen geübt: {geuebt} / {gesamt}
             </span>
-            <span style={{ fontSize:13, fontWeight:800, color:"#f59e0b" }}>{pct}%</span>
+            <span style={{ fontSize:13, fontWeight:800, color:"#e8600a" }}>{pct}%</span>
           </div>
           <div style={{ height:10, background:"#e2e8f0", borderRadius:10, overflow:"hidden" }}>
-            <div style={{ height:"100%", width:`${pct}%`, background:"linear-gradient(90deg,#22c55e,#f59e0b)",
+            <div style={{ height:"100%", width:`${pct}%`, background:"linear-gradient(90deg,#22c55e,#e8600a)",
               borderRadius:10, transition:"width 0.5s" }} />
           </div>
           {/* Klassen-Filter */}
@@ -8822,7 +8883,7 @@ function MasteryModal({ onSchliessen }) {
                 style={{ padding:"4px 12px", borderRadius:20, border:"1.5px solid",
                   borderColor: filterKlasse===k ? "#0f172a" : "#e2e8f0",
                   background: filterKlasse===k ? "#0f172a" : "#fff",
-                  color: filterKlasse===k ? "#f59e0b" : "#64748b",
+                  color: filterKlasse===k ? "#e8600a" : "#64748b",
                   fontWeight:700, fontSize:11, cursor:"pointer" }}>
                 {k === "alle" ? "Alle Klassen" : `Klasse ${k}`}
               </button>
@@ -8848,7 +8909,9 @@ function MasteryModal({ onSchliessen }) {
                       <div key={task.id} style={{ display:"flex", alignItems:"center", gap:10,
                         padding:"8px 12px", borderRadius:10, background:ml.bg,
                         border:`1px solid ${ml.color}33` }}>
-                        <span style={{ fontSize:16, flexShrink:0 }}>{ml.icon}</span>
+                        <span style={{ flexShrink:0, color:ml.color, display:"flex" }}>
+                          {ml.level >= 4 ? <Trophy size={16} strokeWidth={1.5}/> : ml.level === 3 ? <Star size={16} strokeWidth={1.5}/> : ml.level === 2 ? <TrendingUp size={16} strokeWidth={1.5}/> : ml.level === 1 ? <Sprout size={16} strokeWidth={1.5}/> : <span style={{ fontSize:14, color:"#94a3b8" }}>○</span>}
+                        </span>
                         <div style={{ flex:1, minWidth:0 }}>
                           <div style={{ fontSize:12, fontWeight:600, color:"#0f172a",
                             whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
@@ -8876,12 +8939,12 @@ function MasteryModal({ onSchliessen }) {
         <div style={{ padding:"12px 24px", borderTop:"1px solid #f1f5f9", background:"#f8fafc",
           display:"flex", gap:12, flexWrap:"wrap" }}>
           {[
-            { icon:"🌱", label:"Beginner (1×)" },
-            { icon:"📈", label:"Geübt (5×)" },
-            { icon:"⭐", label:"Fortgesch. (10×)" },
-            { icon:"🏆", label:"Meister (20×)" },
-          ].map(({ icon, label }) => (
-            <span key={label} style={{ fontSize:11, color:"#64748b" }}>{icon} {label}</span>
+            { IconC: Sprout,    color:"#16a34a", label:"Beginner (1×)" },
+            { IconC: TrendingUp, color:"#2563eb", label:"Geübt (5×)" },
+            { IconC: Star,      color:"#7c3aed", label:"Fortgesch. (10×)" },
+            { IconC: Trophy,    color:"#f59e0b", label:"Meister (20×)" },
+          ].map(({ IconC, color, label }) => (
+            <span key={label} style={{ fontSize:11, color:"#64748b", display:"flex", alignItems:"center", gap:4 }}><IconC size={12} strokeWidth={1.5} color={color}/>{label}</span>
           ))}
         </div>
       </div>
@@ -8898,11 +8961,11 @@ function EinstellungenModal({ settings, setSettings, onSchliessen }) {
   function speichern() { setSettings(local); speichereSettings(local); onSchliessen(); }
 
   const tabs = [
-    { id:"profil",   icon:"👤", label:"Profil"    },
-    { id:"aufgaben", icon:"⚙️", label:"Aufgaben"  },
-    { id:"anzeige",  icon:"👁", label:"Anzeige"   },
-    { id:"export",   icon:"📤", label:"Export"    },
-    { id:"hilfe",    icon:"❓", label:"Hilfe"     },
+    { id:"profil",   icon: User,       label:"Profil"    },
+    { id:"aufgaben", icon: Settings2,  label:"Aufgaben"  },
+    { id:"anzeige",  icon: Eye,        label:"Anzeige"   },
+    { id:"export",   icon: Download,   label:"Export"    },
+    { id:"hilfe",    icon: HelpCircle, label:"Hilfe"     },
   ];
 
   const row = (label, children) => (
@@ -8921,25 +8984,25 @@ function EinstellungenModal({ settings, setSettings, onSchliessen }) {
 
   return (
     <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.55)", zIndex:2000, display:"flex", alignItems:"center", justifyContent:"center", padding:"16px" }}>
-      <div style={{ background:"#fff", borderRadius:"20px", width:"100%", maxWidth:"560px", maxHeight:"90vh", overflow:"hidden", display:"flex", flexDirection:"column", boxShadow:"0 24px 64px rgba(0,0,0,0.25)" }}>
+      <div style={{ background:"rgba(22,16,8,0.97)", backdropFilter:"blur(24px)", WebkitBackdropFilter:"blur(24px)", border:"1px solid rgba(240,236,227,0.12)", borderRadius:"20px", width:"100%", maxWidth:"560px", maxHeight:"90vh", overflow:"hidden", display:"flex", flexDirection:"column", boxShadow:"0 24px 64px rgba(0,0,0,0.6)" }}>
         {/* Header */}
-        <div style={{ background:"linear-gradient(135deg,#0f172a,#1e293b)", padding:"20px 24px", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+        <div style={{ background:"linear-gradient(135deg,#1a1208,#251a0a)", borderBottom:"2px solid #e8600a", padding:"20px 24px", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
           <div>
-            <div style={{ fontSize:"11px", fontWeight:700, color:"#f59e0b", letterSpacing:".12em", textTransform:"uppercase", marginBottom:"4px" }}>BuchungsWerk</div>
-            <div style={{ fontSize:"20px", fontWeight:900, color:"#fff" }}>⚙️ Einstellungen</div>
+            <div style={{ fontSize:"11px", fontWeight:700, color:"#e8600a", letterSpacing:".12em", textTransform:"uppercase", marginBottom:"4px" }}>BuchungsWerk</div>
+            <div style={{ fontSize:"20px", fontWeight:900, color:"#f0ece3" }}>Einstellungen</div>
           </div>
-          <button onClick={onSchliessen} style={{ background:"transparent", border:"1.5px solid #334155", borderRadius:"10px", color:"#94a3b8", width:"36px", height:"36px", cursor:"pointer", fontSize:"18px" }}>✕</button>
+          <button onClick={onSchliessen} style={{ background:"transparent", border:"1.5px solid rgba(240,236,227,0.2)", borderRadius:"10px", color:"rgba(240,236,227,0.5)", width:"36px", height:"36px", cursor:"pointer", fontSize:"18px" }}>✕</button>
         </div>
 
         {/* Tabs */}
-        <div style={{ display:"flex", borderBottom:"2px solid #f1f5f9", background:"#f8fafc" }}>
+        <div style={{ display:"flex", borderBottom:"2px solid rgba(240,236,227,0.1)", background:"rgba(240,236,227,0.03)" }}>
           {tabs.map(t => (
             <button key={t.id} onClick={() => setTab(t.id)}
               style={{ flex:1, padding:"12px 8px", border:"none", background:"transparent", cursor:"pointer", fontSize:"12px", fontWeight:tab===t.id?800:500,
-                color:tab===t.id?"#0f172a":"#64748b",
-                borderBottom:`3px solid ${tab===t.id?"#f59e0b":"transparent"}`,
+                color:tab===t.id?"#f0ece3":"rgba(240,236,227,0.45)",
+                borderBottom:`3px solid ${tab===t.id?"#e8600a":"transparent"}`,
                 transition:"all 0.15s" }}>
-              <div style={{ fontSize:"18px", marginBottom:"2px" }}>{t.icon}</div>
+              <div style={{ marginBottom:"4px", display:"flex", justifyContent:"center" }}>{React.createElement(t.icon, { size: 18, strokeWidth: 1.5 })}</div>
               {t.label}
             </button>
           ))}
@@ -8988,8 +9051,8 @@ function EinstellungenModal({ settings, setSettings, onSchliessen }) {
               {chk("anschaffungsnebenkosten", "Anschaffungsnebenkosten (Bezugskosten) verwenden")}
               <div style={{ height:1, background:"#f1f5f9", margin:"4px 0" }} />
               {chk("einfacheBetraege", "Einfache (runde) Beträge bevorzugen")}
-              <div style={{ marginTop:"16px", padding:"10px 14px", background:"#fffbeb", borderRadius:"10px", border:"1px solid #fde68a", fontSize:"12px", color:"#92400e" }}>
-                ⚠️ Änderungen wirken sich auf neu generierte Aufgaben aus, nicht auf bereits erstellte.
+              <div style={{ marginTop:"16px", padding:"10px 14px", background:"#fffbeb", borderRadius:"10px", border:"1px solid #fde68a", fontSize:"12px", color:"#92400e", display:"flex", alignItems:"flex-start", gap:6 }}>
+                <AlertTriangle size={12} strokeWidth={1.5} style={{flexShrink:0,marginTop:1}}/><span>Änderungen wirken sich auf neu generierte Aufgaben aus, nicht auf bereits erstellte.</span>
               </div>
               <div style={{ fontSize:"12px", fontWeight:700, color:"#94a3b8", textTransform:"uppercase", letterSpacing:".1em", margin:"20px 0 12px" }}>Anrede</div>
               {chk("anredeKlasse10", 'Klasse 10: Schüler automatisch mit "Sie" ansprechen')}
@@ -9007,7 +9070,7 @@ function EinstellungenModal({ settings, setSettings, onSchliessen }) {
               <div style={{ padding:"12px 0", borderBottom:"1px solid #f1f5f9" }}>
                 <div style={{ fontSize:"14px", color:"#374151", fontWeight:500, marginBottom:"8px" }}>Standard-Belegmodus</div>
                 <div style={{ display:"flex", gap:"8px" }}>
-                  {[["beleg","📄 Beleg"],["text","📝 Geschäftsfall"]].map(([v,l]) => (
+                  {[["beleg","Beleg"],["text","Geschäftsfall"]].map(([v,l]) => (
                     <button key={v} onClick={() => set("belegModus",v)}
                       style={{ flex:1, padding:"10px", border:`2px solid ${local.belegModus===v?"#0f172a":"#e2e8f0"}`,
                         borderRadius:"10px", background:local.belegModus===v?"#0f172a":"#fff",
@@ -9021,7 +9084,7 @@ function EinstellungenModal({ settings, setSettings, onSchliessen }) {
               <div style={{ padding:"12px 0" }}>
                 <div style={{ fontSize:"14px", color:"#374151", fontWeight:500, marginBottom:"8px" }}>Lösungsfarbe</div>
                 <div style={{ display:"flex", gap:"8px", flexWrap:"wrap" }}>
-                  {[["#16a34a","🟢 Grün"],["#1d4ed8","🔵 Blau"],["#dc2626","🔴 Rot"],["#7c3aed","🟣 Lila"],["#0f172a","⚫ Schwarz"]].map(([c,l]) => (
+                  {[["#16a34a","Grün"],["#1d4ed8","Blau"],["#dc2626","Rot"],["#7c3aed","Lila"],["#0f172a","Schwarz"]].map(([c,l]) => (
                     <button key={c} onClick={() => set("loesungsfarbe",c)}
                       style={{ padding:"7px 14px", border:`2.5px solid ${local.loesungsfarbe===c?c:"#e2e8f0"}`,
                         borderRadius:"20px", background:local.loesungsfarbe===c?c+"18":"#fff",
@@ -9038,21 +9101,21 @@ function EinstellungenModal({ settings, setSettings, onSchliessen }) {
             <div>
               <div style={{ fontSize:"12px", fontWeight:700, color:"#94a3b8", textTransform:"uppercase", letterSpacing:".1em", marginBottom:"16px" }}>Standard-Exportformat</div>
               <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"10px", marginBottom:"20px" }}>
-                {[["word","📝 Word / Pages","Empfohlen für iPad"],["pdf","📄 PDF","Direkt druckbereit"]].map(([v,l,d]) => (
+                {[["word","Word / Pages","Empfohlen für iPad"],["pdf","PDF","Direkt druckbereit"]].map(([v,l,d]) => (
                   <button key={v} onClick={() => set("exportFormat",v)}
                     style={{ padding:"16px", border:`2.5px solid ${local.exportFormat===v?"#0f172a":"#e2e8f0"}`,
                       borderRadius:"14px", background:local.exportFormat===v?"#0f172a":"#fff",
                       color:local.exportFormat===v?"#fff":"#475569", cursor:"pointer", textAlign:"left" }}>
                     <div style={{ fontWeight:700, fontSize:"14px", marginBottom:"2px" }}>{l}</div>
                     <div style={{ fontSize:"11px", opacity:0.6 }}>{d}</div>
-                    {local.exportFormat===v && <div style={{ marginTop:"6px", fontSize:"11px", color:"#f59e0b" }}>✓ Standard</div>}
+                    {local.exportFormat===v && <div style={{ marginTop:"6px", fontSize:"11px", color:"#e8600a" }}>✓ Standard</div>}
                   </button>
                 ))}
               </div>
               <div style={{ fontSize:"12px", fontWeight:700, color:"#94a3b8", textTransform:"uppercase", letterSpacing:".1em", marginBottom:"12px" }}>Über BuchungsWerk</div>
               <div style={{ background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:"10px", padding:"14px 16px", fontSize:"13px", color:"#374151" }}>
-                <div style={{ fontWeight:700, fontSize:"15px", marginBottom:"6px" }}>Buchungs<span style={{ color:"#f59e0b" }}>Werk</span></div>
-                <div>Version: 2025 · Bayern · Realschule BwR</div>
+                <div style={{ fontWeight:700, fontSize:"15px", marginBottom:"6px" }}>Buchungs<span style={{ color:"#e8600a" }}>Werk</span></div>
+                <div>Version: 2026 · Bayern · Realschule BwR</div>
                 <div style={{ color:"#94a3b8", fontSize:"12px", marginTop:"4px" }}>Für den Einsatz an bayerischen Realschulen im Fach BwR.</div>
                 {(local.lehrerVorname || local.stammschule) && (
                   <div style={{ marginTop:"8px", paddingTop:"8px", borderTop:"1px solid #e2e8f0", color:"#64748b" }}>
@@ -9090,7 +9153,7 @@ function EinstellungenModal({ settings, setSettings, onSchliessen }) {
                 </div>
               ))}
               <div style={{ marginTop:14, padding:"11px 14px", background:"#fffbeb", border:"1px solid #fde68a", borderRadius:10, fontSize:12, color:"#92400e" }}>
-                <strong>Probleme oder Feedback?</strong><br />Den 💬 Support-Button unten rechts verwenden – danke!
+                <strong>Probleme oder Feedback?</strong><br />Den Support-Button unten rechts verwenden – danke!
               </div>
             </div>
           )}
@@ -9103,8 +9166,8 @@ function EinstellungenModal({ settings, setSettings, onSchliessen }) {
             Abbrechen
           </button>
           <button onClick={speichern} style={{ flex:2, padding:"12px", background:"#0f172a", color:"#fff", border:"none", borderRadius:"10px", fontWeight:800, fontSize:"14px", cursor:"pointer",
-            boxShadow:"0 4px 16px rgba(15,23,42,0.25)" }}>
-            💾 Speichern
+            boxShadow:"0 4px 16px rgba(15,23,42,0.25)", display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
+            <Save size={16} strokeWidth={1.5}/>Speichern
           </button>
         </div>
       </div>
@@ -9115,29 +9178,298 @@ function EinstellungenModal({ settings, setSettings, onSchliessen }) {
 function DisclaimerModal({ onSchliessen }) {
   return (
     <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.65)", zIndex:9000, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
-      <div style={{ background:"#fff", borderRadius:18, maxWidth:480, width:"100%", boxShadow:"0 24px 64px rgba(0,0,0,0.3)", overflow:"hidden" }}>
-        <div style={{ background:"linear-gradient(135deg,#0f172a,#1e293b)", padding:"20px 24px", display:"flex", alignItems:"center", gap:12 }}>
+      <div style={{ background:"rgba(22,16,8,0.97)", backdropFilter:"blur(20px)", WebkitBackdropFilter:"blur(20px)", border:"1px solid rgba(240,236,227,0.12)", borderRadius:18, maxWidth:480, width:"100%", boxShadow:"0 24px 64px rgba(0,0,0,0.6)", overflow:"hidden" }}>
+        <div style={{ background:"linear-gradient(135deg,#1a1208,#251a0a)", borderBottom:"2px solid #e8600a", padding:"20px 24px", display:"flex", alignItems:"center", gap:12 }}>
           <span style={{ fontSize:28 }}>📋</span>
           <div>
-            <div style={{ fontSize:11, fontWeight:700, color:"#f59e0b", letterSpacing:".12em", textTransform:"uppercase" }}>Buchungs<span style={{color:"#fff"}}>Werk</span></div>
+            <div style={{ fontSize:11, fontWeight:700, color:"#e8600a", letterSpacing:".12em", textTransform:"uppercase" }}>Buchungs<span style={{color:"#fff"}}>Werk</span></div>
             <div style={{ fontSize:17, fontWeight:900, color:"#fff", marginTop:2 }}>Hinweis zur Qualitätssicherung</div>
           </div>
         </div>
         <div style={{ padding:"20px 24px" }}>
-          <p style={{ fontSize:14, lineHeight:1.7, color:"#374151", margin:"0 0 14px" }}>
+          <p style={{ fontSize:14, lineHeight:1.7, color:"rgba(240,236,227,0.8)", margin:"0 0 14px" }}>
             Alle Aufgaben und Musterlösungen in dieser App werden auf Basis der aktuell geltenden Handreichung und des bayerischen Lehrplans für das Fach BwR an Realschulen erstellt.
           </p>
-          <p style={{ fontSize:14, lineHeight:1.7, color:"#374151", margin:"0 0 16px" }}>
+          <p style={{ fontSize:14, lineHeight:1.7, color:"rgba(240,236,227,0.8)", margin:"0 0 16px" }}>
             Trotz sorgfältiger Konzeption können sich <strong>inhaltliche oder didaktische Fehler</strong> einschleichen. Bitte alle Aufgaben und Lösungen <strong>vor der Ausgabe an Schülerinnen und Schüler gegenchecken</strong>.
           </p>
-          <div style={{ background:"#fffbeb", border:"1px solid #fde68a", borderRadius:10, padding:"10px 14px", fontSize:12, color:"#92400e", marginBottom:20 }}>
+          <div style={{ background:"rgba(232,96,10,0.12)", border:"1px solid rgba(232,96,10,0.3)", borderRadius:10, padding:"10px 14px", fontSize:12, color:"#f0c090", marginBottom:20 }}>
             💡 Bei Auffälligkeiten gerne Feedback über den Support-Button senden – danke!
           </div>
           <button onClick={onSchliessen}
-            style={{ width:"100%", padding:"13px", background:"#0f172a", color:"#fff", border:"none", borderRadius:10, fontWeight:800, fontSize:15, cursor:"pointer", boxShadow:"0 4px 16px rgba(15,23,42,0.2)" }}>
+            style={{ width:"100%", padding:"13px", background:"#e8600a", color:"#fff", border:"none", borderRadius:10, fontWeight:800, fontSize:15, cursor:"pointer", boxShadow:"0 4px 16px rgba(232,96,10,0.3)" }}>
             ✓ Verstanden – App öffnen
           </button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ── AP-Übung Modal ─────────────────────────────────────────────────────────────
+const WAHLTEIL_OPTIONEN = [
+  { key:"wahlteil6", label:"Aufgabe 6 – KLR/Kalkulation",        pool: AP_WAHLTEIL_6 },
+  { key:"wahlteil7", label:"Aufgabe 7 – Forderungsmanagement",   pool: AP_WAHLTEIL_7 },
+  { key:"wahlteil8", label:"Aufgabe 8 – Beschaffung/Einkauf",    pool: AP_WAHLTEIL_8 },
+];
+
+const AUFGABEN_KEYS = [
+  { key:"aufgabe1", nr:1, titel:"Beleg & Buchführung" },
+  { key:"aufgabe2", nr:2, titel:"Wertpapiere" },
+  { key:"aufgabe3", nr:3, titel:"Deckungsbeitragsrechnung" },
+  { key:"aufgabe4", nr:4, titel:"Investition & Kosten" },
+  { key:"aufgabe5", nr:5, titel:"Jahresabschluss" },
+];
+
+function renderMD(text) {
+  if (text === null || text === undefined) return null;
+  if (typeof text !== "string") return null;
+  return text.split("\n").map((line, i, arr) => {
+    const parts = line.split(/\*\*(.*?)\*\*/g);
+    return (
+      <span key={i}>
+        {parts.map((p, j) => j % 2 === 1 ? <strong key={j}>{p}</strong> : p)}
+        {i < arr.length - 1 && <br />}
+      </span>
+    );
+  });
+}
+
+function renderBuchungssatz(loesung) {
+  if (!loesung || typeof loesung !== "object" || !loesung.soll) return null;
+  const fmtBetrag = b => b.toLocaleString("de-DE", { minimumFractionDigits:2, maximumFractionDigits:2 }) + " €";
+  const sollStr = loesung.soll.map(p => `${p.konto} ${p.name}  ${fmtBetrag(p.betrag)}`).join("\n");
+  const habenStr = loesung.haben?.map(p => `${p.konto} ${p.name}  ${fmtBetrag(p.betrag)}`).join("\n") ?? "";
+  return (
+    <div>
+      {loesung.nebenrechnung && (
+        <div style={{ color:"#94a3b8", fontSize:12, marginBottom:8, fontFamily:"'Courier New',monospace" }}>
+          {loesung.nebenrechnung.map((z, i) => <div key={i}>{z}</div>)}
+        </div>
+      )}
+      <div style={{ display:"flex", gap:16, flexWrap:"wrap" }}>
+        <div>
+          <div style={{ color:"#60a5fa", fontSize:10, fontWeight:700, marginBottom:3 }}>SOLL</div>
+          {loesung.soll.map((p, i) => (
+            <div key={i} style={{ whiteSpace:"pre" }}><span style={{ color:"#e8600a" }}>{p.konto}</span> {p.name}  {fmtBetrag(p.betrag)}</div>
+          ))}
+        </div>
+        {loesung.haben?.length > 0 && (
+          <div>
+            <div style={{ color:"#4ade80", fontSize:10, fontWeight:700, marginBottom:3 }}>HABEN</div>
+            {loesung.haben.map((p, i) => (
+              <div key={i} style={{ whiteSpace:"pre" }}><span style={{ color:"#e8600a" }}>{p.konto}</span> {p.name}  {fmtBetrag(p.betrag)}</div>
+            ))}
+          </div>
+        )}
+      </div>
+      {loesung.hinweis && <div style={{ color:"#94a3b8", fontSize:11, marginTop:6 }}>{loesung.hinweis}</div>}
+    </div>
+  );
+}
+
+function renderSchema(schema) {
+  if (!Array.isArray(schema)) return null;
+  return (
+    <table style={{ borderCollapse:"collapse", fontSize:12, width:"100%" }}>
+      <tbody>
+        {schema.map((row, i) => (
+          <tr key={i} style={{ borderBottom: row.pos?.startsWith("=") || row.pos?.startsWith("Gewinn") || row.pos?.startsWith("Verlust") ? "1px solid #4ade80" : "none" }}>
+            <td style={{ color:"#94a3b8", paddingRight:16, paddingTop:2, paddingBottom:2 }}>{row.pos}</td>
+            {Object.entries(row).filter(([k]) => k !== "pos").map(([k, v]) => (
+              <td key={k} style={{ color:"#86efac", textAlign:"right", paddingRight:12, whiteSpace:"nowrap" }}>
+                {typeof v === "number" ? v.toLocaleString("de-DE", { minimumFractionDigits:0, maximumFractionDigits:2 }) : v}
+              </td>
+            ))}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+function renderLoesung(loesung) {
+  if (loesung === null || loesung === undefined) return null;
+
+  // String
+  if (typeof loesung === "string") return <div>{renderMD(loesung)}</div>;
+
+  // Array (mehrere Buchungssätze)
+  if (Array.isArray(loesung)) {
+    return (
+      <div>
+        {loesung.map((item, i) => (
+          <div key={i} style={{ marginBottom:8 }}>
+            {item.buchungsNr && <div style={{ color:"#94a3b8", fontSize:11, marginBottom:4 }}>Bu.-Nr. {item.buchungsNr}:</div>}
+            {renderBuchungssatz(item)}
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  // Buchungssatz-Objekt
+  if (loesung.soll) return renderBuchungssatz(loesung);
+
+  // Schema (DB-Rechnung, KLR)
+  if (loesung.schema) return renderSchema(loesung.schema);
+
+  // Rechnung + Ergebnis
+  if (loesung.rechnung || loesung.ergebnis !== undefined) {
+    const fmtBetrag = b => typeof b === "number"
+      ? b.toLocaleString("de-DE", { minimumFractionDigits:2, maximumFractionDigits:2 })
+      : b;
+    return (
+      <div>
+        {Array.isArray(loesung.rechnung)
+          ? loesung.rechnung.map((z, i) => <div key={i} style={{ color:"#94a3b8", fontSize:12 }}>{z}</div>)
+          : loesung.rechnung && <div style={{ color:"#94a3b8", fontSize:12 }}>{loesung.rechnung}</div>
+        }
+        {loesung.ergebnis !== undefined && (
+          <div style={{ color:"#4ade80", fontWeight:700, marginTop:4 }}>= {fmtBetrag(loesung.ergebnis)}</div>
+        )}
+        {loesung.beurteilung && <div style={{ color:"#86efac", marginTop:4 }}>{loesung.beurteilung}</div>}
+        {loesung.entscheidung && <div style={{ color:"#4ade80", fontWeight:700, marginTop:4 }}>→ {loesung.entscheidung}</div>}
+        {loesung.hinweis && <div style={{ color:"#94a3b8", fontSize:11, marginTop:4 }}>{loesung.hinweis}</div>}
+      </div>
+    );
+  }
+
+  // Einfache Key-Value Objekte (z.B. {A:"richtig", B:"falsch"})
+  return (
+    <div>
+      {Object.entries(loesung).map(([k, v]) => (
+        <div key={k}><strong style={{ color:"#e8600a" }}>{k}:</strong> {String(v)}</div>
+      ))}
+    </div>
+  );
+}
+
+function APUebungModal({ onSchliessen }) {
+  const [satz, setSatz]               = useState(() => generiereAPSatz());
+  const [aktiveTab, setAktiveTab]     = useState("aufgabe1");
+  const [wahlteil, setWahlteil]       = useState("wahlteil6");
+  const [loesungOffen, setLoesungOffen] = useState({});
+  const [alleAuf, setAlleAuf]         = useState(false);
+
+  const neuerSatz = () => { setSatz(generiereAPSatz()); setAktiveTab("aufgabe1"); setLoesungOffen({}); setAlleAuf(false); };
+
+  const alleTabs = [
+    ...AUFGABEN_KEYS,
+    WAHLTEIL_OPTIONEN.find(w => w.key === wahlteil),
+  ];
+
+  const aktuelleAufgabe = aktiveTab === wahlteil ? satz[wahlteil] : satz[aktiveTab];
+  const teilaufgaben = aktuelleAufgabe?.teilaufgaben ?? [];
+  const geloest = teilaufgaben.filter(t => loesungOffen[t.nr]).length;
+  const gesamt = gesamtpunkte(satz, wahlteil);
+
+  const toggleL = nr => setLoesungOffen(p => ({ ...p, [nr]: !p[nr] }));
+  const toggleAlle = () => {
+    const open = !alleAuf;
+    setAlleAuf(open);
+    const m = {};
+    teilaufgaben.forEach(t => { m[t.nr] = open; });
+    setLoesungOffen(m);
+  };
+
+  return (
+    <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,.72)", zIndex:3000, display:"flex", alignItems:"stretch", justifyContent:"center" }}
+      onClick={e => e.target === e.currentTarget && onSchliessen()}>
+      <div style={{ background:"#0f172a", width:"100%", maxWidth:860, display:"flex", flexDirection:"column", boxShadow:"0 8px 40px rgba(0,0,0,.7)", overflowY:"auto" }}>
+
+        {/* Header */}
+        <div style={{ background:"linear-gradient(135deg,#1e293b,#0f172a)", borderBottom:"2px solid #e8600a", padding:"14px 20px 12px", display:"flex", alignItems:"center", gap:12, flexShrink:0 }}>
+          <span style={{ fontSize:24 }}>🎓</span>
+          <div style={{ flex:1 }}>
+            <div style={{ color:"#f8fafc", fontWeight:800, fontSize:16 }}>AP-Übung · BwR Klasse 10</div>
+            <div style={{ color:"#94a3b8", fontSize:11 }}>
+              {satz.unternehmen.name} · {gesamt} Punkte gesamt
+            </div>
+          </div>
+          <button onClick={neuerSatz}
+            style={{ background:"rgba(240,236,227,0.06)", border:"1px solid rgba(240,236,227,0.18)", color:"rgba(240,236,227,0.7)", borderRadius:7, padding:"6px 12px", cursor:"pointer", fontSize:12, fontWeight:700 }}>
+            ↻ Neuer Satz
+          </button>
+          <button onClick={onSchliessen}
+            style={{ background:"#334155", border:"none", color:"#94a3b8", borderRadius:8, padding:"7px 14px", cursor:"pointer", fontSize:13, fontWeight:700 }}>✕</button>
+        </div>
+
+        {/* Wahlteil-Selector */}
+        <div style={{ background:"#0a1120", borderBottom:"1px solid #1e293b", padding:"8px 20px", display:"flex", alignItems:"center", gap:10, flexShrink:0 }}>
+          <span style={{ color:"#64748b", fontSize:11, fontWeight:600 }}>WAHLTEIL:</span>
+          {WAHLTEIL_OPTIONEN.map(w => (
+            <button key={w.key}
+              onClick={() => { setWahlteil(w.key); if (aktiveTab !== "aufgabe1" && !AUFGABEN_KEYS.find(a => a.key === aktiveTab)) setAktiveTab(w.key); setLoesungOffen({}); setAlleAuf(false); }}
+              style={{ padding:"4px 10px", border:"none", background: wahlteil===w.key?"#e8600a":"#1e293b", color: wahlteil===w.key?"#0f172a":"#64748b", borderRadius:6, fontSize:11, fontWeight:600, cursor:"pointer" }}>
+              {w.label.split(" – ")[1]}
+            </button>
+          ))}
+        </div>
+
+        {/* Aufgaben-Tabs */}
+        <div style={{ display:"flex", borderBottom:"1px solid #1e293b", background:"#0a1120", flexShrink:0, overflowX:"auto" }}>
+          {alleTabs.map(tab => {
+            if (!tab) return null;
+            const isWahlteil = WAHLTEIL_OPTIONEN.some(w => w.key === tab.key);
+            const isActive = aktiveTab === tab.key || (isWahlteil && aktiveTab === wahlteil);
+            const aufgabe = isWahlteil ? satz[wahlteil] : satz[tab.key];
+            const punkte = aufgabe?.gesamtpunkte ?? "?";
+            return (
+              <button key={tab.key}
+                onClick={() => { setAktiveTab(isWahlteil ? wahlteil : tab.key); setLoesungOffen({}); setAlleAuf(false); }}
+                style={{ padding:"10px 13px", border:"none", background:"transparent", borderBottom: isActive?"2px solid #e8600a":"2px solid transparent", color: isActive?"#e8600a":"#64748b", fontSize:11, fontWeight:600, cursor:"pointer", whiteSpace:"nowrap", flexShrink:0 }}>
+                {isWahlteil ? `${tab.nr || "W"}. ${tab.titel}` : `${tab.nr}. ${tab.titel}`}
+                <span style={{ color:"#475569", fontSize:10, marginLeft:4 }}>({punkte}P)</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Unternehmensinfo */}
+        <div style={{ margin:"10px 20px 0", background:"#1e293b", borderRadius:8, padding:"8px 14px", fontSize:11, color:"#94a3b8", lineHeight:1.6, flexShrink:0 }}>
+          <strong style={{ color:"#e8600a" }}>Unternehmen: </strong>
+          {satz.unternehmen.name} · {satz.unternehmen.anschrift} · Branche: {satz.unternehmen.branche}
+          {" · "}GJ: {satz.unternehmen.gj}
+        </div>
+
+        {/* Aufgaben-Header */}
+        <div style={{ padding:"12px 20px 8px", borderBottom:"1px solid #1e293b", flexShrink:0, display:"flex", alignItems:"center", justifyContent:"space-between", gap:12 }}>
+          <div style={{ color:"#64748b", fontSize:11 }}>
+            {geloest}/{teilaufgaben.length} Lösungen geöffnet
+            {aktuelleAufgabe?.gesamtpunkte && <span style={{ marginLeft:8 }}>· {aktuelleAufgabe.gesamtpunkte} Punkte</span>}
+          </div>
+          <button onClick={toggleAlle}
+            style={{ background: alleAuf?"#065f46":"#334155", border:"none", color:"#fff", borderRadius:7, padding:"5px 11px", cursor:"pointer", fontSize:11, fontWeight:700 }}>
+            {alleAuf ? "Alle zuklappen" : "Alle Lösungen"}
+          </button>
+        </div>
+
+        {/* Teilaufgaben */}
+        <div style={{ padding:"10px 20px 24px", flex:1 }}>
+          {teilaufgaben.map(ta => (
+            <div key={ta.nr} style={{ marginBottom:10, background:"#1e293b", borderRadius:10, overflow:"hidden", border:"1px solid #334155" }}>
+              <div style={{ padding:"9px 14px", display:"flex", alignItems:"center", gap:8 }}>
+                <span style={{ background:"#e8600a", color:"#0f172a", borderRadius:5, padding:"2px 8px", fontSize:11, fontWeight:800, flexShrink:0 }}>{ta.nr}</span>
+                <span style={{ color:"#64748b", fontSize:11 }}>{ta.punkte} {ta.punkte === 1 ? "Punkt" : "Punkte"}</span>
+                <button onClick={() => toggleL(ta.nr)}
+                  style={{ marginLeft:"auto", background: loesungOffen[ta.nr]?"#065f46":"#1e3a5f", border:"none", color: loesungOffen[ta.nr]?"#4ade80":"#60a5fa", borderRadius:6, padding:"4px 10px", cursor:"pointer", fontSize:11, fontWeight:700 }}>
+                  {loesungOffen[ta.nr] ? "✓ Lösung" : "Lösung zeigen"}
+                </button>
+              </div>
+              <div style={{ padding:"10px 14px 12px", fontSize:13, color:"#cbd5e1", lineHeight:1.7, fontFamily:"'Segoe UI',sans-serif", borderTop:"1px solid #0f172a" }}>
+                {ta.text}
+              </div>
+              {loesungOffen[ta.nr] && (
+                <div style={{ padding:"12px 14px", fontSize:13, color:"#86efac", lineHeight:1.8, borderTop:"1px solid #0f172a", background:"#052e16", fontFamily:"'Courier New',monospace" }}>
+                  <div style={{ color:"#4ade80", fontWeight:700, fontSize:10, marginBottom:6, fontFamily:"'Segoe UI',sans-serif", letterSpacing:".06em" }}>✓ MUSTERLÖSUNG</div>
+                  {renderLoesung(ta.loesung)}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+
       </div>
     </div>
   );
@@ -9151,6 +9483,7 @@ export default function BuchungsWerk() {
   const [belegEditorOffen, setBelegEditorOffen]   = useState(false);
   const [kontenplanOffen, setKontenplanOffen]     = useState(false);
   const [materialienStartOffen, setMaterialienStartOffen] = useState(false);
+  const [apUebungOffen, setApUebungOffen]                 = useState(false);
   const [einstellungenOffen, setEinstellungenOffen] = useState(false);
   const [settings, setSettings] = useState(ladeSettings);
   const [streak, setStreak] = useState(ladeStreak);
@@ -9180,6 +9513,7 @@ export default function BuchungsWerk() {
       {eigeneBelegeOffen && <EigeneBelege onSchliessen={() => setEigeneBelegeOffen(false)} />}
       {kontenplanOffen   && <KontenplanModal   onSchliessen={() => setKontenplanOffen(false)} />}
       {materialienStartOffen && <MaterialienModal onSchliessen={() => setMaterialienStartOffen(false)} onLaden={materialLaden} />}
+      {apUebungOffen && <APUebungModal onSchliessen={() => setApUebungOffen(false)} />}
       <div style={S.topbar}>
         {/* Logo – links */}
         <div style={{ display:"flex", alignItems:"center", gap:10 }}>
@@ -9190,10 +9524,12 @@ export default function BuchungsWerk() {
           {streak.count > 0 && (
             <div title={`${streak.count} Tag${streak.count===1?"":"e"} in Folge aktiv · Rekord: ${streak.longest} Tage`}
               style={{ display:"flex", flexDirection:"column", alignItems:"center", background:"#1e293b",
-                border:`1.5px solid ${streak.count>=7?"#f59e0b":"#334155"}`, borderRadius:8,
+                border:`1.5px solid ${streak.count>=7?"#e8600a":"#334155"}`, borderRadius:8,
                 padding:"3px 8px", cursor:"default", minWidth:38 }}>
-              <span style={{ fontSize:15, lineHeight:1 }}>{streakEmoji(streak.count)}</span>
-              <span style={{ fontSize:10, fontWeight:800, color: streak.count>=7?"#f59e0b":"#94a3b8",
+              <span style={{ lineHeight:1, color: streak.count>=30?"#f59e0b": streak.count>=14?"#e8600a": streak.count>=7?"#facc15": streak.count>=3?"#a78bfa":"#86efac", display:"flex" }}>
+                {streak.count>=30 ? <Trophy size={15} strokeWidth={1.5}/> : streak.count>=14 ? <Flame size={15} strokeWidth={1.5}/> : streak.count>=7 ? <Zap size={15} strokeWidth={1.5}/> : streak.count>=3 ? <Star size={15} strokeWidth={1.5}/> : <Sprout size={15} strokeWidth={1.5}/>}
+              </span>
+              <span style={{ fontSize:10, fontWeight:800, color: streak.count>=7?"#e8600a":"#94a3b8",
                 letterSpacing:".02em", lineHeight:1.3 }}>{streak.count}d</span>
             </div>
           )}
@@ -9209,21 +9545,21 @@ export default function BuchungsWerk() {
               return (
                 <React.Fragment key={s}>
                   {i > 0 && (
-                    <div style={{ width: 36, height: 2, background: done ? "#22c55e" : "#1e293b", flexShrink: 0 }} />
+                    <div style={{ width: 36, height: 2, background: done ? "rgba(240,236,227,0.25)" : "rgba(240,236,227,0.08)", flexShrink: 0 }} />
                   )}
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
                     <div style={{
                       width: 26, height: 26, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center",
                       fontSize: done ? 12 : 11, fontWeight: 800,
-                      background: done ? "#22c55e" : active ? "#f59e0b" : "#1e293b",
-                      color: done ? "#fff" : active ? "#0f172a" : "#475569",
-                      border: active ? "none" : done ? "none" : "1.5px solid #334155",
-                      boxShadow: active ? "0 0 0 3px rgba(245,158,11,0.25)" : "none",
+                      background: done ? "rgba(240,236,227,0.18)" : active ? "linear-gradient(180deg,#f07320,#e8600a)" : "rgba(240,236,227,0.06)",
+                      color: done ? "rgba(240,236,227,0.6)" : active ? "#fff" : "rgba(240,236,227,0.3)",
+                      border: active ? "1px solid rgba(255,170,60,0.3)" : done ? "none" : "1px solid rgba(240,236,227,0.12)",
+                      boxShadow: active ? "0 0 14px rgba(232,96,10,0.5), 0 2px 0 rgba(0,0,0,0.4)" : "none",
                       transition: "all 0.2s"
                     }}>
                       {done ? "✓" : s}
                     </div>
-                    <span style={{ fontSize: 8, fontWeight: active ? 700 : 500, color: active ? "#f59e0b" : done ? "#22c55e" : "#475569", letterSpacing: ".05em", textTransform: "uppercase", whiteSpace: "nowrap" }}>
+                    <span style={{ fontSize: 8, fontWeight: active ? 700 : 500, color: active ? "#e8600a" : done ? "rgba(240,236,227,0.45)" : "rgba(240,236,227,0.25)", letterSpacing: ".05em", textTransform: "uppercase", whiteSpace: "nowrap" }}>
                       {label}
                     </span>
                   </div>
@@ -9243,19 +9579,20 @@ export default function BuchungsWerk() {
       </div>
 
       {/* Bottom-Bar – nur Tools, kein Stepper */}
-      <div style={{ borderTop:"1px solid #1e293b", background:"#0a1120", padding:"0 8px", height:56, display:"flex", alignItems:"center", justifyContent:"space-around", position:"sticky", bottom:0, zIndex:100, flexShrink:0 }}>
+      <div style={{ borderTop:"1px solid rgba(240,236,227,0.1)", background:"rgba(14,10,4,0.9)", backdropFilter:"blur(20px)", WebkitBackdropFilter:"blur(20px)", padding:"0 8px", height:56, display:"flex", alignItems:"center", justifyContent:"space-around", position:"sticky", bottom:0, zIndex:100, flexShrink:0 }}>
         {[
-          { icon:"📈", label:"Fortschritt",  action: () => setMasteryOffen(true) },
-          { icon:"📚", label:"Materialien",  action: () => setMaterialienStartOffen(true) },
-          { icon:"✏️", label:"Beleg-Editor", action: () => setBelegEditorOffen(true) },
-          { icon:"📖", label:"Kontenplan",   action: () => setKontenplanOffen(true) },
-          { icon:"⚙️", label:"Einstell.",    action: () => setEinstellungenOffen(true) },
+          { icon: TrendingUp,    label:"Fortschritt",  action: () => setMasteryOffen(true) },
+          { icon: BookOpen,      label:"Materialien",  action: () => setMaterialienStartOffen(true) },
+          { icon: GraduationCap, label:"AP-Übung",     action: () => setApUebungOffen(true) },
+          { icon: ReceiptEuro,   label:"Beleg-Editor", action: () => setBelegEditorOffen(true) },
+          { icon: BookMarked,    label:"Kontenplan",   action: () => setKontenplanOffen(true) },
+          { icon: Settings,      label:"Einstell.",    action: () => setEinstellungenOffen(true) },
         ].map(({ icon, label, action }) => (
           <button key={label} onClick={action}
             style={{ background:"transparent", border:"none", cursor:"pointer", display:"flex", flexDirection:"column", alignItems:"center", gap:2, padding:"6px 10px", borderRadius:8, color:"#475569", transition:"color 0.15s" }}
-            onMouseEnter={e => e.currentTarget.style.color="#f59e0b"}
+            onMouseEnter={e => e.currentTarget.style.color="#e8600a"}
             onMouseLeave={e => e.currentTarget.style.color="#475569"}>
-            <span style={{ fontSize:19, lineHeight:1 }}>{icon}</span>
+            {React.createElement(icon, { size: 20, strokeWidth: 1.5 })}
             <span style={{ fontSize:9, fontWeight:600, letterSpacing:".04em", textTransform:"uppercase", whiteSpace:"nowrap" }}>{label}</span>
           </button>
         ))}
