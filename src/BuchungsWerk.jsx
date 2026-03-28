@@ -8637,13 +8637,30 @@ const BANK_AUFGABEN = [
     },
     soll:[], haben:[], betrag:0,
     erklaerung:"Aktiv (Vermögen): BK, KA, FO. Passiv (Kapital): VE (Schulden), EK (Eigenkapital). Aktiva = Mittelverwendung, Passiva = Mittelherkunft." },
+
+  // ── Freitext-Aufgaben (Kl. 7) ─────────────────────────────────────────────
+  { id:"ft7_1", typ:"freitext", ansicht:"konto", punkte:2, aktion:"freitext",
+    titel:"Freitext: Grundsätze ordnungsgem. Buchführung",
+    story:"Dein Chef fragt dich vor dem Steuerberater-Termin: Was bedeuten eigentlich die GoB?",
+    aufgabe:"Erkläre in 2–3 Sätzen: Was sind die Grundsätze ordnungsgemäßer Buchführung (GoB) und wozu dienen sie?",
+    freitext:{ zeilen:4, minZeichen:40,
+      loesung:"Die GoB (Grundsätze ordnungsgemäßer Buchführung, §238 HGB) regeln, wie die Buchführung zu erfolgen hat. Wichtige Grundsätze sind: Vollständigkeit, Richtigkeit, Zeitgerechtheit, Klarheit und das Belegprinzip (keine Buchung ohne Beleg). Ziel: Dritte (z.B. Finanzamt, Gläubiger) sollen sich ein klares Bild der wirtschaftlichen Lage machen können." },
+    erklaerung:"GoB: Grundsätze ordnungsgem. Buchführung – Vollständigkeit, Richtigkeit, Zeitgerechtheit, Klarheit, Belegprinzip. Rechtsgrundlage: §238 HGB. Klasse 7, LB 3." },
+
+  { id:"ft7_2", typ:"freitext", ansicht:"konto", punkte:2, aktion:"freitext",
+    titel:"Freitext: Bestandskonto vs. Erfolgskonto",
+    story:"Dein Mitschüler Leo fragt dich: Was ist der Unterschied zwischen einem Bestandskonto und einem Erfolgskonto?",
+    aufgabe:"Erkläre den Unterschied zwischen Bestandskonto und Erfolgskonto. Nenne je ein Beispiel.",
+    freitext:{ zeilen:4, minZeichen:40,
+      loesung:"Bestandskonten zeigen, was ein Unternehmen HAT (Vermögen) oder SCHULDET (Kapital). Sie erscheinen in der Bilanz und werden am Jahresende über den SBK abgeschlossen. Beispiel: BK (Bank), VE (Verbindlichkeiten). Erfolgskonten zeigen Aufwendungen oder Erträge einer Periode. Sie werden über die GuV abgeschlossen. Beispiel: LG (Löhne, Aufwand), UEFE (Umsatzerlöse, Ertrag)." },
+    erklaerung:"Bestandskonten: Bilanz (Aktiv/Passiv) → SBK-Abschluss. Erfolgskonten: GuV (Aufwand/Ertrag) → GuV-Abschluss. Kl.7 LB 3/5." },
 ];
 
 // Welches Desk-Item ist für welchen Aufgabentyp zuständig?
 const DESK_MAP = { buchung:"email", ueberweisung:"pc", dauerauftrag:"kalender", beleg:"post", theorie:"email",
   aktie_kauf:"boerse", aktie_verkauf:"boerse", dividende:"post",
   klr:"klr",
-  lueckentext:"email", zuordnung:"post", multi_mc:"email" };
+  lueckentext:"email", zuordnung:"post", multi_mc:"email", freitext:"email" };
 
 // ── Klasse 8 – Simulationsaufgaben ────────────────────────────────────────────
 const BANK8_AUFGABEN = [
@@ -8828,6 +8845,23 @@ const BANK8_AUFGABEN = [
     multiKorrekt:[0, 2, 3],
     soll:[], haben:[], betrag:0,
     erklaerung:"Richtig: A, C, D – Löhne LG (6200) ins Soll (Aufwand steigt). Bank BK (2800) ins Haben (sinkt). LG ist ein Aufwandskonto. B ist falsch: BK kommt ins Haben, nicht ins Soll. (Kl.8 LB5)" },
+
+  // ── Freitext-Aufgaben (Kl. 8) ─────────────────────────────────────────────
+  { id:"ft8_1", typ:"freitext", ansicht:"konto", punkte:2, aktion:"freitext",
+    titel:"Freitext: Skonto, Rabatt, Bonus – Unterschiede",
+    story:"Beim Durchsehen der Eingangsrechnung von Bayern Rohstoffe GmbH siehst du: 3 % Rabatt, 2 % Skonto, Jahresbonus 1 %.",
+    aufgabe:"Erkläre den Unterschied zwischen Rabatt, Skonto und Bonus. Wann wird welcher gewährt?",
+    freitext:{ zeilen:5, minZeichen:50,
+      loesung:"Rabatt: Preisnachlass beim Kauf, z.B. für große Abnahmemengen oder als Treuerabatt – wird sofort vom Listenpreis abgezogen (Anschaffungspreisminderung, Konto NR/NF/NH). Skonto: Preisnachlass für schnelle Zahlung innerhalb der Skontofrist (z.B. 2 % bei Zahlung binnen 10 Tagen) – Konto EBFE/5001 beim Verkauf, NR-ähnlich beim Einkauf. Bonus: Nachträglicher Jahresrabatt bei Erreichen einer bestimmten Abnahmemenge, wird am Jahresende gutgeschrieben. Alle drei sind Anschaffungspreisminderungen." },
+    erklaerung:"Rabatt (sofort), Skonto (bei früher Zahlung), Bonus (nachträglich bei Jahresumsatz). Alle mindern die Anschaffungskosten. Kl.8 LB2." },
+
+  { id:"ft8_2", typ:"freitext", ansicht:"konto", punkte:2, aktion:"freitext",
+    titel:"Freitext: Warum Rohstoffverbrauch als Aufwand?",
+    story:"Dein Chef erklärt dir die Gewinn- und Verlustrechnung. Er fragt: Weißt du, warum der Rohstoffeinsatz als Aufwand erscheint und nicht einfach als Lagerbestand stehen bleibt?",
+    aufgabe:"Begründe, warum der Rohstoffverbrauch (Einsatz für die Produktion) als Aufwand gebucht wird und nicht als Bestand.",
+    freitext:{ zeilen:4, minZeichen:40,
+      loesung:"Wenn Rohstoffe ins Lager kommen, sind sie Vermögen (Bestandskonto R, 2000) – das Unternehmen hat etwas. Sobald sie für die Produktion verbraucht werden, verlässt ihr Wert das Unternehmen: Sie werden zu einem Produkt umgewandelt, dessen Wert noch nicht realisiert ist. Dieser Verbrauch senkt das Vermögen und ist deshalb ein Aufwand (AWR 6000) – er erscheint in der GuV und mindert den Gewinn. Buchungssatz: AWR an R." },
+    erklaerung:"Rohstoffe im Lager = Bestand (Aktivkonto). Rohstoffverbrauch für Produktion = Aufwand (AWR 6000). GoB: Aufwände werden in der Periode erfasst, in der sie entstehen. Kl.8 LB2/LB4." },
 ];
 
 const KALENDER8_EINTRAEGE = [
@@ -9098,6 +9132,23 @@ const BANK9_AUFGABEN = [
     },
     soll:[], haben:[], betrag:0,
     erklaerung:"Anlagevermögen (dauerhafter Nutzen): MA, WP (Depot 1500). Umlaufvermögen (kurzfristig): FO, BK, R (Vorräte). (Kl.9 LB2/LB4)" },
+
+  // ── Freitext-Aufgaben (Kl. 9) ─────────────────────────────────────────────
+  { id:"ft9_1", typ:"freitext", ansicht:"konto", punkte:2, aktion:"freitext",
+    titel:"Freitext: Eigen- vs. Fremdfinanzierung",
+    story:"Die Geschäftsleitung berät über die Finanzierung einer neuen Maschine (60.000 €). Option A: Eigenkapitalerhöhung, Option B: Bankdarlehen.",
+    aufgabe:"Nenne je zwei Vor- und Nachteile der Eigenfinanzierung und der Fremdfinanzierung.",
+    freitext:{ zeilen:6, minZeichen:60,
+      loesung:"Eigenfinanzierung – Vorteile: keine Zinsen, keine Rückzahlungspflicht, volle Unabhängigkeit vom Kreditgeber. Nachteile: Kapital muss im Unternehmen vorhanden sein / aufgebracht werden, Gewinn muss einbehalten werden (Liquiditätsbindung). Fremdfinanzierung – Vorteile: sofortiger Kapitalbedarf gedeckt auch ohne eigenes Kapital, Zinsen als Betriebsausgabe steuerlich absetzbar. Nachteile: Zinszahlungen (Aufwand, Konto ZAW 7510), Tilgungspflicht, Abhängigkeit vom Gläubiger, Sicherheiten erforderlich." },
+    erklaerung:"Eigenfinanzierung: EK-Erhöhung ohne Schulden, aber Kapitalaufbringung nötig. Fremdfinanzierung: Bankkredit mit Zinsen (ZAW 7510) und Tilgung, dafür sofort verfügbar. Kl.9 LB3." },
+
+  { id:"ft9_2", typ:"freitext", ansicht:"konto", punkte:2, aktion:"freitext",
+    titel:"Freitext: Warum Abschreibungen?",
+    story:"Beim Jahresgespräch mit dem Steuerberater fragt er dich: Erklär mir mal in eigenen Worten, warum wir überhaupt abschreiben.",
+    aufgabe:"Erkläre, was Abschreibungen sind, warum sie notwendig sind und welche Wirkung sie auf Gewinn und Liquidität haben.",
+    freitext:{ zeilen:5, minZeichen:50,
+      loesung:"Abschreibungen (ABSA 6520) erfassen die jährliche Wertminderung von Sachanlagen durch Nutzung, Verschleiß oder wirtschaftliche Veralterung. Sie sind notwendig, weil Anschaffungskosten nicht im Kaufjahr voll als Aufwand verrechnet werden dürfen – der Aufwand muss auf die Nutzungsdauer verteilt werden (Periodenabgrenzung). Wirkung: Abschreibungen mindern den Gewinn (→ geringere Steuerbelastung) und stellen gleichzeitig Kapital für die spätere Wiederbeschaffung bereit (Selbstfinanzierungseffekt / Abschreibungskreislauf). Sie sind nicht zahlungswirksam – die Liquidität bleibt erhalten." },
+    erklaerung:"AfA = Absetzung für Abnutzung (§7 EStG). Lineares Verfahren: AK / ND = jährl. AfA. ABSA (6520) im Soll / MA im Haben (direkte Abschreibung). Selbstfinanzierungseffekt! Kl.9 LB2." },
 ];
 
 // ── Klasse 9 Kalender – Börsentermine Januar 2026 ────────────────────────────
@@ -9314,6 +9365,23 @@ const BANK10_AUFGABEN = [
     },
     soll:[], haben:[], betrag:0,
     erklaerung:"Fertigungsarbeiter → Fertigung. Verwaltungsmiete + Buchh.-Gehälter → Verwaltung. Werbung → Vertrieb. Hilfsmaterial → Material. Schlüssel: Verursachungsgerechte Zuteilung. (Kl.10 LB3)" },
+
+  // ── Freitext-Aufgaben (Kl. 10) ────────────────────────────────────────────
+  { id:"ft10_1", typ:"freitext", ansicht:"konto", punkte:2, aktion:"freitext",
+    titel:"Freitext: Voll- vs. Teilkostenrechnung",
+    story:"Im MSA-Kurs fragt Ihre Lehrkraft: Was ist der grundlegende Unterschied zwischen Voll- und Teilkostenrechnung?",
+    aufgabe:"Erläutern Sie den Unterschied zwischen Voll- und Teilkostenrechnung. Nennen Sie je einen typischen Anwendungsfall.",
+    freitext:{ zeilen:5, minZeichen:60,
+      loesung:"Die Vollkostenrechnung verrechnet alle Kosten (fixe und variable) auf die Kostenträger (Produkte). Anwendungsfall: Kalkulation des Angebotspreises (Herstellkosten inkl. Fixkostenanteil über GKZ). Vorteil: langfristige Preisfindung. Nachteil: Fixkosten werden proportional verteilt – bei Beschäftigungsschwankungen entstehen Verzerrungen. Die Teilkostenrechnung berücksichtigt nur die variablen Kosten pro Einheit; Fixkosten werden als Periodenblock behandelt. Anwendungsfall: Entscheidung über Zusatzaufträge, kurzfristige Preisuntergrenze (DB ≥ 0). Vorteil: klare Entscheidungsgrundlage. Kennzahl: Deckungsbeitrag = NVP − variable Kosten." },
+    erklaerung:"Vollkosten → BAB + GKZ → Herstellkosten → Angebotspreis. Teilkosten → DB = NVP − VK → Break-even, Make-or-buy, Zusatzauftrag. Kl.10 LB3/LB4." },
+
+  { id:"ft10_2", typ:"freitext", ansicht:"konto", punkte:2, aktion:"freitext",
+    titel:"Freitext: Rechnungsabgrenzungsposten",
+    story:"Der Steuerberater erklärt dem Geschäftsführer aktive und passive Rechnungsabgrenzungsposten. Er bittet Sie, es in eigenen Worten zusammenzufassen.",
+    aufgabe:"Erläutern Sie, was aktive und passive Rechnungsabgrenzungsposten (ARA/PRA) sind und geben Sie je ein Beispiel.",
+    freitext:{ zeilen:5, minZeichen:60,
+      loesung:"Rechnungsabgrenzungsposten dienen der periodengerechten Erfolgsermittlung: Aufwendungen und Erträge sollen in dem Jahr erfasst werden, zu dem sie wirtschaftlich gehören. ARA (2900, Aktiva): Ausgabe erfolgt bereits in diesem Jahr, der Aufwand gehört aber ins nächste Jahr – z.B. Versicherungsprämie 01.07.–30.06. wird im Juli bezahlt; der Anteil Jan.–Juni des Folgejahres wird als ARA aktiviert (ARA an VBEI). PRA (4900, Passiva): Einnahme erfolgt bereits, der Ertrag gehört aber ins nächste Jahr – z.B. Mietvorauszahlung des Mieters für das Folgejahr (BK an PRA)." },
+    erklaerung:"ARA: Aktivseite (2900) – Ausgabe jetzt, Aufwand später. PRA: Passivseite (4900) – Einnahme jetzt, Ertrag später. Buchungen: ARA an Aufwandskonto / BK an PRA. Kl.10 LB1." },
 ];
 
 // ── Klasse 10 Kalender – Jahresabschluss-Nacharbeiten Januar 2026 ─────────────
@@ -9337,7 +9405,7 @@ const KALENDER10_EINTRAEGE = [
 function BankingSimulator7({ firma, onAbschluss, lehrerConfig = {}, klasse = "7" }) {
   const firmaName = firma?.name || "MöbelWerk GmbH";
   const aufgabenListe = React.useMemo(() => {
-    const NEUE_TYPEN = ["lueckentext","zuordnung","multi_mc"];
+    const NEUE_TYPEN = ["lueckentext","zuordnung","multi_mc","freitext"];
     const klasse9Themen  = ["buchung","ueberweisung","beleg","theorie","aktie_kauf","aktie_verkauf","dividende",...NEUE_TYPEN];
     const klasse10Themen = ["buchung","theorie","klr",...NEUE_TYPEN];
     const erlaubteThemen = lehrerConfig.themen || (klasse === "10" ? klasse10Themen : klasse === "9" ? klasse9Themen : ["buchung","ueberweisung","dauerauftrag","beleg","theorie",...NEUE_TYPEN]);
@@ -9389,6 +9457,7 @@ function BankingSimulator7({ firma, onAbschluss, lehrerConfig = {}, klasse = "7"
   const [lueckenEingaben, setLueckenEingaben] = useState({});  // { lücken-id → eingabe } für Lückentext-Aufgaben
   const [zuordnungState,  setZuordnungState]  = useState({});  // { item-id → kategorie-id } für Zuordnungs-Aufgaben
   const [multiMcState,    setMultiMcState]    = useState([]);  // Array gewählter Indizes für Multi-Choice
+  const [freitextAntwort, setFreitextAntwort] = useState(""); // Freitext-Eingabe
 
   const aufgabe   = aufgabenListe[aufgabeIdx];
   const maxPunkte = aufgabenListe.reduce((s,a) => s + a.punkte, 0);
@@ -9423,6 +9492,7 @@ function BankingSimulator7({ firma, onAbschluss, lehrerConfig = {}, klasse = "7"
     setLueckenEingaben({});
     setZuordnungState({});
     setMultiMcState([]);
+    setFreitextAntwort("");
     setDeskPopup(null);
     setZeitAbgelaufen(false);
     setKalSelTag(null);
@@ -9465,6 +9535,9 @@ function BankingSimulator7({ firma, onAbschluss, lehrerConfig = {}, klasse = "7"
       buchOk = korrektSet.size > 0 &&
         [...korrektSet].every(i => gewaehlt.has(i)) &&
         [...gewaehlt].every(i => korrektSet.has(i));
+    } else if (aufgabe.typ === "freitext") {
+      // Freitext: akzeptiert wenn ausreichend Text eingegeben (selbst bewertet)
+      buchOk = (freitextAntwort || "").trim().length >= (aufgabe.freitext?.minZeichen || 20);
     } else {
       const normS = buchAntwort.soll.trim().toUpperCase();
       const normH = buchAntwort.haben.trim().toUpperCase();
@@ -10702,16 +10775,46 @@ function BankingSimulator7({ firma, onAbschluss, lehrerConfig = {}, klasse = "7"
         </div>
       )}
 
+      {/* ── Freitext ── */}
+      {aufgabe.typ === "freitext" && feedback === null && (
+        <div style={{ background:"rgba(28,20,10,0.85)", border:"1px solid rgba(240,236,227,0.12)", borderRadius:12, padding:"14px 16px" }}>
+          <div style={{ fontSize:13, fontWeight:700, color:"#f0ece3", marginBottom:4 }}>{aufgabe.aufgabe}</div>
+          <div style={{ fontSize:10.5, color:"rgba(240,236,227,0.35)", marginBottom:10 }}>
+            Schreibe deine Antwort in eigenen Worten – die Musterlösung wird danach angezeigt.
+          </div>
+          <textarea value={freitextAntwort} onChange={e => setFreitextAntwort(e.target.value)}
+            rows={aufgabe.freitext?.zeilen || 4}
+            placeholder="Hier eingeben …"
+            style={{ width:"100%", padding:"10px 12px", border:"1.5px solid rgba(240,236,227,0.2)", borderRadius:8, fontSize:13, boxSizing:"border-box", background:"rgba(240,236,227,0.06)", color:"#f0ece3", fontFamily:"'IBM Plex Sans',system-ui,sans-serif", outline:"none", resize:"vertical", lineHeight:1.6 }}/>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginTop:6 }}>
+            <span style={{ fontSize:10, color: freitextAntwort.trim().length >= (aufgabe.freitext?.minZeichen||20) ? "#4ade80" : "rgba(240,236,227,0.3)" }}>
+              {freitextAntwort.trim().length} / {aufgabe.freitext?.minZeichen || 20} Zeichen
+            </span>
+          </div>
+          <button onClick={pruefen} disabled={freitextAntwort.trim().length < (aufgabe.freitext?.minZeichen || 20)}
+            style={{ marginTop:10, width:"100%", padding:"12px", background:"#e8600a", color:"#fff", border:"none", borderRadius:10, fontWeight:700, fontSize:14, cursor:"pointer", opacity: freitextAntwort.trim().length < (aufgabe.freitext?.minZeichen||20) ? 0.4 : 1 }}>
+            Antwort abgeben &amp; Musterlösung zeigen
+          </button>
+        </div>
+      )}
+
       {/* ── Feedback ── */}
       {feedback !== null && (
         <div style={{ background:"rgba(28,20,10,0.85)", border:`1.5px solid ${feedback==="richtig" ? "rgba(74,222,128,0.4)" : "rgba(248,113,113,0.4)"}`, borderRadius:12, padding:"14px 16px" }}>
           <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:8, fontWeight:800, fontSize:14, color: feedback === "richtig" ? "#4ade80" : "#f87171" }}>
-            {feedback === "richtig"
+            {aufgabe.typ === "freitext"
+              ? <><CheckSquare size={16} strokeWidth={1.5}/>Abgegeben! +{verlauf[verlauf.length-1]?.gewPunkte} Punkte</>
+              : feedback === "richtig"
               ? <><CheckSquare size={16} strokeWidth={1.5}/>Richtig! +{verlauf[verlauf.length-1]?.gewPunkte} Punkte</>
               : <><XCircle size={16} strokeWidth={1.5}/>Leider falsch</>}
           </div>
+          {aufgabe.typ === "freitext" && (
+            <div style={{ fontSize:11, color:"rgba(240,236,227,0.4)", marginBottom:8, fontStyle:"italic" }}>
+              Vergleiche deine Antwort mit der Musterlösung und bewerte dich selbst.
+            </div>
+          )}
           <div style={{ fontSize:12, color:"rgba(240,236,227,0.75)", marginBottom:8, padding:"8px 10px", background:"rgba(240,236,227,0.05)", borderRadius:8 }}>
-            <strong style={{color:"#f0ece3"}}>Lösung: </strong>
+            <strong style={{color:"#f0ece3"}}>{aufgabe.typ === "freitext" ? "Musterlösung: " : "Lösung: "}</strong>
             {aufgabe.typ === "mc"
               ? <>{String.fromCharCode(65 + aufgabe.mcKorrekt)}. {aufgabe.mcOptionen[aufgabe.mcKorrekt]}</>
               : aufgabe.typ === "multi_mc"
@@ -10736,6 +10839,8 @@ function BankingSimulator7({ firma, onAbschluss, lehrerConfig = {}, klasse = "7"
                     );
                   })}
                 </div>
+              : aufgabe.typ === "freitext"
+              ? <div style={{ fontSize:12, color:"rgba(240,236,227,0.85)", lineHeight:1.7, whiteSpace:"pre-wrap" }}>{aufgabe.freitext?.loesung}</div>
               : <>{aufgabe.soll.map(s=>s.kuerzel).join(" + ")} an {aufgabe.haben.map(h=>h.kuerzel).join(" + ")}{" "}
                   ({aufgabe.betrag.toLocaleString("de-DE",{minimumFractionDigits:2, maximumFractionDigits:2})} €)</>
             }
@@ -11038,7 +11143,7 @@ function SimulationModus({ onZurueck }) {
     if (aktuellesIdx + 1 >= ereignisse.length) {
       // Abschluss
       if (modus === "klasse" && klassenCode) {
-        await apiFetch("/ergebnisse", "POST", { session_id: klassenCode, spieler: spielerName || "Anonym", punkte, max_punkte: maxPunkte, zeit: Math.round(elapsed/1000), klasse: schwierigkeit });
+        await apiFetch("/spielrangliste", "POST", { session_code: klassenCode, spieler: spielerName || "Anonym", punkte, max_punkte: maxPunkte, zeit: Math.round(elapsed/1000), klasse: schwierigkeit });
         const rl = await apiFetch(`/rangliste/${klassenCode}`);
         setRangliste(rl || []);
       }
@@ -11077,7 +11182,7 @@ function SimulationModus({ onZurueck }) {
         </div>
         <div style={{ background:"rgba(240,236,227,0.04)", border:"1px solid rgba(240,236,227,0.1)", borderRadius:12, padding:"16px", marginBottom:12 }}>
           <div style={{ fontSize:12, fontWeight:700, color:"rgba(240,236,227,0.5)", marginBottom:10, textTransform:"uppercase", letterSpacing:".07em" }}>Aufgaben-Typen (Klasse 7)</div>
-          {[["buchung","Kontoauszug buchen"],["ueberweisung","Überweisung (interaktiv)"],["dauerauftrag","Dauerauftrag einrichten"],["beleg","Beleg → Überweisung"],["theorie","Theorie & Kalkulation"]].map(([t, label]) => (
+          {[["buchung","Kontoauszug buchen"],["ueberweisung","Überweisung (interaktiv)"],["dauerauftrag","Dauerauftrag einrichten"],["beleg","Beleg → Überweisung"],["theorie","Theorie & Kalkulation"],["lueckentext","Lückentext"],["zuordnung","Zuordnung"],["multi_mc","Multiple Choice"],["freitext","Freitext (offen)"]].map(([t, label]) => (
             <label key={t} style={{ display:"flex", alignItems:"center", gap:10, padding:"8px 0", borderBottom:"1px solid rgba(240,236,227,0.07)", cursor:"pointer" }}>
               <input type="checkbox" checked={lc.themen.includes(t)} onChange={() => themaToggle(t)} style={{ width:16, height:16, accentColor:"#e8600a", cursor:"pointer" }}/>
               <span style={{ fontSize:13, color:"#f0ece3" }}>{label}</span>
@@ -11338,7 +11443,7 @@ function SimulationModus({ onZurueck }) {
         setVerlauf(v);
         setElapsed(zeit * 1000);
         if (modus === "klasse" && klassenCode) {
-          await apiFetch("/ergebnisse", "POST", { session_id: klassenCode, spieler: spielerName || "Anonym", punkte: p, max_punkte: mp, zeit, klasse: "7" });
+          await apiFetch("/spielrangliste", "POST", { session_code: klassenCode, spieler: spielerName || "Anonym", punkte: p, max_punkte: mp, zeit, klasse: "7" });
           const rl = await apiFetch(`/rangliste/${klassenCode}`);
           setRangliste(rl || []);
         }
@@ -11359,7 +11464,7 @@ function SimulationModus({ onZurueck }) {
         setVerlauf(v);
         setElapsed(zeit * 1000);
         if (modus === "klasse" && klassenCode) {
-          await apiFetch("/ergebnisse", "POST", { session_id: klassenCode, spieler: spielerName || "Anonym", punkte: p, max_punkte: mp, zeit, klasse: "8" });
+          await apiFetch("/spielrangliste", "POST", { session_code: klassenCode, spieler: spielerName || "Anonym", punkte: p, max_punkte: mp, zeit, klasse: "8" });
           const rl = await apiFetch(`/rangliste/${klassenCode}`);
           setRangliste(rl || []);
         }
@@ -11380,7 +11485,7 @@ function SimulationModus({ onZurueck }) {
         setVerlauf(v);
         setElapsed(zeit * 1000);
         if (modus === "klasse" && klassenCode) {
-          await apiFetch("/ergebnisse", "POST", { session_id: klassenCode, spieler: spielerName || "Anonym", punkte: p, max_punkte: mp, zeit, klasse: "9" });
+          await apiFetch("/spielrangliste", "POST", { session_code: klassenCode, spieler: spielerName || "Anonym", punkte: p, max_punkte: mp, zeit, klasse: "9" });
           const rl = await apiFetch(`/rangliste/${klassenCode}`);
           setRangliste(rl || []);
         }
@@ -11401,7 +11506,7 @@ function SimulationModus({ onZurueck }) {
         setVerlauf(v);
         setElapsed(zeit * 1000);
         if (modus === "klasse" && klassenCode) {
-          await apiFetch("/ergebnisse", "POST", { session_id: klassenCode, spieler: spielerName || "Anonym", punkte: p, max_punkte: mp, zeit, klasse: "10" });
+          await apiFetch("/spielrangliste", "POST", { session_code: klassenCode, spieler: spielerName || "Anonym", punkte: p, max_punkte: mp, zeit, klasse: "10" });
           const rl = await apiFetch(`/rangliste/${klassenCode}`);
           setRangliste(rl || []);
         }

@@ -91,6 +91,25 @@ def init_db():
         erstellt       TEXT DEFAULT (datetime('now')),
         geaendert      TEXT DEFAULT (datetime('now'))
     );
+
+    CREATE TABLE IF NOT EXISTS spielrangliste (
+        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+        session_code TEXT NOT NULL,
+        spieler      TEXT NOT NULL,
+        punkte       INTEGER DEFAULT 0,
+        max_punkte   INTEGER DEFAULT 0,
+        zeit         INTEGER DEFAULT 0,
+        klasse       TEXT,
+        ts           TEXT DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS support_logs (
+        id      INTEGER PRIMARY KEY AUTOINCREMENT,
+        typ     TEXT,
+        text    TEXT,
+        ts      TEXT,
+        erstellt TEXT DEFAULT (datetime('now'))
+    );
     """)
     conn.commit()
     conn.close()
@@ -313,3 +332,47 @@ def update_material(id: int, data: MaterialCreate, db: sqlite3.Connection = Depe
 def delete_material(id: int, db: sqlite3.Connection = Depends(get_db)):
     db.execute("DELETE FROM materialien WHERE id = ?", (id,))
     db.commit()
+
+# ── Spielrangliste (BankingSimulator Multiplayer) ──────────────────────────────
+class SpielErgebnis(BaseModel):
+    session_code: str
+    spieler: str
+    punkte: int = 0
+    max_punkte: int = 0
+    zeit: int = 0
+    klasse: Optional[str] = None
+
+@app.post("/spielrangliste", status_code=201)
+def create_spielergebnis(data: SpielErgebnis, db: sqlite3.Connection = Depends(get_db)):
+    cur = db.execute(
+        """INSERT INTO spielrangliste (session_code, spieler, punkte, max_punkte, zeit, klasse)
+           VALUES (?, ?, ?, ?, ?, ?)""",
+        (data.session_code, data.spieler, data.punkte, data.max_punkte, data.zeit, data.klasse)
+    )
+    db.commit()
+    return {"id": cur.lastrowid}
+
+@app.get("/rangliste/{code}")
+def get_rangliste(code: str, db: sqlite3.Connection = Depends(get_db)):
+    rows = db.execute(
+        """SELECT spieler, punkte, max_punkte, zeit, klasse, ts
+           FROM spielrangliste WHERE session_code = ?
+           ORDER BY punkte DESC, zeit ASC LIMIT 20""",
+        (code,)
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+# ── Support / Feedback ─────────────────────────────────────────────────────────
+class SupportLog(BaseModel):
+    typ: Optional[str] = None
+    text: Optional[str] = None
+    ts: Optional[str] = None
+
+@app.post("/support", status_code=201)
+def create_support(data: SupportLog, db: sqlite3.Connection = Depends(get_db)):
+    db.execute(
+        "INSERT INTO support_logs (typ, text, ts) VALUES (?, ?, ?)",
+        (data.typ, data.text, data.ts or datetime.now().isoformat())
+    )
+    db.commit()
+    return {"ok": True}
