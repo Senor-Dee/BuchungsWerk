@@ -1,28 +1,32 @@
 // ══════════════════════════════════════════════════════════════════════════════
-// DESIGN-SYSTEM – zentrale Style-Objekte
+// DESIGN-SYSTEM – Gusswerk Dark Glass
+// Palette: Cast-Iron Black #141008 · Molten Orange #e8600a · Bone #f0ece3
+// Fonts: Bebas Neue (Display) · IBM Plex Sans (Body) · Fira Code (Zahlen)
 // ══════════════════════════════════════════════════════════════════════════════
 export const S = {
-  page:        { minHeight: "100vh", display: "flex", flexDirection: "column", background: "#f8fafc", fontFamily: "'Segoe UI',system-ui,-apple-system,sans-serif", color: "#0f172a" },
-  topbar:      { background: "#0f172a", padding: "0 20px", height: "62px", display: "flex", alignItems: "center", gap: "0", borderBottom: "2px solid #f59e0b", position: "sticky", top: 0, zIndex: 200 },
-  logo:        { fontSize: "19px", fontWeight: 900, color: "#fff", cursor: "pointer", whiteSpace: "nowrap", minWidth: "160px", flexShrink: 0, letterSpacing: "-0.04em" },
-  logoAccent:  { color: "#f59e0b" },
+  page:        { minHeight: "100vh", display: "flex", flexDirection: "column", background: "#141008", fontFamily: "'IBM Plex Sans',system-ui,-apple-system,sans-serif", color: "#f0ece3" },
+  topbar:      { background: "rgba(14,10,4,0.50)", backdropFilter: "blur(18px) saturate(150%)", WebkitBackdropFilter: "blur(18px) saturate(150%)", padding: "0 20px", height: "62px", display: "flex", alignItems: "center", gap: "0", borderBottom: "2px solid #e8600a", position: "sticky", top: 0, zIndex: 200 },
+  logo:        { fontFamily: "'Bebas Neue', system-ui, sans-serif", fontSize: "22px", fontWeight: 400, letterSpacing: "0.06em", color: "#f0ece3", cursor: "pointer", whiteSpace: "nowrap", minWidth: "160px", flexShrink: 0 },
+  logoAccent:  { color: "#e8600a" },
   container:   { flex: 1, width: "100%", maxWidth: "900px", margin: "0 auto", padding: "0", boxSizing: "border-box" },
-  card:        { background: "#fff", border: "1px solid #e2e8f0", borderRadius: "20px", padding: "28px 24px", marginBottom: "16px", textAlign: "left", boxShadow: "0 2px 12px rgba(0,0,0,0.06)" },
-  label:       { fontSize: "11px", fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "#94a3b8", marginBottom: "10px" },
-  h2:          { fontSize: "26px", fontWeight: 800, color: "#0f172a", marginBottom: "4px", letterSpacing: "-0.03em" },
-  btnPrimary:  { padding: "14px 28px", background: "#0f172a", color: "#fff", border: "none", borderRadius: "12px", fontWeight: 700, fontSize: "15px", cursor: "pointer", minHeight: "48px" },
-  btnSecondary:{ padding: "12px 20px", background: "#f1f5f9", color: "#475569", border: "1.5px solid #e2e8f0", borderRadius: "12px", fontWeight: 600, fontSize: "14px", cursor: "pointer", minHeight: "48px" },
-  input:       { padding: "12px 14px", border: "1.5px solid #e2e8f0", borderRadius: "10px", fontSize: "15px", outline: "none", boxSizing: "border-box", background: "#fff", color: "#0f172a", minHeight: "48px" },
-  tag:         c => ({ display: "inline-block", padding: "4px 12px", background: c + "18", color: c, borderRadius: "20px", fontSize: "12px", fontWeight: 700, border: `1px solid ${c}33` }),
+  card:        { background: "rgba(28,20,10,0.58)", backdropFilter: "blur(20px) saturate(130%)", WebkitBackdropFilter: "blur(20px) saturate(130%)", border: "1px solid rgba(240,236,227,0.1)", borderLeft: "3px solid #e8600a", borderRadius: "14px", padding: "28px 24px", marginBottom: "16px", textAlign: "left", boxShadow: "0 4px 24px rgba(0,0,0,0.4)" },
+  label:       { fontSize: "11px", fontWeight: 600, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(240,236,227,0.5)", marginBottom: "10px", fontFamily: "'IBM Plex Sans',system-ui,sans-serif" },
+  h2:          { fontFamily: "'Bebas Neue', system-ui, sans-serif", fontSize: "28px", fontWeight: 400, letterSpacing: "0.04em", color: "#f0ece3", marginBottom: "4px" },
+  btnPrimary:  { padding: "14px 28px", background: "linear-gradient(180deg, #f07320 0%, #e8600a 55%, #c24f08 100%)", color: "#f0ece3", border: "1px solid rgba(255,170,60,0.25)", borderRadius: "10px", fontWeight: 700, fontSize: "15px", cursor: "pointer", minHeight: "48px", transition: "all 180ms ease", fontFamily: "'IBM Plex Sans',system-ui,sans-serif", boxShadow: "0 3px 0 rgba(0,0,0,0.5), 0 0 18px rgba(232,96,10,0.35), inset 0 1px 0 rgba(255,200,80,0.18)" },
+  btnSecondary:{ padding: "12px 20px", background: "linear-gradient(180deg, rgba(240,236,227,0.11) 0%, rgba(240,236,227,0.05) 100%)", color: "#f0ece3", border: "1px solid rgba(240,236,227,0.22)", borderRadius: "10px", fontWeight: 600, fontSize: "14px", cursor: "pointer", minHeight: "48px", transition: "all 180ms ease", fontFamily: "'IBM Plex Sans',system-ui,sans-serif", boxShadow: "0 2px 0 rgba(0,0,0,0.45), inset 0 1px 0 rgba(240,236,227,0.07)" },
+  input:       { padding: "12px 14px", border: "1.5px solid rgba(240,236,227,0.18)", borderRadius: "10px", fontSize: "15px", outline: "none", boxSizing: "border-box", background: "rgba(240,236,227,0.06)", color: "#f0ece3", minHeight: "48px", transition: "border-color 200ms ease, box-shadow 200ms ease", fontFamily: "'IBM Plex Sans',system-ui,sans-serif" },
+  tag:         c => ({ display: "inline-block", padding: "4px 12px", background: c + "22", color: c, borderRadius: "20px", fontSize: "12px", fontWeight: 700, border: `1px solid ${c}55` }),
   // ── Utility-Styles ──
-  muted:     { color: "#94a3b8" },
-  sub:       { color: "#64748b" },
-  subdued:   { color: "#475569" },
-  hint:      { fontSize: "11px", color: "#6b7280" },
+  muted:     { color: "rgba(240,236,227,0.45)" },
+  sub:       { color: "rgba(240,236,227,0.6)" },
+  subdued:   { color: "rgba(240,236,227,0.7)" },
+  hint:      { fontSize: "11px", color: "rgba(240,236,227,0.4)" },
   bold:      { fontWeight: 700 },
-  accent:    { color: "#f59e0b", fontWeight: 800 },
+  accent:    { color: "#e8600a", fontWeight: 800 },
   right:     { textAlign: "right" },
   mb8:       { marginBottom: "8px" },
-  badgeWarn: { background: "#fef3c7", color: "#92400e", borderRadius: "6px", padding: "2px 7px", fontWeight: 700 },
-  badgeDark: { background: "#1e293b", color: "#fff",    borderRadius: "6px", padding: "2px 7px", fontWeight: 700 },
+  badgeWarn: { background: "rgba(232,96,10,0.18)", color: "#f0c090", borderRadius: "6px", padding: "2px 7px", fontWeight: 700 },
+  badgeDark: { background: "rgba(240,236,227,0.12)", color: "#f0ece3", borderRadius: "6px", padding: "2px 7px", fontWeight: 700 },
+  // ── Zahlen-Font (Buchhaltung) ──
+  mono:      { fontFamily: "'Fira Code', 'IBM Plex Mono', monospace" },
 };

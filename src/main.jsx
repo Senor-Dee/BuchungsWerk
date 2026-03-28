@@ -965,17 +965,23 @@ function UserBadge({ user, onLogout, onUserUpdate }) {
 function App() {
   const [loggedIn, setLoggedIn] = useState(isLoggedIn);
   const [user,     setUser]     = useState(getUser);
+  // Schüler-Gastzugang: beim ersten Render prüfen ob ?session vorhanden ist.
+  // Wert einmalig einfrieren – SimulationModus löscht den Param aus der URL later.
+  const [gastSession] = useState(() =>
+    Boolean(new URLSearchParams(window.location.search).get("session"))
+  );
 
   const handleLogin = u => { setUser(u); setLoggedIn(true); };
   const handleLogout = () => { clearAuth(); setUser(null); setLoggedIn(false); };
   const handleUserUpdate = u => { setUser(u); };
 
-  if (!loggedIn) return <Landing onLogin={handleLogin} />;
+  // Kein Login erforderlich wenn Schüler über einen Session-Link kommt
+  if (!loggedIn && !gastSession) return <Landing onLogin={handleLogin} />;
 
   return (
     <>
-      <UserBadge user={user} onLogout={handleLogout} onUserUpdate={handleUserUpdate} />
-      <BuchungsWerk />
+      {loggedIn && <UserBadge user={user} onLogout={handleLogout} onUserUpdate={handleUserUpdate} />}
+      <BuchungsWerk gastModus={gastSession} />
     </>
   );
 }

@@ -28,10 +28,13 @@ Write-Host "Baue auf dem Pi..."
 Invoke-SSH $PI "cd ~/BuchungsWerk && npm install && npm run build"
 if ($LASTEXITCODE -ne 0) { Write-Error "Build fehlgeschlagen!"; exit 1 }
 
-# 4. Backend hochladen
+# 4. Backend hochladen + API-Image neu bauen
 if (Test-Path $MAIN) {
-    & scp -i $KEY -o StrictHostKeyChecking=accept-new $MAIN "$ROOT\buchungswerk-backend\docker-compose.yml" "$ROOT\buchungswerk-backend\requirements.txt" "${PI}:~/buchungswerk-backend/"
-    Write-Host "Backend deployed."
+    & scp -i $KEY -o StrictHostKeyChecking=accept-new $MAIN "$ROOT\buchungswerk-backend\docker-compose.yml" "$ROOT\buchungswerk-backend\Dockerfile" "$ROOT\buchungswerk-backend\requirements.txt" "${PI}:~/buchungswerk-backend/"
+    Write-Host "Backend-Dateien hochgeladen. Baue API-Container neu..."
+    Invoke-SSH $PI "cd ~/buchungswerk-backend && docker compose up --build -d buchungswerk-api"
+    if ($LASTEXITCODE -ne 0) { Write-Error "API-Build fehlgeschlagen!"; exit 1 }
+    Write-Host "API-Container neu gebaut und gestartet."
 }
 
 # 5. .env einmalig auf den Pi kopieren (nur wenn noch nicht vorhanden)
@@ -46,8 +49,8 @@ if (Test-Path $envFile) {
     }
 }
 
-# 6. Container neu starten
-Write-Host "Starte Container neu..."
+# 6. Frontend-Container neu starten
+Write-Host "Starte Frontend-Container neu..."
 Invoke-SSH $PI "cd ~/buchungswerk-backend && docker compose restart buchungswerk-app"
 
 Write-Host "Fertig! https://buchungswerk.org"

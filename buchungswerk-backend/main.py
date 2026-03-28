@@ -16,7 +16,7 @@ app = FastAPI(title="BuchungsWerk API", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],          # Im LAN unbedenklich; für Prod einschränken
+    allow_origins=["https://buchungswerk.org", "https://www.buchungswerk.org", "http://localhost:5173"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

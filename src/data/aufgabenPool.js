@@ -300,7 +300,7 @@ export const AUFGABEN_POOL = {
         id: "7_anlage_kauf_ziel", titel: "Kauf einer Anlage auf Ziel (ohne USt – Einführung)",
         generate: f => {
           const anlagenTyp = pick([
-            { art: "Fertigungsmaschine", konto: "07000400", name: "Maschinen und Anlagen" },
+            { art: "Fertigungsmaschine", konto: "0700", name: "Maschinen und Anlagen" },
             { art: "Lieferwagen", konto: "0840", name: "Fuhrpark (FP)" },
             { art: "Büroausstattung", konto: "0870", name: "Büromöbel und Geschäftsausstattung (BGA)" },
             { art: "Büromaschine (Kopierer)", konto: "0860", name: "Büromaschinen (BM)" },
@@ -400,7 +400,7 @@ export const AUFGABEN_POOL = {
             soll: [{ nr: "2800", name: "Bank (BK)", betrag: bank }, { nr: "2880", name: "Kasse (KA)", betrag: bar }],
             haben: [{ nr: "2400", name: "Forderungen aus L+L (FO)", betrag: gesamt }],
             nrPunkte: 0,
-            erklaerung: `Forderung erlischt komplett (1400 Haben, ${fmt(gesamt)} €). Bankeingang (1200 Soll, ${fmt(bank)} €). Bareingang (1000 Soll, ${fmt(bar)} €). Zusammengesetzter Buchungssatz.`,
+            erklaerung: `Forderung erlischt komplett (2400 FO Haben, ${fmt(gesamt)} €). Bankeingang (2800 BK Soll, ${fmt(bank)} €). Bareingang (2880 KA Soll, ${fmt(bar)} €). Zusammengesetzter Buchungssatz.`,
           };
         },
       },
@@ -428,7 +428,7 @@ export const AUFGABEN_POOL = {
             nebenrechnungen: [{ label: "Nettowert", formel: `${fmt(b)} ÷ 1,19`, ergebnis: `${fmt(n)} €` }, { label: "Vorsteuer", formel: `${fmt(b)} − ${fmt(n)}`, ergebnis: `${fmt(u)} €` }],
             soll: [{ nr: "6010", name: "Aufwend. Fremdbauteile (AWF)", betrag: n }, { nr: "2600", name: "Vorsteuer (VORST)", betrag: u }],
             haben: [{ nr: "4400", name: "Verbindlichkeiten aus L+L (VE)", betrag: b }],
-            nrPunkte: 1, erklaerung: "Brutto ÷ 1,19 = Netto. Fremdbauteile (3100 Soll). Vorsteuer (2600 VORST Soll). Verbindlichkeit (4400 VE Haben).",
+            nrPunkte: 1, erklaerung: "Brutto ÷ 1,19 = Netto. Fremdbauteile (6010 AWF Soll). Vorsteuer (2600 VORST Soll). Verbindlichkeit (4400 VE Haben).",
           };
         },
       },
@@ -554,7 +554,7 @@ export const AUFGABEN_POOL = {
             nebenrechnungen: [{ label: "Nettowert", formel: `${fmt(b)} ÷ 1,19`, ergebnis: `${fmt(n)} €` }, { label: "Vorsteuer", formel: `${fmt(b)} − ${fmt(n)}`, ergebnis: `${fmt(u)} €` }],
             soll: [{ nr: "6020", name: "Aufwend. Hilfsstoffe (AWH)", betrag: n }, { nr: "2600", name: "Vorsteuer (VORST)", betrag: u }],
             haben: [{ nr: "4400", name: "Verbindlichkeiten aus L+L (VE)", betrag: b }],
-            nrPunkte: 1, erklaerung: "Hilfsstoffe (3200 Soll). Vorsteuer (2600 VORST Soll). Verbindlichkeit (4400 VE Haben). Brutto ÷ 1,19 = Netto.",
+            nrPunkte: 1, erklaerung: "Hilfsstoffe (6020 AWH Soll). Vorsteuer (2600 VORST Soll). Verbindlichkeit (4400 VE Haben). Brutto ÷ 1,19 = Netto.",
           };
         },
       },
@@ -569,7 +569,7 @@ export const AUFGABEN_POOL = {
             nebenrechnungen: [{ label: "Nettowert", formel: `${fmt(b)} ÷ 1,19`, ergebnis: `${fmt(n)} €` }, { label: "Vorsteuer", formel: `${fmt(b)} − ${fmt(n)}`, ergebnis: `${fmt(u)} €` }],
             soll: [{ nr: "6030", name: "Aufwend. Betriebsstoffe (AWB)", betrag: n }, { nr: "2600", name: "Vorsteuer (VORST)", betrag: u }],
             haben: [{ nr: via === "BK" ? "2800" : "4400", name: via === "BK" ? "Bank (BK)" : "Verbindlichkeiten aus L+L (VE)", betrag: b }],
-            nrPunkte: 1, erklaerung: `Betriebsstoffe z. B. Öl, Strom, Reinigungsmittel = kein Bestandteil des Produkts (3300 AWB Soll). Vorsteuer (2600 VORST Soll). ${via === "BK" ? "Zahlung per Bank (2800 BK Haben)." : "Zielkauf → Verbindlichkeit (4400 VE Haben)."}`,
+            nrPunkte: 1, erklaerung: `Betriebsstoffe z. B. Öl, Strom, Reinigungsmittel = kein Bestandteil des Produkts (6030 AWB Soll). Vorsteuer (2600 VORST Soll). ${via === "BK" ? "Zahlung per Bank (2800 BK Haben)." : "Zielkauf → Verbindlichkeit (4400 VE Haben)."}`,
           };
         },
       },
@@ -596,7 +596,7 @@ export const AUFGABEN_POOL = {
             beleg: mkAusgangsRE(f, art, menge, "Stk", n, 19),
             soll: [{ nr: "2400", name: "Forderungen aus L+L (FO)", betrag: r2(n + u) }],
             haben: [{ nr: "5000", name: "Umsatzerlöse FE (UEFE)", betrag: n }, { nr: "4800", name: "Umsatzsteuer (UST)", betrag: u }],
-            nrPunkte: 0, erklaerung: "Forderung = Bruttobetrag (2400 FO Soll). Umsatzerlöse FE (6000 Haben). USt-Schuld (4400 Haben).",
+            nrPunkte: 0, erklaerung: "Forderung = Bruttobetrag (2400 FO Soll). Umsatzerlöse FE (5000 UEFE Haben). USt-Schuld (4800 UST Haben).",
           };
         },
       },
@@ -647,7 +647,7 @@ export const AUFGABEN_POOL = {
             nebenrechnungen: [{ label: "Nettowert", formel: `${fmt(brutto)} ÷ 1,19`, ergebnis: `${fmt(buchwert)} €` }, { label: "USt", formel: `${fmt(brutto)} − ${fmt(buchwert)}`, ergebnis: `${fmt(u)} €` }],
             soll: [{ nr: "2400", name: "Forderungen aus L+L (FO)", betrag: brutto }],
             haben: [{ nr: "0700", name: "Maschinen und Anlagen (MA)", betrag: buchwert }, { nr: "4800", name: "Umsatzsteuer (UST)", betrag: u }],
-            nrPunkte: 1, erklaerung: `Anlage verlässt das Unternehmen (0400 Haben, Buchwert ${fmt(buchwert)} €). Forderung = Bruttobetrag (2400 FO Soll). USt-Schuld (4400 Haben).`,
+            nrPunkte: 1, erklaerung: `Anlage verlässt das Unternehmen (0700 MA Haben, Buchwert ${fmt(buchwert)} €). Forderung = Bruttobetrag (2400 FO Soll). USt-Schuld (4800 UST Haben).`,
           };
         },
       },
@@ -718,7 +718,7 @@ export const AUFGABEN_POOL = {
         generate: f => {
           const konten = [
             { nr: "5000", kürzel: "UEFE", name: "Umsatzerlöse FE (UEFE)" },
-            { nr: "5430", kürzel: "ASBE", name: "Andere betr. Erträge (ASBE)" },
+            { nr: "5430", kürzel: "ASBE", name: "Andere sonstige betriebl. Erträge (ASBE)" },
           ];
           const k = pick(konten); const betrag = rnd(10000,80000,1000);
           return {
@@ -852,7 +852,7 @@ Bilanz: Gegenüberstellung von Vermögen (Aktiva) und Kapital (Passiva) in Konto
               typ: "eingangsrechnung_fehler",
               lief: pick(LIEFERANTEN),
               empfaenger: { name: f.name, strasse: f.strasse, plz_ort: `${f.plz} ${f.ort}` },
-              rgnr: fakeRgNr(),
+              rgnr: rgnr(),
               datum: fakeDatum(-8),
               positionen: [{ pos: 1, beschr: art, menge, einheit: "Stk", ep, netto: falschNetto }],
               netto: falschNetto,
@@ -1470,7 +1470,7 @@ Konten: 2000 R (Rohstoffe), 2010 F (Fremdbauteile), 2020 H (Hilfsstoffe), 2030 B
             beleg: mkAusgangsRE(f, art, menge, "Stk", n, 19),
             soll: [{ nr: "2400", name: "Forderungen aus L+L (FO)", betrag: r2(n + u) }],
             haben: [{ nr: "5000", name: "Umsatzerlöse FE (UEFE)", betrag: n }, { nr: "4800", name: "Umsatzsteuer (UST)", betrag: u }],
-            nrPunkte: 0, erklaerung: "Forderung = Bruttobetrag (2400 FO Soll). Erlöse FE (6000 Haben). USt-Schuld (4400 Haben).",
+            nrPunkte: 0, erklaerung: "Forderung = Bruttobetrag (2400 FO Soll). Erlöse FE (5000 UEFE Haben). USt-Schuld (4800 UST Haben).",
           };
         },
       },
@@ -1489,7 +1489,7 @@ Konten: 2000 R (Rohstoffe), 2010 F (Fremdbauteile), 2020 H (Hilfsstoffe), 2030 B
             nebenrechnungen: [{ label: "Brutto-Skonto (2 %)", formel: `${fmt(brutto)} € × 2 %`, ergebnis: `${fmt(skB)} €` }, { label: "Zahlungseingang", formel: `${fmt(brutto)} € − ${fmt(skB)} €`, ergebnis: `${fmt(zahl)} €` }, { label: "Netto-Skonto", formel: `${fmt(skB)} € ÷ 1,19`, ergebnis: `${fmt(skN)} €` }, { label: "USt-Korrektur", formel: `${fmt(skB)} € − ${fmt(skN)} €`, ergebnis: `${fmt(skU)} €` }],
             soll: [{ nr: "2800", name: "Bank (BK)", betrag: zahl }, { nr: "5001", name: "Erlösberichtigungen FE", betrag: skN }, { nr: "4800", name: "Umsatzsteuer (UST-Korrektur)", betrag: skU }],
             haben: [{ nr: "2400", name: "Forderungen aus L+L (FO)", betrag: brutto }],
-            nrPunkte: 2, erklaerung: `Forderung erlischt vollständig (1400 Haben, ${fmt(brutto)} €). Eingang nur ${fmt(zahl)} € (2800 BK Soll). Skonto kürzt Erlöse + USt.`,
+            nrPunkte: 2, erklaerung: `Forderung erlischt vollständig (2400 FO Haben, ${fmt(brutto)} €). Eingang nur ${fmt(zahl)} € (2800 BK Soll). Skonto kürzt Erlöse + USt.`,
           };
         },
       },
@@ -1519,7 +1519,7 @@ Konten: 2000 R (Rohstoffe), 2010 F (Fremdbauteile), 2020 H (Hilfsstoffe), 2030 B
               `Sehr geehrte Damen und Herren,\n\nbei der Lieferung von ${art} wurden leichte Mängel (Oberflächenkratzer) festgestellt. Wir behalten die Ware, bitten jedoch um einen nachträglichen Preisnachlass von ${fmt(n)} € netto (zzgl. ${fmt(u)} € USt 19 %).\n\nBitte stellen Sie uns eine entsprechende Gutschrift über ${fmt(r2(n + u))} € brutto aus.\n\nMit freundlichen Grüßen\n${k.name}`),
             soll: [{ nr: "5001", name: "Erlösberichtigungen FE", betrag: n }, { nr: "4800", name: "Umsatzsteuer (UST)", betrag: u }],
             haben: [{ nr: "2400", name: "Forderungen aus L+L (FO)", betrag: r2(n + u) }],
-            nrPunkte: 0, erklaerung: "Nachlass wegen Mängelrüge mindert Erlöse (5001 EBFE Soll, Nettobetrag). USt-Schuld sinkt (4400 Soll). Forderung wird gekürzt (1400 Haben, Bruttobetrag).",
+            nrPunkte: 0, erklaerung: "Nachlass wegen Mängelrüge mindert Erlöse (5001 EBFE Soll, Nettobetrag). USt-Schuld sinkt (4800 UST Soll). Forderung wird gekürzt (2400 FO Haben, Bruttobetrag).",
           };
         },
       },
@@ -1765,7 +1765,7 @@ Konten: 2000 R (Rohstoffe), 2010 F (Fremdbauteile), 2020 H (Hilfsstoffe), 2030 B
             nebenrechnungen: [{ label: "Nettolohn", formel: `${fmt(brutto)} − ${fmt(lst)} − ${fmt(kist)} − ${fmt(svAN)}`, ergebnis: `${fmt(netto)} €` }, { label: "Gesamt-SV (4840)", formel: `${fmt(svAN)} + ${fmt(svAG)}`, ergebnis: `${fmt(svGes)} €` }],
             soll: [{ nr: "6200", name: "Löhne und Gehälter", betrag: brutto }, { nr: "6400", name: "AG-Anteil Sozialversicherung (AGASV)", betrag: svAG }],
             haben: [{ nr: "2800", name: "Bank (BK — Nettobetrag)", betrag: netto }, { nr: "4830", name: "Verbindl. Finanzamt (LSt/KiSt)", betrag: r2(lst + kist) }, { nr: "4840", name: "Verbindl. SV-Träger (AN+AG)", betrag: svGes }],
-            nrPunkte: 2, erklaerung: `Bruttolohn = Aufwand (6200). AG-SV = weiterer Aufwand (6400). Netto ${fmt(netto)} € (1200). LSt/KiSt ${fmt(r2(lst+kist))} € (4830). SV-Gesamt ${fmt(svGes)} € (4840).`,
+            nrPunkte: 2, erklaerung: `Bruttolohn = Aufwand (6200). AG-SV = weiterer Aufwand (6400). Netto ${fmt(netto)} € (2800 BK). LSt/KiSt ${fmt(r2(lst+kist))} € (4830). SV-Gesamt ${fmt(svGes)} € (4840).`,
           };
         },
       },
@@ -2084,7 +2084,7 @@ Buchung: Verbindlichkeiten aus L+L an Nachlässe auf Rohstoffe + Vorsteuer`,
             nebenrechnungen: [{ label: "Anschaffungskosten (AK)", formel: `${fmt(kp)} + ${fmt(transport)} + ${fmt(montage)}`, ergebnis: `${fmt(ak)} €` }, { label: "Vorsteuer 19 %", formel: `${fmt(ak)} × 19 %`, ergebnis: `${fmt(u)} €` }],
             soll: [{ nr: "0700", name: "Maschinen und Anlagen (MA)", betrag: ak }, { nr: "2600", name: "Vorsteuer (VORST)", betrag: u }],
             haben: [{ nr: "4400", name: "Verbindlichkeiten aus L+L (VE)", betrag: r2(ak + u) }],
-            nrPunkte: 2, erklaerung: `AK = Kaufpreis + Nebenkosten = ${fmt(ak)} €. Anlage wird zum AK aktiviert (0400 Soll). Vorsteuer auf AK (2600 VORST Soll).`,
+            nrPunkte: 2, erklaerung: `AK = Kaufpreis + Nebenkosten = ${fmt(ak)} €. Anlage wird zum AK aktiviert (0700 MA Soll). Vorsteuer auf AK (2600 VORST Soll).`,
           };
         },
       },
@@ -2151,11 +2151,11 @@ Buchung: Verbindlichkeiten aus L+L an Nachlässe auf Rohstoffe + Vorsteuer`,
         generate: f => {
           const anlagenDaten = [
             { art: "Firmen-PKW", konto: "0840", nd: 6 },
-            { art: "CNC-Maschine", konto: "0400", nd: 8 },
-            { art: "Büromöbel", konto: "0680", nd: 13 },
+            { art: "CNC-Maschine", konto: "0700", nd: 8 },
+            { art: "Büromöbel", konto: "0870", nd: 13 },
             { art: "Kopierer", konto: "0860", nd: 7 },
             { art: "Computer/Server", konto: "0860", nd: 3 },
-            { art: "LKW", konto: "0820", nd: 9 },
+            { art: "LKW", konto: "0840", nd: 9 },
           ];
           const ag = pick(anlagenDaten);
           const ak = rnd(4000, 30000, 500);
@@ -2341,7 +2341,7 @@ Buchung: Verbindlichkeiten aus L+L an Nachlässe auf Rohstoffe + Vorsteuer`,
             nebenrechnungen: [{ label: `Disagio (${disagioPct} %)`, formel: `${fmt(kreditsumme)} × ${disagioPct} %`, ergebnis: `${fmt(disagio)} €` }, { label: "Auszahlungsbetrag", formel: `${fmt(kreditsumme)} − ${fmt(disagio)}`, ergebnis: `${fmt(auszahlung)} €` }],
             soll: [{ nr: "2800", name: "Bank (BK)", betrag: auszahlung }, { nr: "2900", name: "Aktiver RAP (Disagio)", betrag: disagio }],
             haben: [{ nr: "4250", name: "Langfristige Bankverbindlichkeiten (LBKV)", betrag: kreditsumme }],
-            nrPunkte: 2, erklaerung: `Darlehen = volle Kreditsumme ${fmt(kreditsumme)} € (2100 Haben). Bank überweist nur ${fmt(auszahlung)} € (2800 BK Soll). Disagio = aktiver RAP (2900 Soll).`,
+            nrPunkte: 2, erklaerung: `Darlehen = volle Kreditsumme ${fmt(kreditsumme)} € (4250 LBKV Haben). Bank überweist nur ${fmt(auszahlung)} € (2800 BK Soll). Disagio = aktiver RAP (2900 Soll).`,
           };
         },
       },
@@ -2394,7 +2394,7 @@ Buchung: Verbindlichkeiten aus L+L an Nachlässe auf Rohstoffe + Vorsteuer`,
             nebenrechnungen: [{ label: "Zinsen (5 % p.a., 1/12)", formel: `${fmt(darlehen)} × 5 % ÷ 12`, ergebnis: `${fmt(zins)} €` }, { label: "Gesamtrate", formel: `${fmt(tilgung)} + ${fmt(zins)}`, ergebnis: `${fmt(rate)} €` }],
             soll: [{ nr: "4250", name: "Langfristige Bankverbindlichkeiten (LBKV)", betrag: tilgung }, { nr: "7510", name: "Zinsaufwendungen (ZAW)", betrag: zins }],
             haben: [{ nr: "2800", name: "Bank (BK)", betrag: rate }],
-            nrPunkte: 1, erklaerung: `Tilgung mindert Schuld (2100 Soll, ${fmt(tilgung)} €). Zinsaufwand (4630 Soll, ${fmt(zins)} €). Gesamtabfluss ${fmt(rate)} € (2800 BK Haben).`,
+            nrPunkte: 1, erklaerung: `Tilgung mindert Schuld (4250 LBKV Soll, ${fmt(tilgung)} €). Zinsaufwand (7510 ZAW Soll, ${fmt(zins)} €). Gesamtabfluss ${fmt(rate)} € (2800 BK Haben).`,
           };
         },
       },
@@ -2789,7 +2789,7 @@ Amtsgericht München`
               `Sehr geehrte Damen und Herren,\n\nwie Sie uns mitgeteilt haben, befindet sich ${k.name} seit mehr als 90 Tagen im Zahlungsverzug bzgl. Ihrer Forderung ${nr} (${fmt(brutto)} €).\n\nWir empfehlen, diese Forderung als zweifelhaft einzustufen und entsprechend buchhalterisch umzubuchen.\n\nFür weitere Fragen stehen wir gerne zur Verfügung.\n\nMit freundlichen Grüßen\nMustermann & Partner Rechtsanwälte`),
             soll: [{ nr: "2470", name: "Zweifelhafte Forderungen", betrag: brutto }],
             haben: [{ nr: "2400", name: "Forderungen aus L+L (FO)", betrag: brutto }],
-            nrPunkte: 0, erklaerung: "Zweifelhafte Forderungen werden auf ein gesondertes Konto umgebucht (2470 Soll / 1400 Haben). Bruttobetrag bleibt.",
+            nrPunkte: 0, erklaerung: "Zweifelhafte Forderungen werden auf ein gesondertes Konto umgebucht (2470 Soll / 2400 FO Haben). Bruttobetrag bleibt.",
           };
         },
       },
@@ -2829,7 +2829,7 @@ Amtsgericht München`
             ],
             soll: [{ nr: "2800", name: "Bank (BK — Teilzahlung)", betrag: zahlung }, { nr: "6950", name: "Abschreibungen auf Forderungen (Nettoausfall)", betrag: ausfall_netto }, { nr: "4800", name: "Umsatzsteuer (UST-Korrektur Ausfall)", betrag: ausfall_ust }],
             haben: [{ nr: "2400", name: "Forderungen aus L+L (FO)", betrag: brutto }],
-            nrPunkte: 3, erklaerung: `Teilzahlung (1200 Soll, ${fmt(zahlung)} €). Nettoausfall = Verlust (6950 Soll). USt auf Ausfall korrigieren (4400 Soll, §17 UStG). Bruttoforderung erlischt (1400 Haben, ${fmt(brutto)} €).`,
+            nrPunkte: 3, erklaerung: `Teilzahlung (2800 BK Soll, ${fmt(zahlung)} €). Nettoausfall = Verlust (6950 Soll). USt auf Ausfall korrigieren (4800 UST Soll, §17 UStG). Bruttoforderung erlischt (2400 FO Haben, ${fmt(brutto)} €).`,
           };
         },
       },
@@ -2847,7 +2847,7 @@ Amtsgericht München`
             nebenrechnungen: [{ label: "Nettobetrag", formel: `${fmt(brutto)} ÷ 1,19`, ergebnis: `${fmt(netto)} €` }, { label: "USt-Betrag", formel: `${fmt(brutto)} − ${fmt(netto)}`, ergebnis: `${fmt(ust)} €` }],
             soll: [{ nr: "2800", name: "Bank (BK)", betrag: brutto }],
             haben: [{ nr: "5495", name: "Erträge aus Forderungseingang (vorher abgeschr.)", betrag: netto }, { nr: "4800", name: "Umsatzsteuer (UST — nachträgl. Schuld)", betrag: ust }],
-            nrPunkte: 1, erklaerung: `Zahlung wider Erwarten → Ertrag (5495 EFO Haben, Nettobetrag ${fmt(netto)} €). USt nachträglich wieder schulden (4400 Haben, ${fmt(ust)} €). Bank steigt (1200 Soll, ${fmt(brutto)} €).`,
+            nrPunkte: 1, erklaerung: `Zahlung wider Erwarten → Ertrag (5495 EFO Haben, Nettobetrag ${fmt(netto)} €). USt nachträglich wieder schulden (4800 UST Haben, ${fmt(ust)} €). Bank steigt (2800 BK Soll, ${fmt(brutto)} €).`,
           };
         },
       },
@@ -4451,8 +4451,8 @@ Externer Vergleich (Branchenvergleich): Mit ${fmt(aktuell)} % liegt ${f.name} ${
                 aufgabe: `Schließen Sie das Konto 2800 BK mit einem Schlussbestand von ${fmt(sb_bk)} € auf die SBK ab.`,
                 beleg: null, nrPunkte: 0,
                 soll: [{ nr: "2800", name: "Bank (BK)", betrag: sb_bk }],
-                haben: [{ nr: "9010", name: "Schlussbilanz (SBK)", betrag: sb_bk }],
-                erklaerung: `Aktivkonto: 2800 BK an 9010 SBK (Schlussbestand auf Haben-Seite der SBK).`,
+                haben: [{ nr: "8010", name: "Schlussbilanz (SBK)", betrag: sb_bk }],
+                erklaerung: `Aktivkonto: 2800 BK an 8010 SBK (Schlussbestand auf Haben-Seite der SBK).`,
               },
               {
                 nr: 3, titel: "GUV-Konto abschließen", typ: "buchung", punkte: 2,

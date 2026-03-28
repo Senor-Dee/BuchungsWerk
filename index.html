@@ -4,18 +4,162 @@
     <meta charset="UTF-8" />
     <link rel="icon" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#141008" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="BuchungsWerk" />
-    <title>BuchungsWerk</title>
+    <title>BuchungsWerk – KI-gestützte BwR-Aufgaben für Realschule Bayern</title>
+    <meta name="description" content="Buchungsaufgaben mit KI generieren – ISB-konform, lehrplangerecht, druckfertig. Für BwR-Lehrkräfte an bayerischen Realschulen, Klassen 7–10." />
+    <meta property="og:title" content="BuchungsWerk – BwR-Aufgaben mit KI" />
+    <meta property="og:description" content="ISB-konforme Buchungsaufgaben in Sekunden generieren. Klassen 7–10, alle Lernbereiche." />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://buchungswerk.org" />
+    <!-- Google Fonts: Bebas Neue + IBM Plex Sans + Fira Code -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Sans:wght@400;600;700&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet" />
     <style>
       * { box-sizing: border-box; margin: 0; padding: 0; }
-      body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f8fafc; }
-      #root { min-height: 100vh; }
+
+      body {
+        font-family: 'IBM Plex Sans', system-ui, -apple-system, sans-serif;
+        background: #141008;
+        color: #f0ece3;
+      }
+
+      /* ── Dynamischer Hintergrund: Industrial-Rost-Wellen ── */
+      #bg {
+        position: fixed;
+        inset: 0;
+        z-index: 0;
+        pointer-events: none;
+        overflow: hidden;
+      }
+
+      .bg-blob {
+        position: absolute;
+        border-radius: 50%;
+        filter: blur(100px);
+        will-change: transform, opacity;
+      }
+
+      /* Blob 1 — warmes Molten Orange, oben links */
+      .bg-blob-1 {
+        width: 65vw;
+        height: 55vh;
+        background: radial-gradient(circle, rgba(232,96,10,0.16) 0%, rgba(180,50,0,0.07) 50%, transparent 70%);
+        top: -15%;
+        left: -8%;
+        animation: blob1 24s ease-in-out infinite alternate;
+      }
+
+      /* Blob 2 — tiefes Rost-Rot, unten rechts */
+      .bg-blob-2 {
+        width: 50vw;
+        height: 65vh;
+        background: radial-gradient(circle, rgba(160,40,0,0.13) 0%, rgba(120,25,0,0.05) 50%, transparent 70%);
+        bottom: -10%;
+        right: -12%;
+        animation: blob2 30s ease-in-out infinite alternate;
+      }
+
+      /* Blob 3 — Amber-Glut, Mitte wandernd */
+      .bg-blob-3 {
+        width: 40vw;
+        height: 40vh;
+        background: radial-gradient(circle, rgba(210,75,5,0.10) 0%, transparent 65%);
+        top: 35%;
+        left: 35%;
+        animation: blob3 19s ease-in-out infinite alternate;
+      }
+
+      @keyframes blob1 {
+        0%   { transform: translate(0,    0)    scale(1);    opacity: 0.85; }
+        25%  { transform: translate(10vw, 12vh) scale(1.08); opacity: 1;    }
+        60%  { transform: translate(4vw,  28vh) scale(0.93); opacity: 0.9;  }
+        100% { transform: translate(18vw, 7vh)  scale(1.12); opacity: 0.8;  }
+      }
+
+      @keyframes blob2 {
+        0%   { transform: translate(0,     0)    scale(1);    opacity: 0.9;  }
+        35%  { transform: translate(-16vw,-10vh) scale(1.1);  opacity: 0.75; }
+        70%  { transform: translate(-6vw, -24vh) scale(0.88); opacity: 1;    }
+        100% { transform: translate(-20vw,-4vh)  scale(1.14); opacity: 0.8;  }
+      }
+
+      @keyframes blob3 {
+        0%   { transform: translate(0,    0)    scale(1);    opacity: 0.65; }
+        50%  { transform: translate(-13vw,9vh)  scale(1.2);  opacity: 0.95; }
+        100% { transform: translate(9vw, -13vh) scale(0.82); opacity: 0.55; }
+      }
+
+      /* ── Feine Punkt-Textur: JS-generiert, wirklich zufällig ── */
+      #dots {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        pointer-events: none;
+        background-repeat: repeat;
+      }
+
+      #root { min-height: 100vh; position: relative; }
+
+      /* Button-Hover: leichte Aufhellung + kleines Anheben */
+      button:not(:disabled):hover {
+        filter: brightness(1.14);
+        transform: translateY(-1px);
+        transition: filter 150ms ease, transform 150ms ease, box-shadow 150ms ease;
+      }
+
+      /* Tablet-Haptik: Button-Press-Feedback */
+      button:active {
+        transform: scale(0.97) !important;
+        transition: transform 110ms ease, box-shadow 110ms ease !important;
+        box-shadow: 0 0 22px rgba(232,96,10,0.6), 0 1px 0 rgba(0,0,0,0.5) !important;
+      }
+
+      /* Smooth Focus-Übergänge */
+      input:focus, textarea:focus, select:focus {
+        outline: none;
+      }
+
+      /* Scrollbar im dunklen Stil */
+      ::-webkit-scrollbar { width: 6px; }
+      ::-webkit-scrollbar-track { background: rgba(240,236,227,0.05); }
+      ::-webkit-scrollbar-thumb { background: rgba(232,96,10,0.4); border-radius: 3px; }
+      ::-webkit-scrollbar-thumb:hover { background: rgba(232,96,10,0.7); }
     </style>
   </head>
   <body>
+    <div id="bg">
+      <div class="bg-blob bg-blob-1"></div>
+      <div class="bg-blob bg-blob-2"></div>
+      <div class="bg-blob bg-blob-3"></div>
+    </div>
+    <div id="dots"></div>
     <div id="root"></div>
+    <script>
+      (function() {
+        var W = 1600, H = 1600, N = 2800;
+        var c = document.createElement('canvas');
+        c.width = W; c.height = H;
+        var ctx = c.getContext('2d');
+        for (var i = 0; i < N; i++) {
+          var px = Math.random() * W;
+          var py = Math.random() * H;
+          var r  = 0.4 + Math.random() * 1.1;
+          var a  = 0.055 + Math.random() * 0.12;
+          ctx.beginPath();
+          ctx.arc(px, py, r, 0, 6.283);
+          ctx.fillStyle = 'rgba(210,90,25,' + a.toFixed(3) + ')';
+          ctx.fill();
+        }
+        var el = document.getElementById('dots');
+        el.style.backgroundImage = 'url(' + c.toDataURL('image/png') + ')';
+        el.style.backgroundSize  = W + 'px ' + H + 'px';
+      })();
+    </script>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

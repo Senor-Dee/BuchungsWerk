@@ -309,7 +309,7 @@ function Hero({ onRegister, onLogin }) {
         marginBottom:"40px", position:"relative", zIndex:1 }}>
         KI-gestützte Buchungsaufgaben für Realschule und FOS/BOS.{" "}
         <strong style={{ color:"rgba(240,236,227,0.9)", fontWeight:600 }}>
-          Klassen 8–12, alle Lernbereiche, druckfertig in Sekunden.
+          Klassen 7–10, alle Lernbereiche, druckfertig in Sekunden.
         </strong>
       </p>
 
@@ -355,7 +355,7 @@ function Hero({ onRegister, onLogin }) {
 function StatsBar() {
   const stats = [
     { value:"20+",  label:"Lernbereiche" }, { value:"100+", label:"Aufgabentypen" },
-    { value:"8–12", label:"Klassen" },      { value:"∞",    label:"Varianten" },
+    { value:"7–10", label:"Klassen" },      { value:"∞",    label:"Varianten" },
   ];
   return (
     <div style={{ borderTop:"1px solid rgba(240,236,227,0.08)", borderBottom:"1px solid rgba(240,236,227,0.08)",
@@ -379,18 +379,18 @@ function StatsBar() {
 // FIX 2 — FEATURES: Sticky scroll, öffnet sich automatisch beim Scrollen
 // ══════════════════════════════════════════════════════════════════════════════
 const FEATURES = [
-  { nr:"01", Icon:Zap,          title:"KI-Aufgaben in Sekunden",  sub:"Sofort einsetzbar · Musterlösung inklusive",
-    desc:"Buchungsaufgaben passend zu Klasse, Thema und Unternehmen – fertig generiert, direkt einsetzbar. Du gibst Firma und Lernbereich vor, die KI liefert vollständige Aufgaben mit Musterlösung.", tag:"KI" },
-  { nr:"02", Icon:FileText,     title:"Druckfertig exportieren",   sub:"Word · Pages · PDF",
-    desc:"Schulaufgaben im bayerischen Format als Word, Pages oder PDF. Kopfzeile, Notenfeld und Punkteverteilung werden automatisch generiert – direkt druckbar ohne Nachbearbeitung.", tag:"Export" },
-  { nr:"03", Icon:GraduationCap,title:"ISB-konform & vollständig", sub:"LB 1 bis Jahresabschluss",
-    desc:"Kontenplan nach IKR, Punktevergabe nach Handreichung. Alle Lernbereiche von LB 1 (Werkstoffe) bis Jahresabschluss (GuV, Bilanz) vollständig abgedeckt.", tag:"ISB" },
-  { nr:"04", Icon:BookOpen,     title:"Übungen & Prüfungen",       sub:"Stegreifaufgabe bis Schulaufgabe",
-    desc:"Von Stegreifaufgaben bis Schulaufgaben – mit Notenspiegel, Punkte-Strenge und interaktivem H5P-Export für mebis/bycs. Alle Prüfungsformate auf Knopfdruck.", tag:"Prüfung" },
-  { nr:"05", Icon:ReceiptEuro,   title:"Beleg-Editor",              sub:"Eigene Belege · KI-Generierung",
-    desc:"Eigene Rechnungen, Kontoauszüge und Überweisungen gestalten – und daraus per KI vollständige Aufgaben generieren. Realitätsnahe Belege für authentischen Unterricht.", tag:"Belege" },
-  { nr:"06", Icon:BarChart2,    title:"Fortschritt & Mastery",     sub:"Gamification · Wiederholung",
-    desc:"Wiederholungsvorschläge, Mastery-Level je Thema, Lern-Streak und Fortschrittsdiagramme – Gamification für nachhaltigeres Üben und messbaren Lernerfolg.", tag:"Lernen" },
+  { nr:"01", Icon:Zap,          title:"KI-Aufgaben in Sekunden",        sub:"Planspiel · Komplexaufgaben · Belege",
+    desc:"Mit einem Klick vollständige BwR-Aufgaben generieren – inkl. Unternehmens-Planspiel, Komplexaufgaben und realistischen Belegen. Die KI liefert Aufgabe und Musterlösung, passend zu Klasse, Thema und Lernbereich.", tag:"KI" },
+  { nr:"02", Icon:FileText,     title:"Druckfertig in Sekunden",         sub:"Ohne Wasserzeichen · Word · PDF",
+    desc:"Exportiere Schulaufgaben als Word, Pages oder PDF – ohne Wasserzeichen, ohne Nachbearbeitung. Kopfzeile, Notenfeld und Punkteverteilung werden automatisch ergänzt. In wenigen Sekunden druckbereit.", tag:"Export" },
+  { nr:"03", Icon:GraduationCap,title:"ISB-konform & lehrplangerecht",   sub:"LB 1 bis Jahresabschluss · Grundwissen",
+    desc:"Alle Lernbereiche nach bayerischem Lehrplan – von LB 1 (Werkstoffe) bis Jahresabschluss (GuV, Bilanz). Kontenplan nach IKR, Punktevergabe nach Handreichung. Inklusive Wiederholung des Grundwissens.", tag:"ISB" },
+  { nr:"04", Icon:School,       title:"ByCS & H5P-Integration",          sub:"Lernplattform-Export · Offline-Übungen",
+    desc:"Exportiere H5P-Übungen direkt auf die ByCS Lernplattform – oder als offline-Paket für das Klassenzimmer ohne Internetanschluss. Schüler üben digital, du behältst die Kontrolle.", tag:"ByCS" },
+  { nr:"05", Icon:Shield,       title:"DSGVO-konform & geräteunabhängig",sub:"Deutsche Server · Windows · Mac · Linux",
+    desc:"BuchungsWerk läuft vollständig auf deutschen Servern – DSGVO-konform ohne externe Dienste. Die App funktioniert auf jedem Betriebssystem: Windows, macOS, Linux, Tablet – immer im Browser, ohne Installation.", tag:"Datenschutz" },
+  { nr:"06", Icon:Building2,    title:"Schullizenzen & Speicher",         sub:"Kollegium · Aufgaben teilen · Klassen",
+    desc:"Mit einer Schullizenz erhalten alle Lehrkräfte Ihrer Schule Zugang. Eigene Aufgaben und Szenarien zentral speichern und im Kollegium teilen – für einheitlichen Unterricht ohne Mehraufwand.", tag:"Schule" },
 ];
 
 // Outer section height: each feature gets ~100vh of scroll range
