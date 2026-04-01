@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- BuchungsWerk Favicon — großes B + "WERK" vertikal (Momoka-Stil) -->
+  <rect width="32" height="32" rx="5.5" fill="#0f0a04"/>
+
+  <!--
+    Großes "B" — dominante Hauptform, x=1–20, y=1–31.
+    Outer path (clockwise) + zwei evenodd counter-spaces (Augen).
+  -->
+  <path fill="#e8600a" fill-rule="evenodd" d="
+    M 1 1 L 1 31 L 13 31
+    Q 20 31 20 23
+    Q 20 16 14 16 L 14 14
+    Q 18 14 18 8
+    Q 18 1 13 1 Z
+    M 3 6  Q 16 6  16 9.5 Q 16 13 3 13 Z
+    M 3 17 Q 18 17 18 24  Q 18 29 3 29 Z
+  "/>
+
+
+  <!--
+    "WERK" — vertikale Strich-Buchstaben, rechte Spalte x=23–31.
+    Jeder Buchstabe ~6 Einheiten hoch, 2 Einheiten Abstand.
+    W: y 2–8 · E: y 10–16 · R: y 18–24 · K: y 26–31
+  -->
+  <g stroke="#e8600a" stroke-width="1.15" stroke-linecap="round"
+     stroke-linejoin="round" fill="none" opacity="0.9">
+    <!-- W -->
+    <polyline points="23,2 24.5,8 27,4.5 29.5,8 31,2"/>
+    <!-- E -->
+    <polyline points="31,10 23,10 23,16 31,16"/>
+    <line x1="23" y1="13" x2="29.5" y2="13"/>
+    <!-- R -->
+    <line x1="23" y1="18" x2="23" y2="24"/>
+    <path d="M23,18 Q31,18 31,21 Q31,23 26,23"/>
+    <line x1="26" y1="23" x2="31" y2="24"/>
+    <!-- K -->
+    <line x1="23" y1="26" x2="23" y2="31"/>
+    <polyline points="31,26 24,28.5 31,31"/>
+  </g>
+
+</svg>

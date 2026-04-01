@@ -1,7 +1,7 @@
 $PI_LOCAL  = "senor_d@192.168.68.54"
 $PI_REMOTE = "senor_d@ssh.buchungswerk.org"
 $ROOT      = "C:\Project Buchungswerk"
-$MAIN      = "$ROOT\main.py"
+$MAIN      = "$ROOT\buchungswerk-backend\main.py"
 $KEY       = "$HOME\.ssh\id_buchungswerk"
 
 function Invoke-SSH($target, $cmd) {
@@ -22,6 +22,7 @@ Write-Host "Lade Quellcode hoch..."
 & scp -i $KEY -o StrictHostKeyChecking=accept-new "$ROOT\vite.config.js" "${PI}:~/BuchungsWerk/vite.config.js"
 & scp -i $KEY -o StrictHostKeyChecking=accept-new "$ROOT\index.html"     "${PI}:~/BuchungsWerk/index.html"
 & scp -i $KEY -o StrictHostKeyChecking=accept-new -r "$ROOT\src"         "${PI}:~/BuchungsWerk/"
+& scp -i $KEY -o StrictHostKeyChecking=accept-new -r "$ROOT\public"      "${PI}:~/BuchungsWerk/"
 
 # 3. Build auf dem Pi
 Write-Host "Baue auf dem Pi..."

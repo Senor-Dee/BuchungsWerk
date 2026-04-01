@@ -5,6 +5,7 @@ import React, { useState, useEffect, useRef } from "react";
 import ReactDOM from "react-dom/client";
 import BuchungsWerk from "./BuchungsWerk.jsx";
 import Landing, { isLoggedIn, getUser, clearAuth, setAuth } from "./Landing.jsx";
+import StudentJoin from "./components/StudentJoin.jsx";
 import { apiFetch, API_URL } from "./api.js";
 import {
   LogOut, User, Lock, Shield, Trash2, ChevronRight,
@@ -970,10 +971,17 @@ function App() {
   const [gastSession] = useState(() =>
     Boolean(new URLSearchParams(window.location.search).get("session"))
   );
+  // Live-Quiz Schüler-Beitritt: ?join=CODE öffnet direkt den StudentJoin-Screen
+  const [joinCode] = useState(() =>
+    new URLSearchParams(window.location.search).get("join") || ""
+  );
 
   const handleLogin = u => { setUser(u); setLoggedIn(true); };
   const handleLogout = () => { clearAuth(); setUser(null); setLoggedIn(false); };
   const handleUserUpdate = u => { setUser(u); };
+
+  // Schüler tritt einem Live-Quiz bei – kein Login nötig
+  if (joinCode) return <StudentJoin initialCode={joinCode.toUpperCase()} />;
 
   // Kein Login erforderlich wenn Schüler über einen Session-Link kommt
   if (!loggedIn && !gastSession) return <Landing onLogin={handleLogin} />;

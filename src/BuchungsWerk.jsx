@@ -12,6 +12,10 @@ import { PenLine, ClipboardList, Factory, FileText, Zap, Timer, Search,
          Sun, Trees, Scissors, Dumbbell,
          Save, Monitor, Laptop, Smile, Frown, Sprout, Star, Trophy, Flame,
          RefreshCw, MessageSquare, XCircle, Award, Paperclip, QrCode } from "lucide-react";
+import { useStreak } from "./hooks/useStreak.js";
+import { StreakBadge, StreakCelebration } from "./components/StreakBadge.jsx";
+import { useLevel } from "./hooks/useLevel.js";
+import { LevelUpdate } from "./components/LevelCard.jsx";
 
 const ICON_MAP = {
   Hash, BarChart2, BookOpen, Settings, Package, Megaphone, Tag, Users,
@@ -26,6 +30,7 @@ function IconFor({ name, size = 14, ...props }) {
   return C ? <C size={size} strokeWidth={1.5} {...props} /> : null;
 }
 import { apiFetch, API_URL } from "./api.js";
+import TeacherDashboard from "./pages/TeacherDashboard.jsx";
 import { r2, fmt, pick, rnd, fmtIBAN, duSie, duSieGross, anrede,
          BUCHUNGS_JAHR, rgnr, augnr, fakeDatum, berechnePunkte,
          WERKSTOFF_TYPEN, LB_INFO, NOTEN_ANKER, notenTabelle } from "./utils.js";
@@ -427,7 +432,7 @@ function BelegEmail({ b }) {
 
 function BelegAnzeige({ beleg }) {
   if (!beleg) return null;
-  if (beleg.typ === "eingangsrechnung") return <BelegEingangsrechnung b={beleg} />;
+  if (beleg.typ === "eingangsrechnung" || beleg.typ === "eingangsrechnung_fehler") return <BelegEingangsrechnung b={beleg} />;
   if (beleg.typ === "ausgangsrechnung") return <BelegAusgangsrechnung b={beleg} />;
   if (beleg.typ === "kontoauszug")      return <BelegKontoauszug b={beleg} />;
   if (beleg.typ === "ueberweisung")     return <BelegUeberweisung b={beleg} />;
@@ -444,6 +449,7 @@ function BelegAnzeige({ beleg }) {
 function belegToGeschaeftsfall(beleg) {
   if (!beleg) return null;
   switch (beleg.typ) {
+    case "eingangsrechnung_fehler":
     case "eingangsrechnung": {
       const pos = (beleg.positionen||[]).find(p => !p.isRabatt) || {};
       if (!pos.menge) return null;
@@ -1746,48 +1752,57 @@ function KomplexKarte({ aufgabe, nr, showLoesung, globalMode, klasse = 10, onSch
 }
 
 // ── Beleg / Geschäftsfall Slider ──────────────────────────────────────────────
-function BelegGFSlider({ value, onChange, isOverridden, compact = false }) {
+function BelegGFSlider({ value, onChange, compact = false }) {
   const opts = compact
     ? [{ key:"beleg", label:"Beleg", icon:FileText }, { key:"text", label:"GF", icon:MessageSquare }]
     : [{ key:"beleg", label:"Beleg", icon:FileText }, { key:"text", label:"Geschäftsfall", icon:MessageSquare }];
   const isLeft = value === "beleg";
+  const W = compact ? 108 : 166;
+  const pillW = Math.floor(W / 2) - 3;
+  const leftRest = 2;
+  const rightRest = Math.ceil(W / 2) + 1;
+  const restPos = isLeft ? leftRest : rightRest;
   const startXRef = useRef(0);
-  const movedRef  = useRef(false);
+  const isDraggingRef = useRef(false);
+  const [dragX, setDragX] = useState(null);
 
   const onDown = e => {
-    movedRef.current = false;
     startXRef.current = e.clientX;
+    isDraggingRef.current = false;
     e.currentTarget.setPointerCapture(e.pointerId);
   };
   const onMove = e => {
     const dx = e.clientX - startXRef.current;
-    if (Math.abs(dx) > 14 && !movedRef.current) {
-      movedRef.current = true;
-      if (dx > 0 && isLeft)  { onChange("text");  startXRef.current = e.clientX; }
-      if (dx < 0 && !isLeft) { onChange("beleg"); startXRef.current = e.clientX; }
+    if (Math.abs(dx) >= 4) isDraggingRef.current = true;
+    if (isDraggingRef.current) {
+      setDragX(Math.max(leftRest, Math.min(rightRest, restPos + dx)));
     }
   };
-  const onUp = () => {
-    if (!movedRef.current) onChange(isLeft ? "text" : "beleg");
+  const onUp = e => {
+    if (isDraggingRef.current) {
+      const dx = e.clientX - startXRef.current;
+      const threshold = (rightRest - leftRest) * 0.4;
+      if (isLeft && dx > threshold) onChange("text");
+      else if (!isLeft && dx < -threshold) onChange("beleg");
+    }
+    isDraggingRef.current = false;
+    setDragX(null);
   };
 
-  const W = compact ? 108 : 166;
+  const pillLeft = dragX !== null ? dragX : restPos;
+  const useAnim = dragX === null;
+
   return (
     <div style={{ position:"relative", width:W, height:28, borderRadius:14, flexShrink:0,
       background:"rgba(240,236,227,0.06)", border:"1.5px solid rgba(240,236,227,0.2)",
-      cursor:"pointer", userSelect:"none", touchAction:"none" }}
-      onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp}>
-      {/* sliding pill */}
-      <div style={{ position:"absolute", top:2, left: isLeft ? 2 : "calc(50% + 1px)",
-        width:"calc(50% - 3px)", height:"calc(100% - 4px)",
+      cursor:"grab", userSelect:"none", touchAction:"none" }}
+      onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
+      {/* sliding pill – folgt dem Finger, schnappt beim Loslassen */}
+      <div style={{ position:"absolute", top:2, left:pillLeft,
+        width:pillW, height:"calc(100% - 4px)",
         background:"#e8600a", borderRadius:12,
-        transition:"left 200ms cubic-bezier(.4,0,.2,1)",
+        transition: useAnim ? "left 200ms cubic-bezier(.4,0,.2,1)" : "none",
         boxShadow:"0 1px 8px rgba(232,96,10,0.45)" }}/>
-      {/* override dot */}
-      {isOverridden && (
-        <div style={{ position:"absolute", top:3, right:4, width:5, height:5,
-          background:"#fde68a", borderRadius:"50%", zIndex:2, pointerEvents:"none" }}/>
-      )}
       {/* labels */}
       {opts.map((opt, i) => (
         <div key={opt.key} style={{ position:"absolute", top:0, bottom:0,
@@ -1913,7 +1928,7 @@ function AufgabeKarte({ aufgabe, nr, showLoesung, globalMode, klasse = 10, onAuf
             </div>
           </div>
         ) : (
-          <p style={{ margin: "0 0 12px", color: "#374151", fontWeight: 600, fontSize: "14px" }}>{aufgabeText}</p>
+          <p style={{ margin: "0 0 12px", color: "rgba(240,236,227,0.92)", fontWeight: 600, fontSize: "14px" }}>{aufgabeText}</p>
         )}
 
         {hasBeleg && (
@@ -2006,7 +2021,7 @@ Original: ${origText}`;
                 ? <BuchungsSatz soll={aufgabe.soll} haben={aufgabe.haben} />
                 : <TKonten soll={aufgabe.soll} haben={aufgabe.haben} />
             )}
-            <div style={{ marginTop: "10px", padding: "8px 12px", background: "rgba(232,96,10,0.06)", borderRadius: "8px", border: "1px solid rgba(232,96,10,0.2)", fontSize: "13px", color: "rgba(240,236,227,0.8)", lineHeight: 1.6 }}>
+            <div style={{ marginTop: "10px", padding: "8px 12px", background: "rgba(232,96,10,0.12)", borderRadius: "8px", border: "1px solid rgba(232,96,10,0.3)", fontSize: "13px", color: "#374151", lineHeight: 1.6 }}>
               💡 {renderMitTooltips(aufgabe.erklaerung)}
             </div>
           </div>
@@ -2019,19 +2034,21 @@ Original: ${origText}`;
 // ══════════════════════════════════════════════════════════════════════════════
 // PUNKTE-PANEL
 // ══════════════════════════════════════════════════════════════════════════════
-function PunktePanel({ aufgaben, typ }) {
+function PunktePanel({ aufgaben, typ, maxPunkte }) {
   const [zeigTab, setZeigTab] = useState(false);
   const [strenge, setStrenge] = useState(0.5); // 0=locker, 1=streng, 0.5=ISB
   const gesamt = aufgaben.reduce((s, a) => s + berechnePunkte(a), 0);
+  // Notenschlüssel basiert auf geplantem Punkteziel (wenn gesetzt), sonst auf tatsächlichem Gesamt
+  const gesamtFuerNoten = maxPunkte && maxPunkte > 0 ? maxPunkte : gesamt;
   const g4pct = strenge <= 0.5
     ? NOTEN_ANKER.locker[3] + (NOTEN_ANKER.isb[3] - NOTEN_ANKER.locker[3]) * strenge * 2
     : NOTEN_ANKER.isb[3]    + (NOTEN_ANKER.streng[3] - NOTEN_ANKER.isb[3]) * (strenge - 0.5) * 2;
-  const grenze4 = Math.round(gesamt * g4pct * 2) / 2;
+  const grenze4 = Math.round(gesamtFuerNoten * g4pct * 2) / 2;
   let einordnung = "";
   if (typ === "Prüfung") {
-    if (gesamt <= 22) einordnung = "Stegreifaufgabe";
-    else if (gesamt <= 32) einordnung = "Kurzarbeit";
-    else if (gesamt <= 46) einordnung = "Schulaufgabe";
+    if (gesamtFuerNoten <= 22) einordnung = "Stegreifaufgabe";
+    else if (gesamtFuerNoten <= 32) einordnung = "Kurzarbeit";
+    else if (gesamtFuerNoten <= 46) einordnung = "Schulaufgabe";
     else einordnung = "Umfangr. Schulaufgabe";
   }
   return (
@@ -2039,9 +2056,14 @@ function PunktePanel({ aufgaben, typ }) {
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "16px" }}>
         <div>
           <div style={{ fontSize: "11px", color: "rgba(240,236,227,0.4)", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: "4px" }}>Punkte-Auswertung · 2026</div>
-          <div style={{ display: "flex", alignItems: "baseline", gap: "8px" }}>
+          <div style={{ display: "flex", alignItems: "baseline", gap: "8px", flexWrap:"wrap" }}>
             <span style={{ fontSize: "42px", fontWeight: 900, color: "#e8600a", lineHeight: 1 }}>{gesamt}</span>
             <span style={{ fontSize: "18px", color: "rgba(240,236,227,0.5)" }}>Punkte</span>
+            {maxPunkte && maxPunkte !== gesamt && (
+              <span style={{ fontSize:"12px", color:"rgba(240,236,227,0.4)", background:"rgba(240,236,227,0.06)", border:"1px solid rgba(240,236,227,0.1)", borderRadius:6, padding:"2px 8px", alignSelf:"center" }}>
+                Ziel: {maxPunkte} P
+              </span>
+            )}
           </div>
         </div>
         <div style={{ display: "flex", gap: "20px", flexWrap: "wrap" }}>
@@ -2114,7 +2136,7 @@ function PunktePanel({ aufgaben, typ }) {
           </div>
           {/* ── Noten-Grid ── */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(6,1fr)", gap: "4px" }}>
-            {notenTabelle(gesamt, strenge).map(n => (
+            {notenTabelle(gesamtFuerNoten, strenge).map(n => (
               <div key={n.note} style={{ background: n.farbe + "22", border: `1px solid ${n.farbe}44`, borderRadius: "8px", padding: "6px 4px", textAlign: "center" }}>
                 <div style={{ fontSize: "20px", fontWeight: 900, color: n.farbe }}>{n.note}</div>
                 <div style={{ fontSize: "10px", color: "#94a3b8" }}>{n.text}</div>
@@ -2140,14 +2162,18 @@ function SchrittTyp({ onWeiter, onBelegEditor, onEigeneBelege, onSimulation, ini
   const [pruefungsart, setPruefungsart] = useState(ic?.pruefungsart ?? null);
   const [klasse, setKlasse] = useState(ic?.klasse ?? null);
   const [datum, setDatum] = useState(ic?.datum ?? new Date().toISOString().split("T")[0]);
-  const [punkteModus, setPunkteModus] = useState(ic?.maxPunkte ? "punkte" : "anzahl");
-  const [anzahl, setAnzahl] = useState(ic?.anzahl ?? 5);
   const [maxPunkte, setMaxPunkte] = useState(ic?.maxPunkte ?? 30);
-  // selectedThemen: aus config.selectedThemen (Array→Set) rekonstruieren
+  const [zielAnzahl, setZielAnzahl] = useState(ic?.anzahl ?? 5);
+  const [zielModus, setZielModus] = useState("anzahl"); // "anzahl" | "punkte" – nur für Übung
+  // selectedThemen: { lb: { taskId: count } } — count=0 bedeutet abgewählt
   const [selectedThemen, setSelectedThemen] = useState(() => {
     if (!ic?.selectedThemen) return {};
     return Object.fromEntries(
-      Object.entries(ic.selectedThemen).map(([lb, ids]) => [lb, new Set(ids)])
+      Object.entries(ic.selectedThemen).map(([lb, ids]) => {
+        const m = {};
+        (ids || []).forEach(id => { m[id] = (m[id] || 0) + 1; });
+        return [lb, m];
+      })
     );
   });
   const [expandedLBs, setExpandedLBs] = useState(() => {
@@ -2209,16 +2235,45 @@ function SchrittTyp({ onWeiter, onBelegEditor, onEigeneBelege, onSimulation, ini
   const vorLernbereiche = (klasse && wiederholungAn)
     ? vorklassen.flatMap(k => Object.keys(AUFGABEN_POOL[k]).map(lb => ({ lb, k })))
     : [];
-  const activeLBs = Object.keys(selectedThemen).filter(lb => selectedThemen[lb].size > 0);
-  const totalThemen = activeLBs.reduce((s, lb) => s + selectedThemen[lb].size, 0);
+  const activeLBs = Object.keys(selectedThemen).filter(lb => {
+    const m = selectedThemen[lb] || {};
+    return Object.values(m).some(c => c > 0);
+  });
+  const totalThemen = activeLBs.reduce((s, lb) => {
+    return s + Object.values(selectedThemen[lb] || {}).filter(c => c > 0).length;
+  }, 0);
+  // Für komplex-Tasks: Schrittzahl aus den konfigurierten Optionen ableiten
+  const estimiereKomplexSchritte = (tid) => {
+    if (tid === "8_komplex_einkauf_kette")
+      return 2 + (komplexOpts.angebotsvergleich || komplexOpts.kalkulation ? 1 : 0)
+               + (komplexOpts.ruecksendung ? 1 : 0) + (komplexOpts.nachlass ? 1 : 0);
+    if (tid === "8_komplex_verkauf_kette")
+      return 2 + (verkaufOpts.vorkalkulation ? 1 : 0)
+               + (verkaufOpts.ruecksendung ? 1 : 0) + (verkaufOpts.nachlass ? 1 : 0);
+    if (tid === "9_komplex_forderungskette")
+      return 3 + (forderungOpts.ewb ? 1 : 0);
+    if (tid === "10_komplex_abschlusskette")
+      return (abschlussOpts.ara !== false ? 1 : 0) + (abschlussOpts.rst !== false ? 1 : 0)
+           + (abschlussOpts.afa !== false ? 1 : 0) + (abschlussOpts.ewb ? 1 : 0)
+           + (abschlussOpts.guv !== false ? 1 : 0) + (abschlussOpts.kennzahlen ? 1 : 0);
+    return 3;
+  };
+  const totalAnzahl = activeLBs.reduce((s, lb) => {
+    return s + Object.entries(selectedThemen[lb] || {}).reduce((a2, [tid, cnt]) => {
+      if (!cnt) return a2;
+      const t = findTask(lb, tid);
+      return a2 + (t?.taskTyp === "komplex" ? estimiereKomplexSchritte(tid) * cnt : cnt);
+    }, 0);
+  }, 0);
 
-  // Estimate points: sum of all selected task types' average points
+  // Estimate points: sum of selected task types × count × average points
   const estPunkte = activeLBs.reduce((sum, lb) => {
-    return sum + [...(selectedThemen[lb] || [])].reduce((s2, tid) => {
+    return sum + Object.entries(selectedThemen[lb] || {}).reduce((s2, [tid, cnt]) => {
+      if (!cnt) return s2;
       const t = findTask(lb, tid);
       if (!t) return s2;
       const pts = t.taskTyp === "komplex" ? 16 : t.taskTyp === "rechnung" ? (t.nrPunkte || 3) : 2 + (t.nrPunkte || 0);
-      return s2 + pts;
+      return s2 + pts * cnt;
     }, 0);
   }, 0);
 
@@ -2230,14 +2285,25 @@ function SchrittTyp({ onWeiter, onBelegEditor, onEigeneBelege, onSimulation, ini
   }
 
   function toggleThema(lb, id) {
-    setSelectedThemen(prev => { const s = new Set(prev[lb] || []); s.has(id) ? s.delete(id) : s.add(id); return { ...prev, [lb]: s }; });
+    setSelectedThemen(prev => {
+      const m = { ...(prev[lb] || {}) };
+      m[id] = (m[id] || 0) > 0 ? 0 : 1;
+      return { ...prev, [lb]: m };
+    });
+  }
+  function adjustCount(lb, id, delta) {
+    setSelectedThemen(prev => {
+      const m = { ...(prev[lb] || {}) };
+      m[id] = Math.max(0, Math.min(5, (m[id] || 0) + delta));
+      return { ...prev, [lb]: m };
+    });
   }
 
   const PRUEFUNGSARTEN = [
-    { id: "Schulaufgabe",    icon: FileText, info: "90–100 min · 30–50 P" },
-    { id: "Stegreifaufgabe", icon: Zap,      info: "20 min · 10–15 P" },
-    { id: "Kurzarbeit",      icon: Timer,    info: "30–45 min · 15–25 P" },
-    { id: "Test",            icon: Search,   info: "45–60 min · 20–30 P" },
+    { id: "Schulaufgabe",    icon: FileText, info: "90–100 min · 30–50 P", defaultP: 40 },
+    { id: "Stegreifaufgabe", icon: Zap,      info: "20 min · 10–15 P",     defaultP: 12 },
+    { id: "Kurzarbeit",      icon: Timer,    info: "30–45 min · 15–25 P",  defaultP: 20 },
+    { id: "Test",            icon: Search,   info: "45–60 min · 20–30 P",  defaultP: 25 },
   ];
 
   const canProceed = typ && klasse && totalThemen > 0 && (typ === "Übung" || pruefungsart);
@@ -2281,6 +2347,34 @@ function SchrittTyp({ onWeiter, onBelegEditor, onEigeneBelege, onSimulation, ini
         </div>
       </div>
 
+      {/* ── Sticky Fortschritts-Bar ── */}
+      {klasse && totalAnzahl > 0 && (() => {
+        const isPruefung = typ === "Prüfung";
+        const showPunkte = isPruefung || zielModus === "punkte";
+        const cur = showPunkte ? estPunkte : totalAnzahl;
+        const ziel = showPunkte ? maxPunkte : zielAnzahl;
+        const pct = Math.min(100, ziel > 0 ? (cur / ziel) * 100 : 0);
+        const ok = cur >= ziel;
+        const over = cur > ziel;
+        const barColor = over ? "#f87171" : ok ? "#4ade80" : "#e8600a";
+        const label = showPunkte ? `${cur} / ${ziel} P` : `${cur} / ${ziel} Aufg.`;
+        const sub = showPunkte ? "Punkte-Fortschritt" : "Aufgaben-Fortschritt";
+        return (
+          <div style={{ position:"sticky", top:62, zIndex:150,
+            background:"rgba(14,10,4,0.55)", backdropFilter:"blur(24px) saturate(180%)", WebkitBackdropFilter:"blur(24px) saturate(180%)",
+            borderBottom:"1.5px solid rgba(240,236,227,0.1)", padding:"8px 20px",
+            display:"flex", alignItems:"center", gap:14 }}>
+            <span style={{ fontSize:11, fontWeight:700, color:"rgba(240,236,227,0.45)", textTransform:"uppercase", letterSpacing:"0.08em", flexShrink:0 }}>{sub}</span>
+            <div style={{ flex:1, height:5, borderRadius:3, background:"rgba(240,236,227,0.08)", overflow:"hidden" }}>
+              <div style={{ height:"100%", width:pct+"%", background:barColor, borderRadius:3, transition:"width 250ms ease" }} />
+            </div>
+            <span style={{ fontSize:14, fontWeight:900, color:barColor, flexShrink:0, fontFamily:"'Fira Code',monospace" }}>
+              {label}{ok && !over ? " ✓" : over ? " ⚠" : ""}
+            </span>
+          </div>
+        );
+      })()}
+
       {/* ── MAIN CONTENT ── */}
       <div style={{ maxWidth: "860px", margin: "0 auto", padding: "20px 16px" }}>
 
@@ -2320,7 +2414,7 @@ function SchrittTyp({ onWeiter, onBelegEditor, onEigeneBelege, onSimulation, ini
           <label style={{ fontSize: "13px", fontWeight: 600, color: "rgba(240,236,227,0.7)", display: "block", marginBottom: "8px" }}>Art der Prüfung</label>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
             {PRUEFUNGSARTEN.map(pa => (
-              <button key={pa.id} onClick={() => setPruefungsart(pa.id)}
+              <button key={pa.id} onClick={() => { setPruefungsart(pa.id); setMaxPunkte(pa.defaultP); }}
                 style={{ padding: "10px 14px", border: "2px solid", borderRadius: "10px", cursor: "pointer", textAlign: "left",
                   borderColor: pruefungsart === pa.id ? "#e8600a" : "rgba(240,236,227,0.15)",
                   background: pruefungsart === pa.id ? "linear-gradient(135deg,rgba(20,16,8,0.9),rgba(40,28,12,0.95))" : "rgba(30,22,10,0.6)",
@@ -2354,6 +2448,53 @@ function SchrittTyp({ onWeiter, onBelegEditor, onEigeneBelege, onSimulation, ini
           </div>
         </div>
 
+        {/* ── Ziel festlegen ── */}
+        {klasse && (
+          <div style={{ marginBottom:"16px", background:"rgba(240,236,227,0.04)", border:"1.5px solid rgba(240,236,227,0.1)", borderRadius:12, padding:"14px 16px" }}>
+            <div style={{ fontSize:11, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.1em", color:"rgba(240,236,227,0.4)", marginBottom:10 }}>
+              {typ === "Prüfung" ? "Punkteziel" : "Aufgaben-Ziel"}
+            </div>
+            {typ === "Prüfung" ? (
+              <div style={{ display:"flex", alignItems:"center", gap:6, flexWrap:"wrap" }}>
+                {[10,12,20,25,30,40,50].map(p => (
+                  <button key={p} onClick={() => setMaxPunkte(p)} style={{ padding:"5px 13px", borderRadius:7, border:"1.5px solid", borderColor: maxPunkte===p ? "#e8600a" : "rgba(240,236,227,0.15)", background: maxPunkte===p ? "rgba(232,96,10,0.12)" : "rgba(240,236,227,0.04)", color: maxPunkte===p ? "#e8600a" : "rgba(240,236,227,0.5)", fontWeight:700, fontSize:12, cursor:"pointer" }}>{p}</button>
+                ))}
+                <input type="number" min="5" max="100" value={maxPunkte} onChange={e => setMaxPunkte(Number(e.target.value))}
+                  style={{ width:58, padding:"4px 7px", border:"1.5px solid rgba(240,236,227,0.18)", borderRadius:7, fontSize:12, fontWeight:700, textAlign:"center", background:"rgba(240,236,227,0.06)", color:"#f0ece3" }} />
+                <span style={{ fontSize:12, color:"rgba(240,236,227,0.5)" }}>Punkte</span>
+              </div>
+            ) : (
+              <>
+                {/* Toggle: Aufgaben / Punkte */}
+                <div style={{ display:"flex", gap:5, marginBottom:10 }}>
+                  {[["anzahl","Aufgaben-Anzahl"],["punkte","Punkteziel"]].map(([m, l]) => (
+                    <button key={m} onClick={() => setZielModus(m)} style={{ padding:"4px 14px", borderRadius:20, border:"1.5px solid", borderColor: zielModus===m ? "#e8600a" : "rgba(240,236,227,0.15)", background: zielModus===m ? "rgba(232,96,10,0.12)" : "transparent", color: zielModus===m ? "#e8600a" : "rgba(240,236,227,0.4)", fontWeight:700, fontSize:11, cursor:"pointer" }}>{l}</button>
+                  ))}
+                </div>
+                {zielModus === "anzahl" ? (
+                  <div style={{ display:"flex", alignItems:"center", gap:6, flexWrap:"wrap" }}>
+                    {[3,5,7,10,15].map(n => (
+                      <button key={n} onClick={() => setZielAnzahl(n)} style={{ padding:"5px 13px", borderRadius:7, border:"1.5px solid", borderColor: zielAnzahl===n ? "#e8600a" : "rgba(240,236,227,0.15)", background: zielAnzahl===n ? "rgba(232,96,10,0.12)" : "rgba(240,236,227,0.04)", color: zielAnzahl===n ? "#e8600a" : "rgba(240,236,227,0.5)", fontWeight:700, fontSize:12, cursor:"pointer" }}>{n}</button>
+                    ))}
+                    <input type="number" min="1" max="30" value={zielAnzahl} onChange={e => setZielAnzahl(Number(e.target.value))}
+                      style={{ width:58, padding:"4px 7px", border:"1.5px solid rgba(240,236,227,0.18)", borderRadius:7, fontSize:12, fontWeight:700, textAlign:"center", background:"rgba(240,236,227,0.06)", color:"#f0ece3" }} />
+                    <span style={{ fontSize:12, color:"rgba(240,236,227,0.5)" }}>Aufgaben</span>
+                  </div>
+                ) : (
+                  <div style={{ display:"flex", alignItems:"center", gap:6, flexWrap:"wrap" }}>
+                    {[10,15,20,25,30].map(p => (
+                      <button key={p} onClick={() => setMaxPunkte(p)} style={{ padding:"5px 13px", borderRadius:7, border:"1.5px solid", borderColor: maxPunkte===p ? "#e8600a" : "rgba(240,236,227,0.15)", background: maxPunkte===p ? "rgba(232,96,10,0.12)" : "rgba(240,236,227,0.04)", color: maxPunkte===p ? "#e8600a" : "rgba(240,236,227,0.5)", fontWeight:700, fontSize:12, cursor:"pointer" }}>{p}</button>
+                    ))}
+                    <input type="number" min="1" max="100" value={maxPunkte} onChange={e => setMaxPunkte(Number(e.target.value))}
+                      style={{ width:58, padding:"4px 7px", border:"1.5px solid rgba(240,236,227,0.18)", borderRadius:7, fontSize:12, fontWeight:700, textAlign:"center", background:"rgba(240,236,227,0.06)", color:"#f0ece3" }} />
+                    <span style={{ fontSize:12, color:"rgba(240,236,227,0.5)" }}>Punkte</span>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        )}
+
         {klasse && (
           <div style={{ marginBottom: "20px" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
@@ -2371,17 +2512,59 @@ function SchrittTyp({ onWeiter, onBelegEditor, onEigeneBelege, onSimulation, ini
                     Wiederholung {wiederholungAn ? "ein" : "aus"}
                   </button>
                 )}
-                {totalThemen > 0 && <span style={{ fontSize: "12px", color: "#e8600a", fontWeight: 700, background: "#141008", padding: "2px 10px", borderRadius: "20px" }}>{totalThemen} Thema{totalThemen === 1 ? "" : "en"}</span>}
               </div>
             </div>
+            {/* ── Fortschritts-Balken ── */}
+            {totalAnzahl > 0 && (
+              <div style={{ marginBottom:12 }}>
+                {typ === "Prüfung" ? (
+                  <>
+                    <div style={{ display:"flex", justifyContent:"space-between", fontSize:12, marginBottom:4 }}>
+                      <span style={{ color:"rgba(240,236,227,0.5)", fontWeight:600 }}>Punkte-Fortschritt</span>
+                      <span style={{ fontWeight:800, color: estPunkte > maxPunkte ? "#f87171" : estPunkte >= maxPunkte * 0.85 ? "#4ade80" : "#e8600a" }}>
+                        {estPunkte} / {maxPunkte} P{estPunkte > maxPunkte ? " — ⚠ Überschreitung" : estPunkte >= maxPunkte ? " ✓" : ""}
+                      </span>
+                    </div>
+                    <div style={{ height:5, borderRadius:3, background:"rgba(240,236,227,0.08)" }}>
+                      <div style={{ height:"100%", width:Math.min(100, (estPunkte/maxPunkte)*100) + "%", background: estPunkte > maxPunkte ? "#f87171" : "#e8600a", borderRadius:3, transition:"width 200ms ease" }} />
+                    </div>
+                  </>
+                ) : zielModus === "punkte" ? (
+                  <>
+                    <div style={{ display:"flex", justifyContent:"space-between", fontSize:12, marginBottom:4 }}>
+                      <span style={{ color:"rgba(240,236,227,0.5)", fontWeight:600 }}>Punkte-Fortschritt</span>
+                      <span style={{ fontWeight:800, color: estPunkte > maxPunkte ? "#f87171" : estPunkte >= maxPunkte * 0.85 ? "#4ade80" : "#e8600a" }}>
+                        {estPunkte} / {maxPunkte} P{estPunkte >= maxPunkte ? " ✓" : ""}
+                      </span>
+                    </div>
+                    <div style={{ height:5, borderRadius:3, background:"rgba(240,236,227,0.08)" }}>
+                      <div style={{ height:"100%", width:Math.min(100, (estPunkte/maxPunkte)*100) + "%", background: estPunkte > maxPunkte ? "#f87171" : "#e8600a", borderRadius:3, transition:"width 200ms ease" }} />
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div style={{ display:"flex", justifyContent:"space-between", fontSize:12, marginBottom:4 }}>
+                      <span style={{ color:"rgba(240,236,227,0.5)", fontWeight:600 }}>Aufgaben-Fortschritt</span>
+                      <span style={{ fontWeight:800, color: totalAnzahl > zielAnzahl ? "#f87171" : totalAnzahl >= zielAnzahl ? "#4ade80" : "#e8600a" }}>
+                        {totalAnzahl} / {zielAnzahl} Aufgaben{totalAnzahl >= zielAnzahl ? " ✓" : ""}
+                      </span>
+                    </div>
+                    <div style={{ height:5, borderRadius:3, background:"rgba(240,236,227,0.08)" }}>
+                      <div style={{ height:"100%", width:Math.min(100, (totalAnzahl/zielAnzahl)*100) + "%", background: totalAnzahl > zielAnzahl ? "#f87171" : "#e8600a", borderRadius:3, transition:"width 200ms ease" }} />
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
             <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
               {/* Themen der aktuellen Klasse */}
               {lernbereiche.map(lb => {
                 const meta = LB_INFO[lb] || { icon: "📌", farbe: "#475569" };
                 const tasks = AUFGABEN_POOL[klasse][lb];
-                const selSet = selectedThemen[lb] || new Set();
-                const isActive = selSet.size > 0;
+                const selSet = selectedThemen[lb] || {};
+                const isActive = Object.values(selSet).some(c => c > 0);
                 const isExpanded = expandedLBs[lb];
+                const selCount = Object.values(selSet).filter(c => c > 0).length;
                 return (
                   <div key={lb} style={{ border: `2px solid ${isActive ? meta.farbe : "rgba(240,236,227,0.13)"}`, borderRadius: "16px", overflow: "hidden", background: isActive ? meta.farbe + "18" : "rgba(30,22,10,0.55)", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "14px 16px", cursor: "pointer" }} onClick={() => toggleLB(lb)}>
@@ -2390,14 +2573,14 @@ function SchrittTyp({ onWeiter, onBelegEditor, onEigeneBelege, onSimulation, ini
                       </div>
                       <span style={{ color: isActive ? meta.farbe : "rgba(240,236,227,0.55)", display:"flex", alignItems:"center" }}><IconFor name={meta.icon} size={15} /></span>
                       <span style={{ fontWeight: 700, fontSize: "13px", color: isActive ? meta.farbe : "#f0ece3", flex: 1 }}>{lb}</span>
-                      {isActive && <span style={{ fontSize: "11px", color: meta.farbe, fontWeight: 700, background: meta.farbe + "18", padding: "1px 8px", borderRadius: "12px" }}>{selSet.size}/{tasks.length}</span>}
+                      {isActive && <span style={{ fontSize: "11px", color: meta.farbe, fontWeight: 700, background: meta.farbe + "18", padding: "1px 8px", borderRadius: "12px" }}>{selCount}/{tasks.length}</span>}
                       <button onClick={e => { e.stopPropagation(); setExpandedLBs(p => ({ ...p, [lb]: !p[lb] })); }} style={{ background: "transparent", border: "none", cursor: "pointer", color: "#94a3b8", padding: "2px 6px" }}>{isExpanded ? "▲" : "▼"}</button>
                     </div>
                     {isExpanded && (
                       <div style={{ borderTop: `1px solid ${meta.farbe}33`, padding: "10px 14px", background: "rgba(240,236,227,0.03)" }}>
                         <div style={{ display: "flex", gap: "6px", marginBottom: "8px" }}>
-                          <button onClick={() => setSelectedThemen(p => ({ ...p, [lb]: new Set(tasks.map(t => t.id)) }))} style={{ fontSize: "11px", fontWeight: 700, color: meta.farbe, background: meta.farbe + "18", border: `1px solid ${meta.farbe}44`, borderRadius: "5px", padding: "2px 8px", cursor: "pointer" }}>✓ Alle</button>
-                          <button onClick={() => setSelectedThemen(p => ({ ...p, [lb]: new Set() }))} style={{ fontSize: "11px", fontWeight: 600, color: "#94a3b8", background: "#f1f5f9", border: "1px solid rgba(240,236,227,0.12)", borderRadius: "5px", padding: "2px 8px", cursor: "pointer" }}>✗ Keine</button>
+                          <button onClick={() => setSelectedThemen(p => { const m = {}; tasks.forEach(t => { m[t.id] = 1; }); return { ...p, [lb]: m }; })} style={{ fontSize: "11px", fontWeight: 700, color: meta.farbe, background: meta.farbe + "18", border: `1px solid ${meta.farbe}44`, borderRadius: "5px", padding: "2px 8px", cursor: "pointer" }}>✓ Alle</button>
+                          <button onClick={() => setSelectedThemen(p => ({ ...p, [lb]: {} }))} style={{ fontSize: "11px", fontWeight: 600, color: "#94a3b8", background: "#f1f5f9", border: "1px solid rgba(240,236,227,0.12)", borderRadius: "5px", padding: "2px 8px", cursor: "pointer" }}>✗ Keine</button>
                         </div>
 
                         {/* ── Werkstoff-Auswahl direkt in LB 2 ── */}
@@ -2423,7 +2606,8 @@ function SchrittTyp({ onWeiter, onBelegEditor, onEigeneBelege, onSimulation, ini
                           </div>
                         )}
                         {tasks.map(task => {
-                          const checked = selSet.has(task.id);
+                          const count = selSet[task.id] || 0;
+                          const checked = count > 0;
                           const isKomplexEK = task.id === "8_komplex_einkauf_kette";
                           const isKomplexVK = task.id === "8_komplex_verkauf_kette";
                           const isKomplexFO  = task.id === "9_komplex_forderungskette";
@@ -2435,14 +2619,21 @@ function SchrittTyp({ onWeiter, onBelegEditor, onEigeneBelege, onSimulation, ini
                             : (komplexOpts.ruecksendung || komplexOpts.nachlass);
                           return (
                             <div key={task.id} style={{ marginBottom: "2px" }}>
-                              <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", padding: "5px 6px", borderRadius: "6px", background: checked ? meta.farbe + "10" : "transparent", border: `1px solid ${checked ? meta.farbe + "44" : "transparent"}` }}>
-                                <div onClick={() => toggleThema(lb, task.id)} style={{ width: "14px", height: "14px", borderRadius: "3px", border: `2px solid ${checked ? meta.farbe : "#cbd5e1"}`, background: checked ? meta.farbe : "#fff", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "5px 6px", borderRadius: "6px", background: checked ? meta.farbe + "10" : "transparent", border: `1px solid ${checked ? meta.farbe + "44" : "transparent"}` }}>
+                                <div onClick={() => toggleThema(lb, task.id)} style={{ width: "14px", height: "14px", borderRadius: "3px", border: `2px solid ${checked ? meta.farbe : "#cbd5e1"}`, background: checked ? meta.farbe : "#fff", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, cursor: "pointer" }}>
                                   {checked && <span style={{ color: "#fff", fontSize: "9px" }}>✓</span>}
                                 </div>
-                                <span onClick={() => toggleThema(lb, task.id)} style={{ fontSize: "13px", color: checked ? "#f0ece3" : "rgba(240,236,227,0.5)", fontWeight: checked ? 600 : 400, flex: 1 }}>{task.titel}</span>
+                                <span onClick={() => toggleThema(lb, task.id)} style={{ fontSize: "13px", color: checked ? "#f0ece3" : "rgba(240,236,227,0.5)", fontWeight: checked ? 600 : 400, flex: 1, cursor: "pointer" }}>{task.titel}</span>
                                 {task.taskTyp === "rechnung" && <span style={{ fontSize: "10px", color: "rgba(240,236,227,0.7)", background: "rgba(240,236,227,0.1)", padding: "1px 5px", borderRadius: "8px", fontWeight: 700 }}>Rechnung</span>}
                                 {task.taskTyp === "komplex" && <span style={{ fontSize: "10px", color: "#e8600a", background: "rgba(232,96,10,0.12)", border: "1px solid rgba(232,96,10,0.3)", padding: "1px 5px", borderRadius: "8px", fontWeight: 700 }}>Kette</span>}
-                              </label>
+                                {checked && (
+                                  <div onClick={e => e.stopPropagation()} style={{ display: "flex", alignItems: "center", gap: "2px", flexShrink: 0 }}>
+                                    <button onClick={() => adjustCount(lb, task.id, -1)} style={{ width: 20, height: 20, borderRadius: 4, border: `1.5px solid ${meta.farbe}66`, background: "rgba(240,236,227,0.08)", color: meta.farbe, fontWeight: 900, fontSize: 14, lineHeight: 1, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>−</button>
+                                    <span style={{ fontSize: 12, fontWeight: 800, minWidth: 18, textAlign: "center", color: "#f0ece3", fontFamily: "'Fira Code',monospace" }}>{count}×</span>
+                                    <button onClick={() => adjustCount(lb, task.id, +1)} style={{ width: 20, height: 20, borderRadius: 4, border: `1.5px solid ${meta.farbe}66`, background: "rgba(240,236,227,0.08)", color: meta.farbe, fontWeight: 900, fontSize: 14, lineHeight: 1, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>+</button>
+                                  </div>
+                                )}
+                              </div>
 
                               {/* ── Inline-Konfiguratoren ── */}
                               {showConfig && isKomplexEK && (
@@ -2997,8 +3188,9 @@ function SchrittTyp({ onWeiter, onBelegEditor, onEigeneBelege, onSimulation, ini
                   {vorLernbereiche.map(({ lb, k }) => {
                     const meta = LB_INFO[lb] || { icon: "📌", farbe: "#e8600a" };
                     const tasks = AUFGABEN_POOL[k][lb];
-                    const selSet = selectedThemen[lb] || new Set();
-                    const isActive = selSet.size > 0;
+                    const selSet = selectedThemen[lb] || {};
+                    const isActive = Object.values(selSet).some(c => c > 0);
+                    const vorSelCount = Object.values(selSet).filter(c => c > 0).length;
                     const isExpanded = expandedLBs[lb + "_vor"];
                     return (
                       <div key={`vor_${k}_${lb}`} style={{ border:`2px solid ${isActive ? "#e8600a" : "#fde68a"}`, borderRadius:12, overflow:"hidden", background: isActive ? "#fffbeb" : "#fffdf5", marginBottom:5 }}>
@@ -3010,24 +3202,32 @@ function SchrittTyp({ onWeiter, onBelegEditor, onEigeneBelege, onSimulation, ini
                           <span style={{ color: isActive ? "#92400e" : "#b45309", display:"flex", alignItems:"center" }}><IconFor name={meta.icon} size={14} /></span>
                           <span style={{ fontWeight:700, fontSize:12, color:"#92400e", flex:1 }}>{lb}</span>
                           <span style={{ fontSize:10, fontWeight:800, background:"#fef3c7", color:"#92400e", padding:"1px 7px", borderRadius:10, border:"1px solid #fde68a" }}>Kl. {k}</span>
-                          {isActive && <span style={{ fontSize:10, color:"#92400e", fontWeight:700 }}>{selSet.size}/{tasks.length}</span>}
+                          {isActive && <span style={{ fontSize:10, color:"#92400e", fontWeight:700 }}>{vorSelCount}/{tasks.length}</span>}
                           <span style={{ color:"#fbbf24", fontSize:12 }}>{isExpanded ? "▲" : "▼"}</span>
                         </div>
                         {isExpanded && (
                           <div style={{ borderTop:"1px solid #fde68a", padding:"8px 12px", background:"#fff" }}>
                             <div style={{ display:"flex", gap:6, marginBottom:6 }}>
-                              <button onClick={() => setSelectedThemen(p => ({ ...p, [lb]: new Set(tasks.map(t=>t.id)) }))} style={{ fontSize:10, fontWeight:700, color:"#92400e", background:"#fef3c7", border:"1px solid #fde68a", borderRadius:5, padding:"2px 7px", cursor:"pointer" }}>✓ Alle</button>
-                              <button onClick={() => setSelectedThemen(p => ({ ...p, [lb]: new Set() }))} style={{ fontSize:10, fontWeight:600, color:"#94a3b8", background:"#f1f5f9", border:"1px solid #e2e8f0", borderRadius:5, padding:"2px 7px", cursor:"pointer" }}>✗ Keine</button>
+                              <button onClick={() => setSelectedThemen(p => { const m = {}; tasks.forEach(t => { m[t.id] = 1; }); return { ...p, [lb]: m }; })} style={{ fontSize:10, fontWeight:700, color:"#92400e", background:"#fef3c7", border:"1px solid #fde68a", borderRadius:5, padding:"2px 7px", cursor:"pointer" }}>✓ Alle</button>
+                              <button onClick={() => setSelectedThemen(p => ({ ...p, [lb]: {} }))} style={{ fontSize:10, fontWeight:600, color:"#94a3b8", background:"#f1f5f9", border:"1px solid #e2e8f0", borderRadius:5, padding:"2px 7px", cursor:"pointer" }}>✗ Keine</button>
                             </div>
                             {tasks.map(task => {
-                              const checked = selSet.has(task.id);
+                              const cnt = selSet[task.id] || 0;
+                              const checked = cnt > 0;
                               return (
-                                <label key={task.id} style={{ display:"flex", alignItems:"center", gap:8, padding:"5px 4px", cursor:"pointer", borderRadius:6 }}>
+                                <div key={task.id} style={{ display:"flex", alignItems:"center", gap:8, padding:"5px 4px", borderRadius:6 }}>
                                   <input type="checkbox" checked={checked} onChange={() => toggleThema(lb, task.id)}
                                     style={{ width:15, height:15, accentColor:"#e8600a", cursor:"pointer" }} />
-                                  <span style={{ fontSize:12, color:"#374151" }}>{task.titel}</span>
-                                  <span style={{ marginLeft:"auto", fontSize:10, color:"#94a3b8" }}>{task.nrPunkte||2}P</span>
-                                </label>
+                                  <span onClick={() => toggleThema(lb, task.id)} style={{ fontSize:12, color:"#374151", flex:1, cursor:"pointer" }}>{task.titel}</span>
+                                  <span style={{ fontSize:10, color:"#94a3b8" }}>{task.nrPunkte||2}P</span>
+                                  {checked && (
+                                    <div style={{ display:"flex", alignItems:"center", gap:2 }}>
+                                      <button onClick={() => adjustCount(lb, task.id, -1)} style={{ width:18, height:18, borderRadius:3, border:"1.5px solid #fbbf24", background:"#fffbeb", color:"#92400e", fontWeight:900, fontSize:13, lineHeight:1, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>−</button>
+                                      <span style={{ fontSize:11, fontWeight:800, minWidth:16, textAlign:"center", color:"#92400e", fontFamily:"'Fira Code',monospace" }}>{cnt}×</span>
+                                      <button onClick={() => adjustCount(lb, task.id, +1)} style={{ width:18, height:18, borderRadius:3, border:"1.5px solid #fbbf24", background:"#fffbeb", color:"#92400e", fontWeight:900, fontSize:13, lineHeight:1, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>+</button>
+                                    </div>
+                                  )}
+                                </div>
                               );
                             })}
                           </div>
@@ -3041,72 +3241,18 @@ function SchrittTyp({ onWeiter, onBelegEditor, onEigeneBelege, onSimulation, ini
           </div>
         )}
 
-        {/* Anzahl / Punktziel */}
-        {totalThemen > 0 && (
-          <div style={{ marginBottom: "20px", background: "rgba(240,236,227,0.05)", border: "1.5px solid rgba(240,236,227,0.15)", borderRadius: "12px", padding: "16px" }}>
-            {/* Modus-Toggle */}
-            <div style={{ display: "flex", gap: "8px", marginBottom: "14px" }}>
-              {[["anzahl","Anzahl Aufgaben"],["punkte","Punktziel"]].map(([m, label]) => (
-                <button key={m} onClick={() => setPunkteModus(m)} style={{
-                  padding: "6px 16px", borderRadius: "8px", border: "2px solid",
-                  borderColor: punkteModus === m ? "#0f172a" : "#e2e8f0",
-                  background: punkteModus === m ? "#0f172a" : "#fff",
-                  color: punkteModus === m ? "#fff" : "#64748b",
-                  fontWeight: 700, fontSize: "13px", cursor: "pointer" }}>{label}</button>
-              ))}
-            </div>
-
-            {punkteModus === "anzahl" ? (
-              <>
-                <label style={{ fontSize: "13px", fontWeight: 600, color: "#374151", display: "block", marginBottom: "6px" }}>
-                  Anzahl Aufgaben: <span style={S.accent}>{anzahl}</span>
-                  <span style={{ fontSize: "11px", color: "#94a3b8", marginLeft: "8px" }}>≈ {anzahl * 2}–{anzahl * 4} Punkte</span>
-                </label>
-                <input type="range" min="1" max="20" value={anzahl} onChange={e => setAnzahl(Number(e.target.value))} style={{ width: "100%", accentColor: "#0f172a" }} />
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", color: "#94a3b8" }}><span>1</span><span>5</span><span>10</span><span>15</span><span>20</span></div>
-              </>
-            ) : (
-              <>
-                <label style={{ fontSize: "13px", fontWeight: 600, color: "#374151", display: "block", marginBottom: "8px" }}>
-                  Maximale Punkte: <span style={S.accent}>{maxPunkte} P</span>
-                </label>
-                <div style={{ display: "flex", gap: "8px", alignItems: "center", marginBottom: "8px" }}>
-                  <input type="number" min="5" max="100" value={maxPunkte} onChange={e => setMaxPunkte(Number(e.target.value))}
-                    style={{ ...S.input, width: "90px", textAlign: "center", fontWeight: 700, fontSize: "16px" }} />
-                  <div style={{ display: "flex", gap: "6px" }}>
-                    {[10,20,30,40,50].map(p => (
-                      <button key={p} onClick={() => setMaxPunkte(p)} style={{ padding: "5px 10px", borderRadius: "6px", border: "1.5px solid", borderColor: maxPunkte === p ? "#0f172a" : "#e2e8f0", background: maxPunkte === p ? "#0f172a" : "#fff", color: maxPunkte === p ? "#fff" : "#64748b", fontWeight: 700, fontSize: "12px", cursor: "pointer" }}>{p}</button>
-                    ))}
-                  </div>
-                </div>
-                {/* Fortschrittsbalken: geschätzte Punkte aus Themenauswahl */}
-                {totalThemen > 0 && (() => {
-                  const pct = Math.min(100, Math.round(estPunkte / maxPunkte * 100));
-                  const isOver = estPunkte > maxPunkte;
-                  return (
-                    <div>
-                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", marginBottom: "4px" }}>
-                        <span style={S.sub}>Ø Punktwert der gewählten Themen</span>
-                        <span style={{ fontWeight: 700, color: isOver ? "#f87171" : "rgba(240,236,227,0.7)" }}>{estPunkte} / {maxPunkte} P</span>
-                      </div>
-                      <div style={{ height: "8px", background: "rgba(240,236,227,0.1)", borderRadius: "4px", overflow: "hidden" }}>
-                        <div style={{ height: "100%", width: pct + "%", background: isOver ? "#f87171" : pct > 80 ? "#e8600a" : "rgba(240,236,227,0.5)", borderRadius: "4px", transition: "all 0.3s" }} />
-                      </div>
-                      {isOver && <div style={{ fontSize: "11px", color: "#dc2626", marginTop: "4px", fontWeight: 600, display:"flex", alignItems:"flex-start", gap:4 }}><AlertTriangle size={11} strokeWidth={1.5} style={{flexShrink:0,marginTop:1}}/><span>Themenauswahl überschreitet Punktziel — bitte Themen reduzieren oder Punktziel erhöhen.</span></div>}
-                    </div>
-                  );
-                })()}
-              </>
-            )}
-          </div>
-        )}
 
 
         <button onClick={() => {
           if (!canProceed) return;
           const themenMap = {};
-          activeLBs.forEach(lb => { themenMap[lb] = [...selectedThemen[lb]]; });
-          onWeiter({ typ, pruefungsart, klasse, datum, anzahl: punkteModus === "punkte" ? null : anzahl, maxPunkte: punkteModus === "punkte" ? maxPunkte : null, selectedThemen: themenMap, werkstoffId, komplexOpts: {...komplexOpts, werkstoffId}, verkaufOpts, forderungOpts, abschlussOpts, pctOpts });
+          activeLBs.forEach(lb => {
+            const counts = selectedThemen[lb] || {};
+            themenMap[lb] = Object.entries(counts)
+              .filter(([, c]) => c > 0)
+              .flatMap(([id, c]) => Array(c).fill(id));
+          });
+          onWeiter({ typ, pruefungsart, klasse, datum, anzahl: totalAnzahl || 5, maxPunkte: typ === "Prüfung" ? maxPunkte : null, selectedThemen: themenMap, werkstoffId, komplexOpts: {...komplexOpts, werkstoffId}, verkaufOpts, forderungOpts, abschlussOpts, pctOpts });
         }} disabled={!canProceed} style={{ ...S.btnPrimary, width: "100%", padding: "16px", fontSize: "16px", borderRadius: "14px",
             opacity: canProceed ? 1 : 0.35, cursor: canProceed ? "pointer" : "not-allowed",
             background: canProceed ? "#0f172a" : "#94a3b8",
@@ -3415,7 +3561,7 @@ function generateExportHTML({ aufgaben, config, firma, modus, kiHistorie, kopfze
     @media print { body { padding: 0; } }
   `;
 
-  // CSS wird weiter unten nach isMSA-Check gesetzt
+  // CSS: MSA-Format für Kl. 10 PDF, sonst Word-Style (clean/druckfertig)
 
   // ── Aufgaben-Blöcke aufbauen ──────────────────────────────────────────────
   let aufgabenHTML = "";
@@ -3606,7 +3752,7 @@ function generateExportHTML({ aufgaben, config, firma, modus, kiHistorie, kopfze
   const isLoesung = modus === "loesungen";
   const headerTitel = isLoesung ? `Musterlösung – ${titel}` : titel;
   const headerFarbe = isLoesung ? "#16a34a" : "#0f172a";
-  const CSS = isMSA ? CSS_MSA : (format === "word" ? CSS_WORD : CSS_PDF);
+  const CSS = isMSA ? CSS_MSA : CSS_WORD;
 
   // ── MSA Body ─────────────────────────────────────────────────────────────
   const buildMSABody = () => {
@@ -3786,7 +3932,7 @@ function generateExportHTML({ aufgaben, config, firma, modus, kiHistorie, kopfze
   ${autoprint}
 </head>
 <body>
-  ${isMSA ? "" : `<div class="bw-header">
+  ${(isMSA || format === "pdf") ? "" : `<div class="bw-header">
     <div class="bw-logo">Buchungs<span>Werk</span></div>
     <div class="bw-meta">
       <strong>BwR Bayern · Realschule · 2026</strong><br>
@@ -3880,7 +4026,11 @@ function MaterialienModal({ onSchliessen, onLaden }) {
               </div>
               {items.map(m => (
                 <div key={m.id} style={{ background:"#1e293b", borderRadius:"10px", padding:"12px 14px", marginBottom:"7px", display:"flex", alignItems:"center", gap:"10px" }}>
-                  <div style={{ fontSize:"20px", flexShrink:0 }}>{m.firma_icon || "📋"}</div>
+                  <div style={{ fontSize:"20px", flexShrink:0, display:"flex", alignItems:"center" }}>
+                    {m.firma_icon
+                      ? <IconFor name={m.firma_icon} size={20} color="#94a3b8" />
+                      : "📋"}
+                  </div>
                   <div style={{ flex:1, minWidth:0 }}>
                     <div style={{ fontSize:"13px", fontWeight:700, color:"#e2e8f0", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{m.titel}</div>
                     <div style={{ fontSize:"11px", color:"#64748b", marginTop:"2px" }}>
@@ -4402,27 +4552,13 @@ function ExportModal({ aufgaben, config, firma, kiHistorie, onSchliessen }) {
   ];
 
   // PDF: öffnet HTML in neuem Tab → Drucken / Als PDF speichern
-  // PDF: identisches Format wie Word → DOCX erzeugen, im iframe drucken
-  const exportPDF = async () => {
+  const exportPDF = () => {
     try {
-      const docxBlob = await exportWord("blob");
-      if (!docxBlob) return;
-      const arrayBuf = await docxBlob.arrayBuffer();
-      const res = await fetch(API_URL + "/convert/pdf", {
-        method: "POST",
-        headers: { "Content-Type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document" },
-        body: arrayBuf,
-      });
-      if (!res.ok) throw new Error("Server: " + res.status + " – " + await res.text());
-      const pdfBlob = await res.blob();
-      const kl = kopfzeile || {};
-      const pruefArt  = (kl.pruefungsart || config.typ || "Übung").replace(/[^a-zA-Z0-9äöüÄÖÜß_ -]/g, "");
-      const klasseStr = kl.klasse || String(config.klasse);
-      const url = URL.createObjectURL(pdfBlob);
-      const el  = document.createElement("a");
-      el.href = url; el.download = `${pruefArt}_Kl${klasseStr}_${kl.datum || config.datum || "2026"}.pdf`;
-      document.body.appendChild(el); el.click(); document.body.removeChild(el);
-      setTimeout(() => URL.revokeObjectURL(url), 15000);
+      const html = generateExportHTML({ aufgaben, config, firma, modus, kiHistorie, kopfzeile, format: "pdf" });
+      const w = window.open("", "_blank");
+      if (!w) { alert("Bitte Popup-Blocker deaktivieren und erneut versuchen."); return; }
+      w.document.write(html);
+      w.document.close();
     } catch(err) {
       alert("PDF-Export Fehler: " + err.message);
     }
@@ -4947,7 +5083,7 @@ function ExportModal({ aufgaben, config, firma, kiHistorie, onSchliessen }) {
             </button>
           </div>
           <div style={{ marginTop:"10px", fontSize:"10px", color:"#64748b", textAlign:"center" }}>
-            Word/Pages: .docx herunterladen, dann "Öffnen mit Pages" · PDF: identisches Layout via Server
+            Word/Pages: .docx herunterladen, dann "Öffnen mit Pages" · PDF: neuer Tab öffnet → Drucken / Als PDF speichern
           </div>
         </div>
       </div>
@@ -4960,7 +5096,7 @@ function ExportModal({ aufgaben, config, firma, kiHistorie, onSchliessen }) {
 // ══════════════════════════════════════════════════════════════════════════════
 const fmt_datum = iso => new Date(iso + "T00:00:00").toLocaleDateString("de-DE", { day: "2-digit", month: "long", year: "numeric" });
 
-function SchrittAufgaben({ config, firma, onNeu, onMaterialLaden, onThemen, onFirma }) {
+function SchrittAufgaben({ config, firma, onNeu, onMaterialLaden, onThemen, onFirma, aufgabenRef }) {
   const settings = useSettings();
   const [showLoesungen, setShowLoesungen] = useState(!!settings.loesungenStandardAn);
   const [globalMode, setGlobalMode] = useState(settings.belegModus || "beleg"); // "beleg" | "text"
@@ -4976,8 +5112,12 @@ function SchrittAufgaben({ config, firma, onNeu, onMaterialLaden, onThemen, onFi
     const result = [];
     Object.entries(config.selectedThemen).forEach(([lb, taskIds]) => {
       // Suche in allen Klassen (klassenübergreifende Wiederholung)
+      // taskIds kann Duplikate enthalten (für count > 1)
       [7, 8, 9, 10].forEach(k => {
-        (AUFGABEN_POOL[k]?.[lb] || []).forEach(t => { if (taskIds.includes(t.id)) result.push(t); });
+        (AUFGABEN_POOL[k]?.[lb] || []).forEach(t => {
+          const cnt = taskIds.filter(x => x === t.id).length;
+          for (let i = 0; i < cnt; i++) result.push(t);
+        });
       });
     });
     return result;
@@ -5019,7 +5159,7 @@ function SchrittAufgaben({ config, firma, onNeu, onMaterialLaden, onThemen, onFi
       // Komplex-Aufgabe zählt als so viele Teilaufgaben wie sie Schritte hat
       const schrittAnzahl = typ.taskTyp === "komplex" ? (gen.schritte || []).length : 1;
       if (config.maxPunkte && punkteSum + pts > config.maxPunkte) break;
-      if (!config.maxPunkte && teilaufgabenSum + schrittAnzahl > zielAnzahl) break;
+      if (!config.maxPunkte && result.length > 0 && teilaufgabenSum + schrittAnzahl > zielAnzahl) break;
       result.push({ ...gen, titel: typ.titel, id: `${typ.id}_${i}`, taskTyp: typ.taskTyp || "buchung", themenTyp: typ.themenTyp,
         _baseTypId: typ.id, _typ: typ, _opts: opts, _firma: firma });
       punkteSum += pts;
@@ -5029,6 +5169,8 @@ function SchrittAufgaben({ config, firma, onNeu, onMaterialLaden, onThemen, onFi
     try { trackMastery(result); } catch {}
     return result;
   });
+
+  useEffect(() => { if (aufgabenRef) aufgabenRef.current = aufgaben; }, [aufgaben, aufgabenRef]);
 
   const gesamtPunkte = aufgaben.reduce((s, a) => s + berechnePunkte(a), 0);
   const activeLBs = Object.keys(config.selectedThemen);
@@ -5070,7 +5212,7 @@ function SchrittAufgaben({ config, firma, onNeu, onMaterialLaden, onThemen, onFi
               {config.pruefungsart && <span style={{ display:"inline-flex", alignItems:"center", gap:4, ...S.tag("#0f172a") }}><ClipboardList size={11} strokeWidth={1.5}/>{config.pruefungsart}</span>}
               {activeLBs.map(lb => { const m = LB_INFO[lb] || { icon: "FileText", farbe: "#475569" }; return <span key={lb} style={{ display:"inline-flex", alignItems:"center", gap:3, ...S.tag(m.farbe) }}><IconFor name={m.icon} size={11} />{lb.split("·")[0].trim()}</span>; })}
               <span style={{ display:"inline-flex", alignItems:"center", gap:4, ...S.tag("#475569") }}><Calendar size={11} strokeWidth={1.5}/>{fmt_datum(config.datum)}</span>
-              <span style={{ display:"inline-flex", alignItems:"center", gap:4, ...S.tag("#475569") }}><ClipboardList size={11} strokeWidth={1.5}/>{aufgaben.reduce((s,a) => s + (a.teilaufgaben || 1), 0)} Aufg. · {gesamtPunkte} P</span>
+              <span style={{ display:"inline-flex", alignItems:"center", gap:4, ...S.tag("#475569") }}><ClipboardList size={11} strokeWidth={1.5}/>{aufgaben.reduce((s,a) => s + (a.taskTyp === "komplex" ? (a.schritte?.length || 1) : Array.isArray(a.teilaufgaben) ? a.teilaufgaben.length : 1), 0)} Aufg. · {gesamtPunkte} P</span>
             </div>
             {/* Fortschrittsleiste bei Punktziel */}
             {config.maxPunkte && (
@@ -5184,7 +5326,7 @@ function SchrittAufgaben({ config, firma, onNeu, onMaterialLaden, onThemen, onFi
         })()}
       </div>
 
-      <PunktePanel aufgaben={aufgaben} typ={config.typ} />
+      <PunktePanel aufgaben={aufgaben} typ={config.typ} maxPunkte={config.maxPunkte} />
 
       {aufgaben.map((a, i) =>
         a.taskTyp === "komplex"
@@ -8654,29 +8796,235 @@ const BANK_AUFGABEN = [
     freitext:{ zeilen:4, minZeichen:40,
       loesung:"Bestandskonten zeigen, was ein Unternehmen HAT (Vermögen) oder SCHULDET (Kapital). Sie erscheinen in der Bilanz und werden am Jahresende über den SBK abgeschlossen. Beispiel: BK (Bank), VE (Verbindlichkeiten). Erfolgskonten zeigen Aufwendungen oder Erträge einer Periode. Sie werden über die GuV abgeschlossen. Beispiel: LG (Löhne, Aufwand), UEFE (Umsatzerlöse, Ertrag)." },
     erklaerung:"Bestandskonten: Bilanz (Aktiv/Passiv) → SBK-Abschluss. Erfolgskonten: GuV (Aufwand/Ertrag) → GuV-Abschluss. Kl.7 LB 3/5." },
+
+  // ── Prozentrechnung (Kl. 7 LB1) ───────────────────────────────────────────
+  { id:"pz7_1", typ:"kalkulation", ansicht:"konto", punkte:2, aktion:"theorie",
+    titel:"Prozentrechnung: Rabattbetrag",
+    story:"Dein Chef zeigt dir das Angebot von Bayern Bürobedarf GmbH: Listenpreis 320,00 €, Sofortrabatt 25 %.",
+    aufgabe:"Berechne den Rabattbetrag (Grundwert × Prozentsatz).",
+    kalkulation:{ richtigerWert:80, einheit:"€" },
+    soll:[], haben:[], betrag:80,
+    erklaerung:"Rabattbetrag = Listenpreis × Rabattsatz = 320,00 € × 0,25 = 80,00 €. (Kl.7 LB1 – Dreisatz/Prozentrechnung)" },
+
+  { id:"pz7_2", typ:"kalkulation", ansicht:"konto", punkte:2, aktion:"theorie",
+    titel:"Prozentrechnung: Zieleinkaufspreis nach Rabatt",
+    story:"Gleiche Rechnung: Listenpreis 320,00 €, Sofortrabatt 25 %. Du hast den Rabattbetrag (80,00 €) bereits ermittelt.",
+    aufgabe:"Berechne den Zieleinkaufspreis (Listenpreis − Rabattbetrag).",
+    kalkulation:{ richtigerWert:240, einheit:"€" },
+    soll:[], haben:[], betrag:240,
+    erklaerung:"Zieleinkaufspreis = 320,00 € − 80,00 € = 240,00 €. Wird auf dem Überweisungsformular als Zahlungsbetrag eingetragen. (Kl.7 LB1)" },
+
+  { id:"pz7_3", typ:"kalkulation", ansicht:"konto", punkte:2, aktion:"theorie",
+    titel:"Prozentrechnung: Skontobetrag",
+    story:"Bayern Rohstoffe GmbH schickt eine Rechnung über 850,00 € mit dem Hinweis: '2 % Skonto bei Zahlung innerhalb 10 Tagen'.",
+    aufgabe:"Berechne den Skontobetrag (Rechnungsbetrag × Skontosatz).",
+    kalkulation:{ richtigerWert:17, einheit:"€" },
+    soll:[], haben:[], betrag:17,
+    erklaerung:"Skontobetrag = 850,00 € × 0,02 = 17,00 €. Skonto ist ein Preisnachlass bei früher Zahlung. (Kl.7 LB1)" },
+
+  { id:"pz7_4", typ:"kalkulation", ansicht:"konto", punkte:2, aktion:"theorie",
+    titel:"Prozentrechnung: Zahlbetrag nach Skonto",
+    story:"Rechnungsbetrag 850,00 €, Skonto 2 % (= 17,00 €). Zahlung erfolgt innerhalb der Skontofrist.",
+    aufgabe:"Berechne den Zahlbetrag (Rechnungsbetrag − Skontobetrag).",
+    kalkulation:{ richtigerWert:833, einheit:"€" },
+    soll:[], haben:[], betrag:833,
+    erklaerung:"Zahlbetrag = 850,00 € − 17,00 € = 833,00 €. Dieser Betrag wird überwiesen. (Kl.7 LB1)" },
+
+  { id:"pz7_5", typ:"kalkulation", ansicht:"konto", punkte:2, aktion:"theorie",
+    titel:"Prozentrechnung: Umsatzsteuer-Betrag",
+    story:"Dein Unternehmen kauft Büromaterial. Nettobetrag laut Rechnung: 600,00 €. Umsatzsteuer: 19 %.",
+    aufgabe:"Berechne den Umsatzsteuerbetrag (Netto × 19 %).",
+    kalkulation:{ richtigerWert:114, einheit:"€" },
+    soll:[], haben:[], betrag:114,
+    erklaerung:"USt = 600,00 € × 0,19 = 114,00 €. Die Umsatzsteuer wird als Vorsteuer (VORST) auf den Kontoauszug verbucht (ab Kl. 8). (Kl.7 LB1)" },
+
+  { id:"pz7_6", typ:"kalkulation", ansicht:"konto", punkte:2, aktion:"theorie",
+    titel:"Prozentrechnung: Grundwert ermitteln",
+    story:"Die Rechnung weist einen Rabattbetrag von 45,00 € aus. Der Rabattsatz beträgt 15 %.",
+    aufgabe:"Berechne den Grundwert (= Listenpreis). Formel: G = W ÷ p%",
+    kalkulation:{ richtigerWert:300, einheit:"€" },
+    soll:[], haben:[], betrag:300,
+    erklaerung:"Grundwert = Prozentwert ÷ Prozentsatz = 45,00 € ÷ 0,15 = 300,00 €. (Kl.7 LB1 – Dreisatz)" },
+
+  { id:"pz7_7", typ:"kalkulation", ansicht:"konto", punkte:2, aktion:"theorie",
+    titel:"Prozentrechnung: Prozentsatz ermitteln",
+    story:"Der Listenpreis einer Maschine beträgt 500,00 €. Der Händler gewährt einen Rabatt von 75,00 €.",
+    aufgabe:"Berechne den Rabattsatz in % (Formel: p% = W ÷ G × 100).",
+    kalkulation:{ richtigerWert:15, einheit:"%" },
+    soll:[], haben:[], betrag:15,
+    erklaerung:"Prozentsatz = 75,00 € ÷ 500,00 € × 100 = 15 %. (Kl.7 LB1 – Dreisatz)" },
+
+  // ── Schaubild-Aufgaben (Kl. 7) ────────────────────────────────────────────
+  { id:"sb7_1", typ:"mc", ansicht:"konto", punkte:2, aktion:"theorie",
+    titel:"Schaubild: Kostenstruktur LumiTec GmbH",
+    story:"Die LumiTec GmbH hat ihre jährlichen Ausgaben nach Kostenart ausgewertet. Schau dir das Schaubild an.",
+    schaubild:{
+      typ:"balken",
+      titel:"Kostenstruktur LumiTec GmbH (2025)",
+      untertitel:"Jährliche Ausgaben nach Kostenart in €",
+      einheit:"€",
+      quelle:"Unternehmensbericht 2025",
+      herausgeber:"Fiktive Daten – Übungszweck",
+      kategorien:["Personalkosten","Wareneinkauf","Miete","Werbung","Sonstiges"],
+      werte:[52000, 38000, 14400, 4500, 6100]
+    },
+    aufgabe:"Welcher Kostenfaktor ist der größte Ausgabenposten der LumiTec GmbH?",
+    mcOptionen:["Wareneinkauf (38.000 €)","Personalkosten (52.000 €)","Miete (14.400 €)","Werbung (4.500 €)"],
+    mcKorrekt:1, soll:[], haben:[], betrag:0,
+    erklaerung:"Personalkosten (52.000 €) sind der größte Posten. In produzierenden Betrieben machen Löhne/Gehälter (LG) und Sozialabgaben (AGASV) oft 40–60 % der Gesamtkosten aus. (Kl.7 LB4)" },
+
+  { id:"sb7_2", typ:"mc", ansicht:"konto", punkte:2, aktion:"theorie",
+    titel:"Schaubild: Umsatzentwicklung Waldform Design GmbH",
+    story:"Die Waldform Design GmbH zeigt in der Betriebsversammlung die Umsatzentwicklung der letzten 5 Jahre.",
+    schaubild:{
+      typ:"linie",
+      titel:"Umsatzentwicklung Waldform Design GmbH",
+      untertitel:"Nettoumsatz in €, 2021–2025",
+      einheit:"€",
+      quelle:"Geschäftsbericht Waldform Design GmbH",
+      herausgeber:"Fiktive Daten – Übungszweck",
+      jahre:["2021","2022","2023","2024","2025"],
+      werte:[95000, 112000, 108000, 124000, 138000]
+    },
+    aufgabe:"In welchem Jahr ist der Umsatz der Waldform Design GmbH im Vergleich zum Vorjahr gesunken?",
+    mcOptionen:["2022 (von 95.000 auf 112.000 €)","2023 (von 112.000 auf 108.000 €)","2024 (von 108.000 auf 124.000 €)","2025 (von 124.000 auf 138.000 €)"],
+    mcKorrekt:1, soll:[], haben:[], betrag:0,
+    erklaerung:"2023 ist der Umsatz von 112.000 € (2022) auf 108.000 € gesunken – ein Rückgang von 4.000 €. In allen anderen Jahren stieg der Umsatz. (Kl.7 LB2 – Schaubild lesen)" },
+
+  // ── Paare zuordnen (Kl. 7) ────────────────────────────────────────────────
+  { id:"pa7_1", typ:"zuordnung", ansicht:"konto", punkte:3, aktion:"zuordnung",
+    titel:"Paare zuordnen: Kürzel → Kontoname",
+    story:"Dein Chef zeigt dir einen Kontenplan-Auszug. Ordne jedem Konto-Kürzel den richtigen vollständigen Kontonamen zu.",
+    aufgabe:"Welcher Kontoname gehört zu welchem Kürzel?",
+    zuordnung:{
+      items:[
+        { id:"BK",  text:"BK",  korrektKat:"bank"   },
+        { id:"KA",  text:"KA",  korrektKat:"kasse"  },
+        { id:"VE",  text:"VE",  korrektKat:"verb"   },
+        { id:"FO",  text:"FO",  korrektKat:"ford"   },
+        { id:"LG",  text:"LG",  korrektKat:"loehne" },
+      ],
+      kategorien:[
+        { id:"bank",   label:"Bank",                     color:"#e8600a", rgb:"232,96,10"  },
+        { id:"kasse",  label:"Kasse",                    color:"#10b981", rgb:"16,185,129" },
+        { id:"verb",   label:"Verbindlichkeiten aus L+L",color:"#a855f7", rgb:"168,85,247" },
+        { id:"ford",   label:"Forderungen aus L+L",      color:"#3b82f6", rgb:"59,130,246" },
+        { id:"loehne", label:"Löhne und Gehälter",       color:"#eab308", rgb:"234,179,8"  },
+      ]
+    },
+    soll:[], haben:[], betrag:0,
+    erklaerung:"BK=Bank, KA=Kasse, VE=Verbindlichkeiten aus L+L, FO=Forderungen aus L+L, LG=Löhne und Gehälter. Kürzel auswendig lernen – sie stehen in jedem Buchungssatz! (Kl.7 LB2)" },
+
+  { id:"pa7_2", typ:"zuordnung", ansicht:"konto", punkte:3, aktion:"zuordnung",
+    titel:"Paare zuordnen: Buchungsregel → Kontentyp",
+    story:"Dein Buchführungslehrer erklärt die vier Grundregeln der doppelten Buchführung. Ordne jede Regel dem richtigen Kontentyp zu.",
+    aufgabe:"Zu welchem Kontentyp gehört welche Buchungsregel?",
+    zuordnung:{
+      items:[
+        { id:"r1", text:"Zugänge im SOLL · Abgänge im HABEN",  korrektKat:"aktiv"   },
+        { id:"r2", text:"Zugänge im HABEN · Abgänge im SOLL",  korrektKat:"passiv"  },
+        { id:"r3", text:"Aufwand erhöht sich immer im SOLL",   korrektKat:"aufwand" },
+        { id:"r4", text:"Ertrag erhöht sich immer im HABEN",   korrektKat:"ertrag"  },
+      ],
+      kategorien:[
+        { id:"aktiv",   label:"Aktivkonto (Vermögen)",  color:"#10b981", rgb:"16,185,129" },
+        { id:"passiv",  label:"Passivkonto (Kapital)",  color:"#a855f7", rgb:"168,85,247" },
+        { id:"aufwand", label:"Aufwandskonto (GuV)",    color:"#ef4444", rgb:"239,68,68"  },
+        { id:"ertrag",  label:"Ertragskonto (GuV)",     color:"#22c55e", rgb:"34,197,94"  },
+      ]
+    },
+    soll:[], haben:[], betrag:0,
+    erklaerung:"Aktivkonten: Zugänge im Soll (Vermögen wächst). Passivkonten: Zugänge im Haben (Schulden/EK wächst). Aufwandskonto: Soll = Aufwand steigt, mindert GuV. Ertragskonto: Haben = Ertrag steigt, erhöht GuV. (Kl.7 LB3)" },
+
+  // ── Sequenzkette Kl. 7 (LB4) ─────────────────────────────────────────────
+  { id:"kette7_1", typ:"kette", ansicht:"konto", punkte:5, aktion:"kette",
+    titel:"Rohstoffeinkauf: E-Mail → Fälligkeit → Buchung",
+    story:"Bayern Rohstoffe GmbH hat Siliziumscheiben für die Produktion von LumiTec GmbH geliefert. Im E-Mail-Postfach liegt eine Lieferantenbenachrichtigung.",
+    soll:[], haben:[], betrag:0,
+    erklaerung:"Rohstoffzukauf auf Ziel: 6000 AWR an 4400 VE. Kl.7 LB4.",
+    kette:[
+      { typ:"mc", punkte:1, label:"E-Mail lesen",
+        aufgabe:"Bayern Rohstoffe GmbH – Betreff: Lieferung Siliziumscheiben, Rg.-Nr. BR-2026-0115\n\nSehr geehrte Damen und Herren,\nhiermit bestätigen wir die Lieferung von 500 kg Siliziumscheiben.\nNettobetrag: 350,00 €  ·  Rechnungsdatum: 10.01.2026  ·  Zahlungsziel: 14 Tage\n\nWie hoch ist der Rechnungsbetrag?",
+        mcOptionen:["200,00 €","280,00 €","350,00 €","420,00 €"],
+        mcKorrekt:2,
+        erklaerung:"Der Nettobetrag steht direkt in der E-Mail: 350,00 €. Immer Beleg prüfen – GoB: Belegprinzip!" },
+      { typ:"mc", punkte:1, label:"Fälligkeit prüfen",
+        aufgabe:"Rechnungsdatum: 10. Januar 2026  ·  Zahlungsziel: 14 Tage\n\nBis wann muss LumiTec GmbH spätestens zahlen?\n(Tipp: Zähle 14 Tage ab dem 10. Januar!)",
+        mcOptionen:["17. Januar 2026","24. Januar 2026","31. Januar 2026","10. Februar 2026"],
+        mcKorrekt:1,
+        erklaerung:"10. Jan + 14 Tage = 24. Januar 2026. Dieser Termin gehört als Zahlungsfrist in den Kalender – so wird keine Mahnung fällig!" },
+      { typ:"buchung", punkte:3, label:"Buchungssatz",
+        aufgabe:"Buche den Rohstoffeinkauf auf Ziel:\nSiliziumscheiben, 350,00 € (ohne USt, Kl.7 LB4).",
+        soll:[{kuerzel:"AWR",nr:"6000"}],
+        haben:[{kuerzel:"VE",nr:"4400"}],
+        betrag:350,
+        erklaerung:"Rohstoff auf Ziel zugekauft: Aufwendungen für Rohstoffe (6000 AWR) ↑ im Soll, Verbindlichkeiten aus L+L (4400 VE) entstehen im Haben. Kl.7 LB4." },
+    ] },
+
+  { id:"kette7_2", typ:"kette", ansicht:"konto", punkte:4, aktion:"kette",
+    titel:"Verkauf von Fertigerzeugnissen: E-Mail → Buchung",
+    story:"Kunde TechBau AG hat Solarmodule bestellt und bezahlt. Im Posteingang liegt eine Zahlungsbestätigung der BayernBank AG.",
+    soll:[], haben:[], betrag:0,
+    erklaerung:"Verkauf auf Ziel: FO an UEFE. Kl.7 LB4.",
+    kette:[
+      { typ:"mc", punkte:1, label:"E-Mail lesen",
+        aufgabe:"BayernBank AG – Betreff: Zahlungseingang Kd.-Nr. KD-4821\n\nSehr geehrte Damen und Herren,\nfolgender Zahlungseingang wurde gebucht:\nAuftraggeberin: TechBau AG, Nürnberg\nVerwendungszweck: RE LT-2026-0072 · Solarmodule\nBetrag: 1.190,00 € (brutto, inkl. 19% USt)\n\nWie hoch ist der Bruttobetrag laut E-Mail?",
+        mcOptionen:["950,00 €","1.000,00 €","1.190,00 €","1.250,00 €"],
+        mcKorrekt:2,
+        erklaerung:"Bruttobetrag = 1.190,00 €. Dieser Betrag inkl. USt steht auf der Ausgangsrechnung und im Bankeingang." },
+      { typ:"kalkulation", punkte:1, label:"Nettobetrag",
+        aufgabe:"Der Bruttobetrag beträgt 1.190,00 € (inkl. 19% USt).\n\nBerechne den Nettobetrag (Umsatzerlös):\nNetto = Brutto ÷ 1,19",
+        kalkulation:{ richtigerWert:1000, einheit:"€" },
+        erklaerung:"1.190 ÷ 1,19 = 1.000,00 €. Der Nettobetrag ist der eigentliche Umsatzerlös – die USt gehört dem Finanzamt." },
+      { typ:"buchung", punkte:2, label:"Buchungssatz",
+        aufgabe:"Buche den Zahlungseingang von TechBau AG:\n1.190,00 € Brutto (vereinfacht: BK an FO).",
+        soll:[{kuerzel:"BK",nr:"2800"}],
+        haben:[{kuerzel:"FO",nr:"2400"}],
+        betrag:1190,
+        erklaerung:"Zahlung eingegangen: Bank (2800 BK) erhöht sich im Soll, Forderung aus L+L (2400 FO) sinkt im Haben. Kl.7 LB3/4." },
+    ] },
 ];
 
 // Welches Desk-Item ist für welchen Aufgabentyp zuständig?
-const DESK_MAP = { buchung:"email", ueberweisung:"pc", dauerauftrag:"kalender", beleg:"post", theorie:"email",
+const DESK_MAP = { buchung:"email", ueberweisung:"pc", dauerauftrag:"kalender", beleg:"post", theorie:"email", kette:"email",
   aktie_kauf:"boerse", aktie_verkauf:"boerse", dividende:"post",
   klr:"klr",
   lueckentext:"email", zuordnung:"post", multi_mc:"email", freitext:"email" };
 
 // ── Klasse 8 – Simulationsaufgaben ────────────────────────────────────────────
 const BANK8_AUFGABEN = [
-  { id:"b8_1", ansicht:"konto", punkte:2, aktion:"buchung",
-    titel:"Frachtkosten für Rohstoffe",
-    story:"Die Spedition Meyer GmbH hat Rohstoffe angeliefert und die Frachtkosten als Lastschrift eingezogen:",
-    transaktion:{ datum:"09.01.2026", text:"Spedition Meyer GmbH · Fracht RE-F011 · Rohstoffe", betrag:-128 },
-    aufgabe:"Buche diese Frachtkosten (Bezugskosten für Rohstoffe).",
-    soll:[{kuerzel:"BZKR",name:"Bezugskosten Rohstoffe",nr:"6001"}],
-    haben:[{kuerzel:"BK",name:"Bank",nr:"2800"}],
-    betrag:128,
-    erklaerung:"Bezugskosten für Rohstoffe → BZKR (6001) im Soll. Bankabgang → BK (2800) im Haben." },
+  { id:"b8_1", ansicht:"beleg", aktion:"buchung",
+    titel:"Eingangsrechnung mit Frachtkosten",
+    story:"LumiTec GmbH hat folgende Eingangsrechnung von Alumet Bayern GmbH erhalten (Kauf auf Ziel, Zahlungsziel 30 Tage):",
+    transaktion:null,
+    belegDaten:{
+      typ:"eingangsrechnung",
+      absenderName:"Alumet Bayern GmbH",
+      absenderAdresse:"Gewerbepark 7, 85221 Dachau",
+      absenderIBAN:"DE44 7001 0080 0123 4567 89",
+      rechnungsnummer:"RE-AB-2026-0041",
+      datum:"09.01.2026", faellig:"08.02.2026",
+      positionen:[
+        { menge:40, einheit:"Stk.", beschreibung:"Aluminiumrahmen für Solarmodule (Rohstoff)", einzelpreis:15.00, gesamt:600.00 },
+        { menge:1,  einheit:"Psch.", beschreibung:"Frachtkosten Spedition Schäfer GmbH", einzelpreis:60.00, gesamt:60.00 },
+      ],
+      netto:660.00, brutto:785.40,
+      verwendung:"RE-AB-2026-0041 Aluminiumrahmen",
+    },
+    aufgabe:"Buche diesen Rechnungseingang auf Ziel (vollständig mit USt). Drei Soll-Konten: Rohstoffwert, Frachtkosten und Vorsteuer – ein Haben-Konto.",
+    soll:[
+      {kuerzel:"AWR",  name:"Aufwendungen Rohstoffe",       nr:"6000", betrag:600.00},
+      {kuerzel:"BZKR", name:"Bezugskosten Rohstoffe",       nr:"6001", betrag:60.00},
+      {kuerzel:"VORST",name:"Vorsteuer",                    nr:"2600", betrag:125.40},
+    ],
+    haben:[{kuerzel:"VE",name:"Verbindlichkeiten aus L+L",nr:"4400", betrag:785.40}],
+    punkte:4,
+    betrag:785.40,
+    erklaerung:"Zusammengesetzter Buchungssatz: 6000 AWR 600,00 + 6001 BZKR 60,00 + 2600 VORST 125,40 an 4400 VE 785,40. Rohstoffwert → AWR · Frachtkosten → BZKR · 19 % USt → VORST · Verbindlichkeit auf Ziel → VE (Kl.8 LB2)." },
 
   { id:"b8_2", ansicht:"beleg", punkte:2, aktion:"beleg",
     titel:"Eingangsrechnung Rohstoffe",
-    story:"Bayern Rohstoffe GmbH hat folgende Rechnung für gelieferte Rohstoffe zugeschickt.",
+    story:"Bayern Rohstoffe GmbH hat folgende Rechnung für gelieferte Solarmodulglas-Platten zugeschickt (Kauf auf Ziel, Zahlungsziel 14 Tage):",
     transaktion:null,
     belegDaten:{
       typ:"eingangsrechnung",
@@ -8686,17 +9034,17 @@ const BANK8_AUFGABEN = [
       rechnungsnummer:"RE-2026-0042",
       datum:"08.01.2026", faellig:"22.01.2026",
       positionen:[
-        { menge:200, einheit:"kg", beschreibung:"Rohstoffe (lt. Bestellung)", einzelpreis:10.00, gesamt:2000.00 },
+        { menge:200, einheit:"kg", beschreibung:"Solarmodulglas geschnitten 4 mm (Rohstoff)", einzelpreis:10.00, gesamt:2000.00 },
       ],
       netto:2000.00, brutto:2380.00,
-      verwendung:"RE-2026-0042 Rohstoffe",
+      verwendung:"RE-2026-0042 Solarmodulglas",
     },
-    ueberweisungsDaten:{ empfaenger:"Bayern Rohstoffe GmbH", iban:"DE12 7205 0101 0012 3456 78", betrag:"2380", verwendung:"RE-2026-0042 Rohstoffe" },
-    aufgabe:"Buche den Rohstoffeinkauf auf Ziel (Buchungssatz beim Rechnungseingang, vereinfacht).",
+    ueberweisungsDaten:{ empfaenger:"Bayern Rohstoffe GmbH", iban:"DE12 7205 0101 0012 3456 78", betrag:"2380", verwendung:"RE-2026-0042 Solarmodulglas" },
+    aufgabe:"Buche diesen Rohstoffeinkauf auf Ziel (vereinfacht ohne USt, netto 2.000,00 €). Welche Konten kommen ins Soll und ins Haben?",
     soll:[{kuerzel:"AWR",name:"Aufwendungen Rohstoffe",nr:"6000"}],
     haben:[{kuerzel:"VE",name:"Verbindlichkeiten aus L+L",nr:"4400"}],
-    betrag:2380,
-    erklaerung:"Rohstoffe auf Ziel: AWR (6000) im Soll. Verbindlichkeit VE (4400) im Haben. (Vollständig: + VORST 2600)" },
+    betrag:2000,
+    erklaerung:"Rohstoffe auf Ziel (vereinfacht): AWR (6000) im Soll, netto 2.000,00 €. Verbindlichkeit VE (4400) im Haben. Vollständig mit USt: 6000 AWR 2.000,00 + 2600 VORST 380,00 an 4400 VE 2.380,00." },
 
   { id:"b8_3", ansicht:"ueberweisung", punkte:3, aktion:"ueberweisung",
     titel:"Verbindlichkeit überweisen",
@@ -8711,9 +9059,9 @@ const BANK8_AUFGABEN = [
 
   { id:"b8_4", ansicht:"konto", punkte:2, aktion:"buchung",
     titel:"Nachlass vom Lieferanten",
-    story:"Bayern Rohstoffe GmbH hat wegen einer Mängelrüge nachträglich 150 € Preisnachlass gewährt und die Verbindlichkeit entsprechend reduziert.",
+    story:"Bayern Rohstoffe GmbH sendet euch eine Gutschrift (GS-2026-0018): Wegen festgestellter Mängel gewährt sie einen nachträglichen Preisnachlass von 150 €. Die Verbindlichkeit aus der ursprünglichen Rechnung verringert sich entsprechend.",
     transaktion:null,
-    aufgabe:"Wie wird der nachträgliche Preisnachlass des Lieferanten (Nachlass für Rohstoffe) gebucht?",
+    aufgabe:"Buche den Preisnachlass laut Gutschrift: Die Verbindlichkeit (VE) sinkt im Soll – welches Erlöskorrektur-/Nachlasskonto kommt ins Haben? (Signalwort: Nachlass für Rohstoffe)",
     soll:[{kuerzel:"VE",name:"Verbindlichkeiten aus L+L",nr:"4400"}],
     haben:[{kuerzel:"NR",name:"Nachlässe für Rohstoffe",nr:"6002"}],
     betrag:150,
@@ -8721,9 +9069,9 @@ const BANK8_AUFGABEN = [
 
   { id:"b8_5", ansicht:"konto", punkte:2, aktion:"buchung",
     titel:"Fertigerzeugnisse auf Ziel verkauft",
-    story:"Ihr habt an TechBau AG Fertigerzeugnisse auf Ziel geliefert und eine Ausgangsrechnung über 4.760 € brutto (= 4.000 € netto) ausgestellt.",
+    story:"Ihr habt an TechBau AG Fertigerzeugnisse auf Ziel (= gegen Rechnung, Zahlungsziel 14 Tage) geliefert. Ausgangsrechnung AR-2026-0021: 4.760 € brutto (= 4.000 € netto). Das Geld ist noch nicht eingegangen.",
     transaktion:null,
-    aufgabe:"Welcher Buchungssatz entsteht beim Verkauf von Fertigerzeugnissen auf Ziel (vereinfacht)?",
+    aufgabe:"Buche den Verkauf auf Ziel (vereinfacht): Eine Forderung entsteht (FO im Soll), ein Umsatzerlös wird realisiert (UEFE im Haben). Betrag: 4.760 €.",
     soll:[{kuerzel:"FO",name:"Forderungen aus L+L",nr:"2400"}],
     haben:[{kuerzel:"UEFE",name:"Umsatzerlöse FE",nr:"5000"}],
     betrag:4760,
@@ -8862,6 +9210,60 @@ const BANK8_AUFGABEN = [
     freitext:{ zeilen:4, minZeichen:40,
       loesung:"Wenn Rohstoffe ins Lager kommen, sind sie Vermögen (Bestandskonto R, 2000) – das Unternehmen hat etwas. Sobald sie für die Produktion verbraucht werden, verlässt ihr Wert das Unternehmen: Sie werden zu einem Produkt umgewandelt, dessen Wert noch nicht realisiert ist. Dieser Verbrauch senkt das Vermögen und ist deshalb ein Aufwand (AWR 6000) – er erscheint in der GuV und mindert den Gewinn. Buchungssatz: AWR an R." },
     erklaerung:"Rohstoffe im Lager = Bestand (Aktivkonto). Rohstoffverbrauch für Produktion = Aufwand (AWR 6000). GoB: Aufwände werden in der Periode erfasst, in der sie entstehen. Kl.8 LB2/LB4." },
+
+  // ── Paare zuordnen (Kl. 8) ────────────────────────────────────────────────
+  { id:"pa8_1", typ:"zuordnung", ansicht:"konto", punkte:3, aktion:"zuordnung",
+    titel:"Paare zuordnen: Kontonummer → Kontoname",
+    story:"Der Buchhalter legt dir einen Kontenplan-Auszug vor. Ordne jeder vierstelligen Kontonummer den richtigen Kontonamen zu.",
+    aufgabe:"Welcher Kontoname gehört zu welcher Kontonummer?",
+    zuordnung:{
+      items:[
+        { id:"n6000", text:"6000", korrektKat:"awr"   },
+        { id:"n4400", text:"4400", korrektKat:"ve"    },
+        { id:"n2600", text:"2600", korrektKat:"vorst" },
+        { id:"n3800", text:"3800", korrektKat:"aust"  },
+        { id:"n2000", text:"2000", korrektKat:"r"     },
+      ],
+      kategorien:[
+        { id:"awr",   label:"AWR – Aufwand f. Rohstoffe",   color:"#e8600a", rgb:"232,96,10"  },
+        { id:"ve",    label:"VE – Verbindlichkeiten L+L",   color:"#a855f7", rgb:"168,85,247" },
+        { id:"vorst", label:"VORST – Vorsteuer",            color:"#10b981", rgb:"16,185,129" },
+        { id:"aust",  label:"AUST – Umsatzsteuer",          color:"#ef4444", rgb:"239,68,68"  },
+        { id:"r",     label:"R – Rohstoffe (Lager)",        color:"#3b82f6", rgb:"59,130,246" },
+      ]
+    },
+    soll:[], haben:[], betrag:0,
+    erklaerung:"6000 AWR (Rohstoffaufwand), 4400 VE (Verbindlichkeiten L+L), 2600 VORST (abziehbare Vorsteuer, Aktivkonto), 3800 AUST (Umsatzsteuerverbindlichkeit, Passivkonto), 2000 R (Rohstofflager). (Kl.8 LB2/LB3)" },
+
+  // ── Sequenzkette Kl. 8 (LB2) ─────────────────────────────────────────────
+  { id:"kette8_1", typ:"kette", ansicht:"konto", punkte:8, aktion:"kette",
+    titel:"Eingangsrechnung mit Bezugskosten: Komplett-Workflow",
+    story:"Waldform Design GmbH erhält eine Eingangsrechnung von Südbayer Werkstoffe KG für Eichenholzbohlen inkl. Frachtkosten der Spedition.",
+    soll:[], haben:[], betrag:0,
+    erklaerung:"Eingangsrechnung: AWR + BZKR im Soll, VE im Haben. Kl.8 LB2.",
+    kette:[
+      { typ:"mc", punkte:1, label:"Beleg prüfen",
+        aufgabe:"Eingangsrechnung, Südbayer Werkstoffe KG, Regensburg\nRg.-Nr. SW-2026-0882  ·  Datum: 15.01.2026\n\n· Eichenholzbohlen (Rohstoffe):    800,00 €\n· Frachtkosten Spedition Bayern:    60,00 €\n· Gesamtnetto:                      860,00 €\n\nIn welches Konto werden die Frachtkosten beim Rohstoffeinkauf gebucht?",
+        mcOptionen:["6000 AWR – Aufwendungen für Rohstoffe","6001 BZKR – Bezugskosten Rohstoffe","4400 VE – Verbindlichkeiten aus L+L","2600 VORST – Vorsteuer"],
+        mcKorrekt:1,
+        erklaerung:"Frachtkosten beim Rohstoffeinkauf = Bezugskosten → 6001 BZKR. Sie erhöhen den Einstandspreis! Kl.8 LB2." },
+      { typ:"kalkulation", punkte:2, label:"Einstandspreis",
+        aufgabe:"Berechne den Gesamtnettobetrag (Einstandspreis) der Lieferung:\n· Eichenholzbohlen:  800,00 €\n· Frachtkosten:       60,00 €\n\nEinstandspreis = Warenpreis + Bezugskosten",
+        kalkulation:{ richtigerWert:860, einheit:"€" },
+        erklaerung:"Einstandspreis = 800 + 60 = 860,00 €. Das ist der tatsächliche Aufwand, der in die Bücher kommt. Kl.8 LB2." },
+      { typ:"buchung", punkte:2, label:"Buchung: Rohstoffe",
+        aufgabe:"Buche den Rohstoff-Nettobetrag (ohne Frachtkosten): 800,00 € auf Ziel.\nHinweis: Vereinfacht ohne USt.",
+        soll:[{kuerzel:"AWR",nr:"6000"}],
+        haben:[{kuerzel:"VE",nr:"4400"}],
+        betrag:800,
+        erklaerung:"Rohstoffaufwand (6000 AWR) ↑ im Soll, Verbindlichkeit (4400 VE) entsteht im Haben. Kl.8 LB2." },
+      { typ:"buchung", punkte:3, label:"Buchung: Frachtkosten",
+        aufgabe:"Buche die Frachtkosten (Bezugskosten Rohstoffe): 60,00 € ebenfalls auf Ziel.\nBeachte: Frachtkosten → eigenes Konto BZKR!",
+        soll:[{kuerzel:"BZKR",nr:"6001"}],
+        haben:[{kuerzel:"VE",nr:"4400"}],
+        betrag:60,
+        erklaerung:"Bezugskosten Rohstoffe (6001 BZKR) ↑ im Soll, Verbindlichkeit (4400 VE) ↑ im Haben. Zusammen mit AWR: Einstandspreis 860 €. Kl.8 LB2." },
+    ] },
 ];
 
 const KALENDER8_EINTRAEGE = [
@@ -9149,6 +9551,67 @@ const BANK9_AUFGABEN = [
     freitext:{ zeilen:5, minZeichen:50,
       loesung:"Abschreibungen (ABSA 6520) erfassen die jährliche Wertminderung von Sachanlagen durch Nutzung, Verschleiß oder wirtschaftliche Veralterung. Sie sind notwendig, weil Anschaffungskosten nicht im Kaufjahr voll als Aufwand verrechnet werden dürfen – der Aufwand muss auf die Nutzungsdauer verteilt werden (Periodenabgrenzung). Wirkung: Abschreibungen mindern den Gewinn (→ geringere Steuerbelastung) und stellen gleichzeitig Kapital für die spätere Wiederbeschaffung bereit (Selbstfinanzierungseffekt / Abschreibungskreislauf). Sie sind nicht zahlungswirksam – die Liquidität bleibt erhalten." },
     erklaerung:"AfA = Absetzung für Abnutzung (§7 EStG). Lineares Verfahren: AK / ND = jährl. AfA. ABSA (6520) im Soll / MA im Haben (direkte Abschreibung). Selbstfinanzierungseffekt! Kl.9 LB2." },
+
+  // ── Schaubild: Börsenkurs (Kl. 9 LB4) ────────────────────────────────────
+  { id:"sb9_1", typ:"mc", ansicht:"konto", punkte:2, aktion:"theorie",
+    titel:"Börsenchart: BayernSolar AG – Kursentwicklung",
+    story:"Im Börsenfenster siehst du den Kursverlauf der BayernSolar AG der letzten 6 Monate.",
+    schaubild:{
+      typ:"linie",
+      titel:"BayernSolar AG – Aktienkurs (Jul–Dez 2025)",
+      untertitel:"Schlusskurs in € je Aktie (fiktive Daten)",
+      einheit:"€/Aktie",
+      quelle:"Fiktiver Börsenkurs",
+      herausgeber:"BuchungsWerk – Übungszweck",
+      jahre:["Jul","Aug","Sep","Okt","Nov","Dez"],
+      werte:[41.20, 44.80, 43.50, 47.30, 52.10, 48.50]
+    },
+    aufgabe:"In welchem Monat war der Aktienkurs der BayernSolar AG am höchsten?",
+    mcOptionen:["August (44,80 €)","Oktober (47,30 €)","November (52,10 €)","Dezember (48,50 €)"],
+    mcKorrekt:2, soll:[], haben:[], betrag:0,
+    erklaerung:"Im November 2025 erreichte der Kurs mit 52,10 € sein Höchst. Im Dezember fiel er wieder auf 48,50 €. Beim Verkauf im Dezember ergibt sich ein Buchgewinn gegenüber dem Kaufkurs von 41,20 € (Juli): EAWP 5650 im Haben. (Kl.9 LB4)" },
+
+  { id:"sb9_2", typ:"kalkulation", ansicht:"konto", punkte:2, aktion:"theorie",
+    titel:"Börsenchart: Kursgewinn berechnen",
+    story:"Du hast BayernSolar AG-Aktien im Juli zu 41,20 € je Aktie gekauft (50 Stück). Im Dezember verkaufst du sie zum Kurs von 48,50 €.",
+    aufgabe:"Berechne den Kursgewinn in € (Verkaufswert − Kaufwert, ohne Nebenkosten).",
+    kalkulation:{ richtigerWert:365, einheit:"€" },
+    schaubild:{
+      typ:"linie",
+      titel:"BayernSolar AG – Aktienkurs (Jul–Dez 2025)",
+      untertitel:"Schlusskurs in € je Aktie (fiktive Daten)",
+      einheit:"€/Aktie",
+      quelle:"Fiktiver Börsenkurs",
+      herausgeber:"BuchungsWerk – Übungszweck",
+      jahre:["Jul","Aug","Sep","Okt","Nov","Dez"],
+      werte:[41.20, 44.80, 43.50, 47.30, 52.10, 48.50]
+    },
+    soll:[], haben:[], betrag:365,
+    erklaerung:"Kaufwert: 50 × 41,20 € = 2.060,00 €. Verkaufswert: 50 × 48,50 € = 2.425,00 €. Kursgewinn = 2.425,00 − 2.060,00 = 365,00 €. Buchung: BK / WP 1500 + EAWP 5650. (Kl.9 LB4)" },
+
+  // ── Paare zuordnen (Kl. 9) ────────────────────────────────────────────────
+  { id:"pa9_1", typ:"zuordnung", ansicht:"konto", punkte:3, aktion:"zuordnung",
+    titel:"Paare zuordnen: Börsenbegriff → Erklärung",
+    story:"Vor dem Aktienkauf musst du die wichtigsten Börsenbegriffe kennen. Ordne jeden Begriff der richtigen Erklärung zu.",
+    aufgabe:"Welche Erklärung gehört zu welchem Börsenbegriff?",
+    zuordnung:{
+      items:[
+        { id:"kurs",  text:"Kurs",      korrektKat:"kurs_def"  },
+        { id:"div",   text:"Dividende", korrektKat:"div_def"   },
+        { id:"depot", text:"Depot",     korrektKat:"depot_def" },
+        { id:"emit",  text:"Emission",  korrektKat:"emit_def"  },
+        { id:"rend",  text:"Rendite",   korrektKat:"rend_def"  },
+      ],
+      kategorien:[
+        { id:"kurs_def",  label:"Marktpreis einer Aktie an der Börse",  color:"#e8600a", rgb:"232,96,10"  },
+        { id:"div_def",   label:"Gewinnausschüttung je Aktie",          color:"#10b981", rgb:"16,185,129" },
+        { id:"depot_def", label:"Wertpapier-Konto bei der Bank",        color:"#3b82f6", rgb:"59,130,246" },
+        { id:"emit_def",  label:"Erstausgabe neuer Aktien am Markt",    color:"#a855f7", rgb:"168,85,247" },
+        { id:"rend_def",  label:"Ertrag einer Kapitalanlage in %",      color:"#eab308", rgb:"234,179,8"  },
+      ]
+    },
+    soll:[], haben:[], betrag:0,
+    erklaerung:"Kurs=Börsenpreis. Dividende=Gewinnanteil/Aktie (BK/DDE 5780). Depot=WP-Konto (1500). Emission=Neuausgabe von Aktien. Rendite=Ertrag in % (Dividendenrendite = Div÷Kurs×100). (Kl.9 LB4)" },
 ];
 
 // ── Klasse 9 Kalender – Börsentermine Januar 2026 ────────────────────────────
@@ -9382,6 +9845,28 @@ const BANK10_AUFGABEN = [
     freitext:{ zeilen:5, minZeichen:60,
       loesung:"Rechnungsabgrenzungsposten dienen der periodengerechten Erfolgsermittlung: Aufwendungen und Erträge sollen in dem Jahr erfasst werden, zu dem sie wirtschaftlich gehören. ARA (2900, Aktiva): Ausgabe erfolgt bereits in diesem Jahr, der Aufwand gehört aber ins nächste Jahr – z.B. Versicherungsprämie 01.07.–30.06. wird im Juli bezahlt; der Anteil Jan.–Juni des Folgejahres wird als ARA aktiviert (ARA an VBEI). PRA (4900, Passiva): Einnahme erfolgt bereits, der Ertrag gehört aber ins nächste Jahr – z.B. Mietvorauszahlung des Mieters für das Folgejahr (BK an PRA)." },
     erklaerung:"ARA: Aktivseite (2900) – Ausgabe jetzt, Aufwand später. PRA: Passivseite (4900) – Einnahme jetzt, Ertrag später. Buchungen: ARA an Aufwandskonto / BK an PRA. Kl.10 LB1." },
+
+  // ── Paare zuordnen (Kl. 10) ───────────────────────────────────────────────
+  { id:"pa10_1", typ:"zuordnung", ansicht:"konto", punkte:4, aktion:"klr",
+    titel:"Paare zuordnen: Kennzahl → Berechnungsformel",
+    story:"Zur MSA-Vorbereitung legt Ihre Lehrkraft eine Formelübersicht vor. Ordnen Sie jeder Kennzahl die richtige Berechnungsformel zu.",
+    aufgabe:"Welche Berechnungsformel gehört zu welcher Kennzahl?",
+    zuordnung:{
+      items:[
+        { id:"adII", text:"Anlagendeckung II",       korrektKat:"adII_f" },
+        { id:"ekr",  text:"EK-Rentabilität",          korrektKat:"ekr_f"  },
+        { id:"eliq", text:"Einzugsliquidität",        korrektKat:"eliq_f" },
+        { id:"mgkz", text:"Materialgemeinkostenzuschlag", korrektKat:"mgkz_f" },
+      ],
+      kategorien:[
+        { id:"adII_f", label:"(EK + LFV) ÷ AV × 100",  color:"#e8600a", rgb:"232,96,10"  },
+        { id:"ekr_f",  label:"Gewinn ÷ EK × 100",      color:"#10b981", rgb:"16,185,129" },
+        { id:"eliq_f", label:"(FO + BK) ÷ KFV × 100",  color:"#3b82f6", rgb:"59,130,246" },
+        { id:"mgkz_f", label:"MGK ÷ MEK × 100",        color:"#a855f7", rgb:"168,85,247" },
+      ]
+    },
+    soll:[], haben:[], betrag:0,
+    erklaerung:"Anlagendeckung II: (EK+LFV)÷AV×100 ≥100% = goldene Bilanzregel erfüllt. EK-Rentabilität: Gewinn÷EK×100. Einzugsliquidität: (FO+BK)÷KFV×100. MGKZ: MGK÷MEK×100. (Kl.10 LB2/LB3)" },
 ];
 
 // ── Klasse 10 Kalender – Jahresabschluss-Nacharbeiten Januar 2026 ─────────────
@@ -9402,10 +9887,40 @@ const KALENDER10_EINTRAEGE = [
   { tag:29, text:"Jahresabschluss GJ 2025 finalisiert und übermittelt",            typ:"info" },
 ];
 
-function BankingSimulator7({ firma, onAbschluss, lehrerConfig = {}, klasse = "7" }) {
+// ── Live T-Konto – visuelles Feedback nach korrekter Buchung ─────────────────
+function LiveTKonto({ sollKuerzel, habenKuerzel, betrag }) {
+  const fmt = (b) => Number(b).toLocaleString("de-DE", { minimumFractionDigits:2 });
+  const Seite = ({ kuerzel, aktiveSeite }) => (
+    <div style={{ flex:1, border:"1px solid rgba(74,222,128,0.2)", borderRadius:8, overflow:"hidden" }}>
+      <div style={{ padding:"3px 8px", background:"rgba(74,222,128,0.08)", borderBottom:"1px solid rgba(74,222,128,0.12)", fontSize:10, fontWeight:800, color:"#4ade80", textAlign:"center", letterSpacing:".05em" }}>{kuerzel}</div>
+      <div style={{ display:"flex", minHeight:44 }}>
+        {["SOLL","HABEN"].map(s => (
+          <div key={s} style={{ flex:1, borderRight:s==="SOLL"?"1px solid rgba(240,236,227,0.07)":"none", padding:"5px 8px" }}>
+            <div style={{ fontSize:7.5, color:"rgba(240,236,227,0.25)", marginBottom:3 }}>{s}</div>
+            {s === aktiveSeite
+              ? <div style={{ fontSize:13, fontWeight:800, color:"#4ade80", fontFamily:"'Fira Code',monospace" }}>{fmt(betrag)}</div>
+              : <div style={{ fontSize:10, color:"rgba(240,236,227,0.12)", fontFamily:"'Fira Code',monospace" }}>—</div>}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+  return (
+    <div style={{ marginTop:10, padding:"9px 11px", background:"rgba(74,222,128,0.04)", border:"1px solid rgba(74,222,128,0.14)", borderRadius:10 }}>
+      <div style={{ fontSize:9, fontWeight:800, color:"rgba(74,222,128,0.55)", letterSpacing:".08em", textTransform:"uppercase", marginBottom:7 }}>T-Konto · Buchung</div>
+      <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+        <Seite kuerzel={sollKuerzel} aktiveSeite="SOLL"/>
+        <div style={{ fontSize:14, color:"rgba(74,222,128,0.35)", flexShrink:0 }}>→</div>
+        <Seite kuerzel={habenKuerzel} aktiveSeite="HABEN"/>
+      </div>
+    </div>
+  );
+}
+
+function BankingSimulator7({ firma, onAbschluss, lehrerConfig = {}, klasse = "7", modus = "stunde", stundenMin = 45, onFortschritt }) {
   const firmaName = firma?.name || "MöbelWerk GmbH";
   const aufgabenListe = React.useMemo(() => {
-    const NEUE_TYPEN = ["lueckentext","zuordnung","multi_mc","freitext"];
+    const NEUE_TYPEN = ["lueckentext","zuordnung","multi_mc","freitext","kette"];
     const klasse9Themen  = ["buchung","ueberweisung","beleg","theorie","aktie_kauf","aktie_verkauf","dividende",...NEUE_TYPEN];
     const klasse10Themen = ["buchung","theorie","klr",...NEUE_TYPEN];
     const erlaubteThemen = lehrerConfig.themen || (klasse === "10" ? klasse10Themen : klasse === "9" ? klasse9Themen : ["buchung","ueberweisung","dauerauftrag","beleg","theorie",...NEUE_TYPEN]);
@@ -9432,7 +9947,7 @@ function BankingSimulator7({ firma, onAbschluss, lehrerConfig = {}, klasse = "7"
   const [aufgabeIdx,   setAufgabeIdx]   = useState(0);
   const [kontostand,   setKontostand]   = useState(BANK_START);
   const [ansicht,      setAnsicht]      = useState(aufgabenListe[0]?.ansicht || "konto");
-  const [buchAntwort,  setBuchAntwort]  = useState({ soll:"", haben:"" });
+  const [buchAntwort,  setBuchAntwort]  = useState({ soll: [""], haben: [""], betragSoll: [""], betragHaben: [""] });
   const [feedback,     setFeedback]     = useState(null);
   const [verlauf,      setVerlauf]      = useState([]);
   const [punkte,       setPunkte]       = useState(0);
@@ -9458,14 +9973,28 @@ function BankingSimulator7({ firma, onAbschluss, lehrerConfig = {}, klasse = "7"
   const [zuordnungState,  setZuordnungState]  = useState({});  // { item-id → kategorie-id } für Zuordnungs-Aufgaben
   const [multiMcState,    setMultiMcState]    = useState([]);  // Array gewählter Indizes für Multi-Choice
   const [freitextAntwort, setFreitextAntwort] = useState(""); // Freitext-Eingabe
+  const [ketteSchritt,    setKetteSchritt]    = useState(0);   // aktiver Schritt in Ketten-Aufgabe
+  // ── Kanban-State ──────────────────────────────────────────────────────────
+  const [kbBacklog,    setKbBacklog]    = useState([]);   // task-ids im Backlog
+  const [kbDoing,      setKbDoing]      = useState(null); // task-id in Doing (null = leer)
+  const [kbDragId,     setKbDragId]     = useState(null); // aktuell gezogene task-id
+  const [kbDragOver,   setKbDragOver]   = useState(null); // "backlog"|"doing"|"pool"|null
+  const [selMailId,    setSelMailId]    = useState(null); // geöffnete Mail im Inbox
 
-  const aufgabe   = aufgabenListe[aufgabeIdx];
+  const [tutorialOffen, setTutorialOffen] = useState(() => { try { return !localStorage.getItem("bw_sim_tutorial_seen"); } catch { return true; } });
+
+  const aufgabe   = kbDoing ? (aufgabenListe.find(a => a.id === kbDoing) ?? null) : null;
   const maxPunkte = aufgabenListe.reduce((s,a) => s + a.punkte, 0);
 
   React.useEffect(() => {
     const t = setInterval(() => setElapsed(Date.now() - startTime), 1000);
     return () => clearInterval(t);
   }, []); // eslint-disable-line
+
+  // Fortschritt an Elternkomponente melden (für Heartbeat / Live-Dashboard)
+  React.useEffect(() => {
+    onFortschritt?.(punkte, maxPunkte);
+  }, [punkte]); // eslint-disable-line
 
   // Zeitlimit: Punkt abziehen wenn Schüler zu lang wartet
   React.useEffect(() => {
@@ -9477,12 +10006,15 @@ function BankingSimulator7({ firma, onAbschluss, lehrerConfig = {}, klasse = "7"
     }
   }, [elapsed]); // eslint-disable-line
 
+  // Reset-Effekt: wenn eine neue Aufgabe in "doing" gezogen wird
   React.useEffect(() => {
-    if (!aufgabe) return;
-    setSzene("schreibtisch");
-    setAnsicht(aufgabe.ansicht);
+    if (!kbDoing) return;
+    const a = aufgabenListe.find(a => a.id === kbDoing);
+    if (!a) return;
+    setAnsicht(a.ansicht || "konto");
     setFeedback(null);
-    setBuchAntwort({ soll:"", haben:"" });
+    const nS = Math.max(1,(a.soll||[]).length), nH = Math.max(1,(a.haben||[]).length);
+    setBuchAntwort({ soll: Array(nS).fill(""), haben: Array(nH).fill(""), betragSoll: Array(nS).fill(""), betragHaben: Array(nH).fill("") });
     setAktionOk(false);
     setBelegUeOk(false);
     setBelegUePunkte(0);
@@ -9493,16 +10025,16 @@ function BankingSimulator7({ firma, onAbschluss, lehrerConfig = {}, klasse = "7"
     setZuordnungState({});
     setMultiMcState([]);
     setFreitextAntwort("");
+    setKetteSchritt(0);
     setDeskPopup(null);
     setZeitAbgelaufen(false);
     setKalSelTag(null);
     setTaskStartTime(Date.now());
-    // Formulare leer starten – Schüler müssen Daten selbst eintragen (interaktiv)
-    if (aufgabe.dauerauftragsDaten) setDaForm({ empfaenger: aufgabe.dauerauftragsDaten.empfaenger, rhythmus:"monatlich", tag:"1" });
+    if (a.dauerauftragsDaten) setDaForm({ empfaenger: a.dauerauftragsDaten.empfaenger, rhythmus:"monatlich", tag:"1" });
     else setDaForm({});
-    if (aufgabe.aktion !== "beleg" && aufgabe.ueberweisungsDaten) setUeForm({ empfaenger: aufgabe.ueberweisungsDaten.empfaenger });
-    else if (aufgabe.aktion !== "beleg") setUeForm({});
-  }, [aufgabeIdx]); // eslint-disable-line
+    if (a.aktion !== "beleg" && a.ueberweisungsDaten) setUeForm({ empfaenger: a.ueberweisungsDaten.empfaenger });
+    else if (a.aktion !== "beleg") setUeForm({});
+  }, [kbDoing]); // eslint-disable-line
 
   function pruefen() {
     let buchOk = false;
@@ -9538,12 +10070,73 @@ function BankingSimulator7({ firma, onAbschluss, lehrerConfig = {}, klasse = "7"
     } else if (aufgabe.typ === "freitext") {
       // Freitext: akzeptiert wenn ausreichend Text eingegeben (selbst bewertet)
       buchOk = (freitextAntwort || "").trim().length >= (aufgabe.freitext?.minZeichen || 20);
+    } else if (aufgabe.typ === "kette") {
+      // Ketten-Aufgabe: aktuellen Schritt prüfen, dann eigene Punkte setzen und early-return
+      const ks = aufgabe.kette[ketteSchritt];
+      if (ks.typ === "mc") {
+        buchOk = theorieAntwort === ks.mcKorrekt;
+      } else if (ks.typ === "kalkulation") {
+        const n = (kalkAntwort || "").trim().replace(/\./g, "").replace(",", ".");
+        const v = parseFloat(n);
+        buchOk = !isNaN(v) && Math.abs(v - ks.kalkulation.richtigerWert) < 0.055;
+      } else if (ks.typ === "buchung") {
+        const eS = (buchAntwort.soll||[""]).map(s=>(s||"").trim().toUpperCase()).filter(Boolean);
+        const eH = (buchAntwort.haben||[""]).map(h=>(h||"").trim().toUpperCase()).filter(Boolean);
+        const rS = ks.soll.map(s=>[s.kuerzel.toUpperCase(),s.nr||""]);
+        const rH = ks.haben.map(h=>[h.kuerzel.toUpperCase(),h.nr||""]);
+        const _pbk = s => { const n=(s||"").trim().replace(/\./g,"").replace(",","."); return parseFloat(n); };
+        const _sbk = i => ks.soll[i]?.betrag ?? (ks.soll.length===1 ? ks.betrag ?? aufgabe.betrag : null);
+        const _hbk = i => ks.haben[i]?.betrag ?? (ks.haben.length===1 ? ks.betrag ?? aufgabe.betrag : null);
+        const kontoOkK = rS.length>0 && rH.length>0
+               && eS.length===rS.length
+               && rS.every(([k,n])=>eS.some(e=>e===k||(n&&e===n)))
+               && eS.every(e=>rS.some(([k,n])=>e===k||(n&&e===n)))
+               && eH.length===rH.length
+               && rH.every(([k,n])=>eH.some(e=>e===k||(n&&e===n)))
+               && eH.every(e=>rH.some(([k,n])=>e===k||(n&&e===n)));
+        const betragOkK = ks.soll.every((_,i)=>{
+          const e=_sbk(i); if(e===null||e===undefined) return true;
+          const v=_pbk((buchAntwort.betragSoll||[])[i]); return !isNaN(v)&&Math.abs(v-e)<0.055;
+        }) && ks.haben.every((_,i)=>{
+          const e=_hbk(i); if(e===null||e===undefined) return true;
+          const v=_pbk((buchAntwort.betragHaben||[])[i]); return !isNaN(v)&&Math.abs(v-e)<0.055;
+        });
+        buchOk = kontoOkK && betragOkK;
+      }
+      const sekK = (Date.now() - taskStartTime) / 1000;
+      const spK  = buchOk && lehrerConfig.geschwindigkeitsBonus !== false && sekK <= 30 ? 1 : 0;
+      const gewK = (buchOk ? (ks.punkte || 1) : 0) + spK;
+      setPunkte(p => p + gewK);
+      setFeedback(buchOk ? "richtig" : "falsch");
+      // verlauf nur beim letzten Schritt
+      if (ketteSchritt === aufgabe.kette.length - 1) {
+        setVerlauf(v => [...v, { ...aufgabe, korrekt: buchOk, gewPunkte: gewK, speedBonus: spK }]);
+      }
+      return; // ← kein gemeinsamer Tail
     } else {
-      const normS = buchAntwort.soll.trim().toUpperCase();
-      const normH = buchAntwort.haben.trim().toUpperCase();
-      buchOk = aufgabe.soll.length > 0 && aufgabe.haben.length > 0
-             && aufgabe.soll.some(s => s.kuerzel.toUpperCase() === normS || (s.nr && s.nr === normS))
-             && aufgabe.haben.some(h => h.kuerzel.toUpperCase() === normH || (h.nr && h.nr === normH));
+      const eS = (buchAntwort.soll||[""]).map(s=>(s||"").trim().toUpperCase()).filter(Boolean);
+      const eH = (buchAntwort.haben||[""]).map(h=>(h||"").trim().toUpperCase()).filter(Boolean);
+      const rS = aufgabe.soll.map(s=>[s.kuerzel.toUpperCase(),s.nr||""]);
+      const rH = aufgabe.haben.map(h=>[h.kuerzel.toUpperCase(),h.nr||""]);
+      const kontoOk = rS.length>0 && rH.length>0
+             && eS.length===rS.length
+             && rS.every(([k,n])=>eS.some(e=>e===k||(n&&e===n)))
+             && eS.every(e=>rS.some(([k,n])=>e===k||(n&&e===n)))
+             && eH.length===rH.length
+             && rH.every(([k,n])=>eH.some(e=>e===k||(n&&e===n)))
+             && eH.every(e=>rH.some(([k,n])=>e===k||(n&&e===n)));
+      // Betrag-Validierung
+      const _pb = s => { const n=(s||"").trim().replace(/\./g,"").replace(",","."); return parseFloat(n); };
+      const _sb = i => aufgabe.soll[i]?.betrag ?? (aufgabe.soll.length===1 ? aufgabe.betrag : null);
+      const _hb = i => aufgabe.haben[i]?.betrag ?? (aufgabe.haben.length===1 ? aufgabe.betrag : null);
+      const betragOk = aufgabe.soll.every((_,i)=>{
+        const e=_sb(i); if(e===null||e===undefined) return true;
+        const v=_pb((buchAntwort.betragSoll||[])[i]); return !isNaN(v)&&Math.abs(v-e)<0.055;
+      }) && aufgabe.haben.every((_,i)=>{
+        const e=_hb(i); if(e===null||e===undefined) return true;
+        const v=_pb((buchAntwort.betragHaben||[])[i]); return !isNaN(v)&&Math.abs(v-e)<0.055;
+      });
+      buchOk = kontoOk && betragOk;
     }
     // Speed bonus: +1 if answered within 30 seconds
     const sek = (Date.now() - taskStartTime) / 1000;
@@ -9566,21 +10159,25 @@ function BankingSimulator7({ firma, onAbschluss, lehrerConfig = {}, klasse = "7"
   function weiter() {
     const newIdx = aufgabeIdx + 1;
     if (newIdx >= aufgabenListe.length) {
-      onAbschluss({ punkte, maxPunkte, verlauf, zeit: Math.round(elapsed / 1000) });
-    } else {
-      // Strafpunkte für Termine, die jetzt überfällig werden
-      const newSpielTag = getSpielTag(newIdx);
-      const kalEintraege = (klasse === "10" ? KALENDER10_EINTRAEGE : klasse === "9" ? KALENDER9_EINTRAEGE : klasse === "8" ? KALENDER8_EINTRAEGE : KALENDER_EINTRAEGE).filter(e => e.typ === "task");
-      let strafPunkte = 0;
-      kalEintraege.forEach(e => {
-        if (e.tag >= spielTag && e.tag < newSpielTag) {
-          const erledigt = verlauf.some(v => v.aktion === e.aufgabeAktion && v.korrekt);
-          if (!erledigt) { strafPunkte++; setMahnungen(m => { const n = new Set(m); n.add(e.tag); return n; }); }
-        }
-      });
-      if (strafPunkte > 0) setPunkte(p => Math.max(0, p - strafPunkte));
-      setAufgabeIdx(newIdx);
+      onAbschluss({ punkte, maxPunkte, verlauf, zeit: Math.round(elapsed / 1000), poolGroesse: aufgabenListe.length });
+      return;
     }
+    // Strafpunkte für Termine, die jetzt überfällig werden
+    const newSpielTag = getSpielTag(newIdx);
+    const kalEintraege = (klasse === "10" ? KALENDER10_EINTRAEGE : klasse === "9" ? KALENDER9_EINTRAEGE : klasse === "8" ? KALENDER8_EINTRAEGE : KALENDER_EINTRAEGE).filter(e => e.typ === "task");
+    let strafPunkte = 0;
+    kalEintraege.forEach(e => {
+      if (e.tag >= spielTag && e.tag < newSpielTag) {
+        const erledigt = verlauf.some(v => v.aktion === e.aufgabeAktion && v.korrekt);
+        if (!erledigt) { strafPunkte++; setMahnungen(m => { const n = new Set(m); n.add(e.tag); return n; }); }
+      }
+    });
+    if (strafPunkte > 0) setPunkte(p => Math.max(0, p - strafPunkte));
+    setAufgabeIdx(newIdx);
+    // Kanban: Doing leeren → zurück zum Schreibtisch
+    setKbDoing(null);
+    setSzene("schreibtisch");
+    setFeedback(null);
   }
 
   const fmtTime = s => `${Math.floor(s / 60)}:${String(s % 60).padStart(2,"0")}`;
@@ -9588,8 +10185,10 @@ function BankingSimulator7({ firma, onAbschluss, lehrerConfig = {}, klasse = "7"
   const LT  = "#f0f4f8";
   const BD  = "#d1dae5";
 
-  // Past transactions to show in Kontoauszug
-  const pastTx = aufgabenListe.slice(0, aufgabeIdx).map(a => {
+  // Past transactions to show in Kontoauszug – aus tatsächlichem Verlauf (nicht linear)
+  const pastTx = verlauf.map(v => {
+    const a = aufgabenListe.find(a => a.id === v.id);
+    if (!a) return null;
     if (a.transaktion) return a.transaktion;
     if (a.aktion === "beleg" && a.belegDaten) return { datum: a.belegDaten.datum, text:`${a.belegDaten.typ==="eingangsrechnung"?"Überweisung":"Eingang"} · ${a.ueberweisungsDaten.empfaenger} · ${a.belegDaten.rechnungsnummer}`, betrag: a.belegDaten.typ==="eingangsrechnung" ? -Number(a.ueberweisungsDaten.betrag) : +Number(a.ueberweisungsDaten.betrag) };
     if (a.ueberweisungsDaten) return { datum:"10.01.2026", text:`Überweisung · ${a.ueberweisungsDaten.empfaenger} · ${a.ueberweisungsDaten.verwendung}`, betrag: -Number(a.ueberweisungsDaten.betrag) };
@@ -9623,7 +10222,20 @@ function BankingSimulator7({ firma, onAbschluss, lehrerConfig = {}, klasse = "7"
           <span style={{ display:"flex", alignItems:"center", gap:3, color:"rgba(232,96,10,0.7)", fontWeight:600, fontSize:11 }}>
             <Calendar size={11} strokeWidth={1.5}/>Tag {spielTag}
           </span>
-          <span style={{ display:"flex", alignItems:"center", gap:3 }}><Timer size={12} strokeWidth={1.5}/>{fmtTime(Math.round(elapsed/1000))}</span>
+          {modus === "stunde" ? (() => {
+            const restSek = Math.max(0, stundenMin * 60 - Math.round(elapsed / 1000));
+            const restMin = Math.floor(restSek / 60);
+            const restS   = restSek % 60;
+            const warn    = restSek < 300; // letzte 5 Min
+            return (
+              <span style={{ display:"flex", alignItems:"center", gap:3, fontWeight:700, color: warn ? "#f87171" : "rgba(240,236,227,0.7)", fontSize:12 }}>
+                <Timer size={12} strokeWidth={1.5}/>
+                {restMin}:{String(restS).padStart(2,"0")} verbleibend
+              </span>
+            );
+          })() : (
+            <span style={{ display:"flex", alignItems:"center", gap:3 }}><Timer size={12} strokeWidth={1.5}/>{fmtTime(Math.round(elapsed/1000))}</span>
+          )}
           <span style={{ color:"#e8600a", fontWeight:700 }}>{punkte}/{maxPunkte} P</span>
         </div>
       </div>
@@ -9639,8 +10251,71 @@ function BankingSimulator7({ firma, onAbschluss, lehrerConfig = {}, klasse = "7"
     </div>
   );
 
+  // ── Tutorial (Schüler, erstes Mal) ──────────────────────────────────────
+  if (tutorialOffen) return (
+    <div style={{ maxWidth:520, margin:"0 auto", padding:"20px 16px" }}>
+      <div style={{ background:"rgba(28,20,10,0.95)", border:"2px solid rgba(232,96,10,0.4)", borderRadius:16, padding:"24px", color:"#f0ece3" }}>
+        <div style={{ fontSize:20, fontWeight:900, marginBottom:4, display:"flex", alignItems:"center", gap:8 }}>
+          <Briefcase size={20} strokeWidth={1.5} style={{ color:"#e8600a" }}/>Willkommen in der Simulation!
+        </div>
+        <div style={{ fontSize:12, color:"rgba(240,236,227,0.5)", marginBottom:20 }}>So funktioniert dein digitales Büro:</div>
+
+        <div style={{ display:"flex", flexDirection:"column", gap:12, marginBottom:20 }}>
+          <div style={{ background:"rgba(232,96,10,0.07)", border:"1px solid rgba(232,96,10,0.2)", borderRadius:10, padding:"12px 14px" }}>
+            <div style={{ fontWeight:700, fontSize:13, color:"#e8600a", marginBottom:5, display:"flex", alignItems:"center", gap:6 }}>
+              <Layers size={13} strokeWidth={2}/>Schritt 1 · Aufgaben-Board
+            </div>
+            <div style={{ fontSize:12, color:"rgba(240,236,227,0.75)", lineHeight:1.6 }}>
+              Du siehst ein <strong style={{ color:"#f0ece3" }}>Kanban-Board</strong>. Ziehe eine Aufgabenkarte aus dem Pool in <strong style={{ color:"#e8600a" }}>„In Arbeit"</strong> – das ist deine aktive Aufgabe. Du kannst auch auf <strong style={{ color:"#f0ece3" }}>„▶ Start"</strong> klicken.
+            </div>
+          </div>
+
+          <div style={{ background:"rgba(74,158,255,0.07)", border:"1px solid rgba(74,158,255,0.2)", borderRadius:10, padding:"12px 14px" }}>
+            <div style={{ fontWeight:700, fontSize:13, color:"#4a9eff", marginBottom:5, display:"flex", alignItems:"center", gap:6 }}>
+              <Laptop size={13} strokeWidth={2}/>Schritt 2 · Schreibtisch-Icons
+            </div>
+            <div style={{ fontSize:12, color:"rgba(240,236,227,0.75)", lineHeight:1.6, marginBottom:8 }}>
+              Ein <strong style={{ color:"#e8600a" }}>oranges Punkt-Indikator</strong> zeigt, welches Icon eine neue Aufgabe enthält. Klicke darauf!
+            </div>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6 }}>
+              {[
+                [<AtSign size={13} strokeWidth={1.5}/>, "E-Mail", "#e8600a", "Buchungsaufträge vom Chef"],
+                [<Laptop size={13} strokeWidth={1.5}/>, "Online Banking", "#4a9eff", "Überweisungen durchführen"],
+                [<Mail size={13} strokeWidth={1.5}/>, "Briefkasten", "#a855f7", "Belege & Eingangspost"],
+                [<Calendar size={13} strokeWidth={1.5}/>, "Kalender", "#10b981", "Fälligkeiten im Blick"],
+              ].map(([icon, label, color, desc], i) => (
+                <div key={i} style={{ display:"flex", alignItems:"flex-start", gap:7, padding:"6px 8px", background:`rgba(${color==="#e8600a"?"232,96,10":color==="#4a9eff"?"74,158,255":color==="#a855f7"?"168,85,247":"16,185,129"},0.08)`, borderRadius:7 }}>
+                  <span style={{ color, flexShrink:0, marginTop:2 }}>{icon}</span>
+                  <div>
+                    <div style={{ fontSize:11, fontWeight:700, color }}>{label}</div>
+                    <div style={{ fontSize:10, color:"rgba(240,236,227,0.45)" }}>{desc}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div style={{ background:"rgba(74,222,128,0.07)", border:"1px solid rgba(74,222,128,0.2)", borderRadius:10, padding:"12px 14px" }}>
+            <div style={{ fontWeight:700, fontSize:13, color:"#4ade80", marginBottom:5, display:"flex", alignItems:"center", gap:6 }}>
+              <Trophy size={13} strokeWidth={2}/>Schritt 3 · Aufgabe lösen
+            </div>
+            <div style={{ fontSize:12, color:"rgba(240,236,227,0.75)", lineHeight:1.6 }}>
+              Klicke auf <strong style={{ color:"#f0ece3" }}>„Öffnen →"</strong> an deiner aktiven Aufgabe. Beantworte die Frage und klicke <strong style={{ color:"#4ade80" }}>„Überprüfen"</strong>. Nach jeder Aufgabe siehst du sofort, ob du richtig lagst.
+            </div>
+          </div>
+        </div>
+
+        <button
+          onClick={() => { try { localStorage.setItem("bw_sim_tutorial_seen","1"); } catch {} setTutorialOffen(false); }}
+          style={{ width:"100%", padding:"14px", background:"#e8600a", color:"#fff", border:"none", borderRadius:12, fontWeight:800, fontSize:15, cursor:"pointer" }}>
+          Verstanden – Simulation starten! →
+        </button>
+      </div>
+    </div>
+  );
+
   // ── Schreibtisch (Desk) Scene – Game Interface ────────────────────────────
-  if (szene === "schreibtisch") {
+  if (szene === "schreibtisch" || !aufgabe) {
     const aktiveDesk = DESK_MAP[aufgabe?.aktion] || "email";
     const deskItems = [
       { id:"pc",       icon:<Laptop size={26} strokeWidth={1.2}/>,      label:"Online Banking", color:"#4a9eff", rgb:"74,158,255"  },
@@ -9691,6 +10366,204 @@ function BankingSimulator7({ firma, onAbschluss, lehrerConfig = {}, klasse = "7"
           </div>
         </div>
 
+        {/* ── Kanban-Board mit Drag-and-Drop ── */}
+        {!deskPopup && !zeitAbgelaufen && (() => {
+          const KB_RGB  = { email:"232,96,10", post:"168,85,247", pc:"74,158,255", kalender:"16,185,129", boerse:"245,158,11", klr:"139,92,246" };
+          const KB_AREA = { email:"E-Mail", post:"Briefkasten", pc:"Banking", kalender:"Kalender", boerse:"Börse", klr:"KLR" };
+
+          const doneIds     = new Set(verlauf.map(v => v.id));
+          const backlogSet  = new Set(kbBacklog);
+          const poolItems   = aufgabenListe.filter(a => !backlogSet.has(a.id) && a.id !== kbDoing && !doneIds.has(a.id));
+          const backlogAufg = kbBacklog.map(id => aufgabenListe.find(a => a.id === id)).filter(Boolean);
+          const doingAufg   = kbDoing ? aufgabenListe.find(a => a.id === kbDoing) : null;
+          const doneAufg    = verlauf.map(v => aufgabenListe.find(a => a.id === v.id)).filter(Boolean).reverse();
+
+          const moveToBacklog    = (id) => { if (!backlogSet.has(id) && id !== kbDoing && !doneIds.has(id)) setKbBacklog(b => [...b, id]); };
+          const moveToDoing      = (id, fromBL) => { if (!kbDoing) { if (fromBL) setKbBacklog(b => b.filter(x => x !== id)); setKbDoing(id); } };
+          const moveDoingToBL    = () => { if (kbDoing) { setKbBacklog(b => [kbDoing, ...b]); setKbDoing(null); if (szene==="vorfall") setSzene("schreibtisch"); } };
+          const removeFromBL     = (id) => setKbBacklog(b => b.filter(x => x !== id));
+
+          const onDragStart = (e, id) => { setKbDragId(id); e.dataTransfer.effectAllowed = "move"; };
+          const onDragEnd   = () => { setKbDragId(null); setKbDragOver(null); };
+          const onDragOver  = (e, zone) => { e.preventDefault(); setKbDragOver(zone); };
+          const onDragLeave = (e) => { if (!e.currentTarget.contains(e.relatedTarget)) setKbDragOver(null); };
+          const onDrop = (e, zone) => {
+            e.preventDefault(); setKbDragOver(null);
+            if (!kbDragId) return;
+            const fromBL   = backlogSet.has(kbDragId);
+            const fromDoing = kbDragId === kbDoing;
+            if (zone === "backlog") { if (!fromBL && !fromDoing && !doneIds.has(kbDragId)) moveToBacklog(kbDragId); else if (fromDoing) moveDoingToBL(); }
+            else if (zone === "doing") { if ((fromBL || (!fromDoing && !doneIds.has(kbDragId))) && !kbDoing) moveToDoing(kbDragId, fromBL); }
+            else if (zone === "pool") { if (fromBL) removeFromBL(kbDragId); }
+            setKbDragId(null);
+          };
+
+          const CardStyle = (rgb, isActive, isDragging) => ({
+            background:`rgba(${rgb},${isActive?0.09:0.04})`,
+            border:`1.5px solid rgba(${rgb},${isDragging?0.7:isActive?0.35:0.15})`,
+            borderRadius:8, padding:"7px 8px", marginBottom:4,
+            cursor:"grab", opacity:isDragging?0.45:1, userSelect:"none"
+          });
+
+          return (
+            <div style={{ background:"rgba(10,7,2,0.98)", border:"1px solid rgba(240,236,227,0.07)", borderRadius:12, overflow:"hidden", marginBottom:12 }}>
+
+              {/* Header */}
+              <div style={{ padding:"7px 14px", borderBottom:"1px solid rgba(240,236,227,0.06)", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+                <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                  <Layers size={13} color="#e8600a" strokeWidth={2}/>
+                  <span style={{ fontSize:10.5, fontWeight:800, color:"rgba(240,236,227,0.55)", letterSpacing:".06em", textTransform:"uppercase" }}>Aufgaben-Board</span>
+                  <span style={{ fontSize:9, color:"rgba(240,236,227,0.18)", fontStyle:"italic" }}>{firmaName}</span>
+                </div>
+                <div style={{ display:"flex", alignItems:"center", gap:4 }}>
+                  <span style={{ fontSize:8.5, color:"rgba(240,236,227,0.2)" }}>{verlauf.length}/{aufgabenListe.length}</span>
+                  <div style={{ width:40, height:3, borderRadius:2, background:"rgba(240,236,227,0.07)", overflow:"hidden" }}>
+                    <div style={{ height:"100%", width:`${aufgabenListe.length?verlauf.length/aufgabenListe.length*100:0}%`, background:"#4ade80", borderRadius:2, transition:"width 0.4s" }}/>
+                  </div>
+                </div>
+              </div>
+
+              {/* Verfügbare Aufgaben (Pool) – horizontaler Feed */}
+              {poolItems.length > 0 && (
+                <div style={{ padding:"8px 12px 4px", borderBottom:"1px solid rgba(240,236,227,0.05)" }}
+                  onDragOver={e => onDragOver(e, "pool")} onDragLeave={onDragLeave} onDrop={e => onDrop(e, "pool")}>
+                  <div style={{ fontSize:8.5, fontWeight:800, color:"rgba(240,236,227,0.22)", letterSpacing:".07em", textTransform:"uppercase", marginBottom:7, display:"flex", alignItems:"center", gap:5 }}>
+                    Verfügbare Aufgaben
+                    <span style={{ background:"rgba(240,236,227,0.06)", color:"rgba(240,236,227,0.28)", fontSize:8, padding:"1px 5px", borderRadius:20, fontWeight:700 }}>{poolItems.length}</span>
+                    <span style={{ fontSize:7.5, color:"rgba(240,236,227,0.15)", fontStyle:"italic", fontWeight:400 }}>· in Backlog oder In Arbeit ziehen</span>
+                  </div>
+                  <div style={{ display:"flex", gap:7, overflowX:"auto", paddingBottom:9 }}>
+                    {poolItems.map(a => {
+                      const desk = DESK_MAP[a.aktion] || "email";
+                      const rgb  = KB_RGB[desk] || "232,96,10";
+                      const area = KB_AREA[desk] || "Aufgabe";
+                      return (
+                        <div key={a.id} draggable="true"
+                          onDragStart={e => onDragStart(e, a.id)} onDragEnd={onDragEnd}
+                          style={{ flexShrink:0, width:136, background:`rgba(${rgb},0.06)`, border:`1.5px solid rgba(${rgb},${kbDragId===a.id?0.65:0.15})`, borderRadius:10, padding:"8px 9px", cursor:"grab", opacity:kbDragId===a.id?0.45:1 }}>
+                          <div style={{ fontSize:9.5, fontWeight:700, color:"rgba(240,236,227,0.72)", lineHeight:1.35, marginBottom:5, overflow:"hidden", display:"-webkit-box", WebkitLineClamp:2, WebkitBoxOrient:"vertical" }}>{a.titel}</div>
+                          <div style={{ display:"flex", alignItems:"center", gap:4, marginBottom:6 }}>
+                            <span style={{ fontSize:7.5, fontWeight:700, color:`rgba(${rgb},0.85)`, background:`rgba(${rgb},0.1)`, padding:"1px 5px", borderRadius:20 }}>{area}</span>
+                            <span style={{ fontSize:7.5, color:"rgba(240,236,227,0.22)" }}>{a.punkte}P</span>
+                          </div>
+                          <div style={{ display:"flex", gap:4 }}>
+                            <button onClick={() => moveToBacklog(a.id)}
+                              style={{ flex:1, padding:"4px 0", background:"rgba(240,236,227,0.07)", color:"rgba(240,236,227,0.5)", border:"1px solid rgba(240,236,227,0.1)", borderRadius:5, fontSize:8, fontWeight:600, cursor:"pointer" }}>Backlog</button>
+                            {!kbDoing && (
+                              <button onClick={() => moveToDoing(a.id, false)}
+                                style={{ flex:1, padding:"4px 0", background:"rgba(232,96,10,0.15)", color:"#e8600a", border:"1px solid rgba(232,96,10,0.28)", borderRadius:5, fontSize:8, fontWeight:800, cursor:"pointer" }}>▶ Start</button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* 3 Kanban-Spalten */}
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1.5fr 1fr", padding:"8px 10px", gap:8 }}>
+
+                {/* BACKLOG */}
+                <div onDragOver={e => onDragOver(e, "backlog")} onDragLeave={onDragLeave} onDrop={e => onDrop(e, "backlog")}
+                  style={{ minHeight:90, borderRadius:8, padding:"6px 7px", background:kbDragOver==="backlog"?"rgba(240,236,227,0.05)":"rgba(240,236,227,0.02)", border:`1.5px dashed rgba(240,236,227,${kbDragOver==="backlog"?0.22:0.07})`, transition:"all 0.15s" }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:4, marginBottom:7 }}>
+                    <div style={{ width:6, height:6, borderRadius:1.5, background:"rgba(240,236,227,0.28)" }}/>
+                    <span style={{ fontSize:8.5, fontWeight:800, color:"rgba(240,236,227,0.32)", letterSpacing:".07em", textTransform:"uppercase" }}>Backlog</span>
+                    {backlogAufg.length > 0 && <span style={{ marginLeft:"auto", fontSize:7.5, background:"rgba(240,236,227,0.07)", color:"rgba(240,236,227,0.3)", padding:"1px 5px", borderRadius:20, fontWeight:700 }}>{backlogAufg.length}</span>}
+                  </div>
+                  {backlogAufg.length === 0
+                    ? <div style={{ fontSize:8, color:"rgba(240,236,227,0.14)", textAlign:"center", padding:"12px 4px", lineHeight:1.5 }}>Aufgaben<br/>hierher ziehen</div>
+                    : backlogAufg.map(a => {
+                        const desk = DESK_MAP[a.aktion] || "email";
+                        const rgb  = KB_RGB[desk] || "232,96,10";
+                        const area = KB_AREA[desk] || "Aufgabe";
+                        return (
+                          <div key={a.id} draggable="true"
+                            onDragStart={e => onDragStart(e, a.id)} onDragEnd={onDragEnd}
+                            style={CardStyle(rgb, false, kbDragId===a.id)}>
+                            <div style={{ fontSize:9, fontWeight:600, color:"rgba(240,236,227,0.68)", lineHeight:1.3, marginBottom:4, overflow:"hidden", whiteSpace:"nowrap", textOverflow:"ellipsis" }}>{a.titel}</div>
+                            <div style={{ display:"flex", alignItems:"center", gap:3 }}>
+                              <span style={{ fontSize:7, fontWeight:700, color:`rgba(${rgb},0.75)`, background:`rgba(${rgb},0.1)`, padding:"1px 4px", borderRadius:20 }}>{area}</span>
+                              {!kbDoing && (
+                                <button onClick={() => moveToDoing(a.id, true)}
+                                  style={{ marginLeft:"auto", padding:"2px 6px", background:"rgba(232,96,10,0.15)", color:"#e8600a", border:"1px solid rgba(232,96,10,0.25)", borderRadius:4, fontSize:7.5, fontWeight:800, cursor:"pointer" }}>▶</button>
+                              )}
+                              <button onClick={() => removeFromBL(a.id)}
+                                style={{ padding:"1px 4px", background:"none", color:"rgba(240,236,227,0.22)", border:"none", fontSize:12, lineHeight:1, cursor:"pointer" }}>×</button>
+                            </div>
+                          </div>
+                        );
+                      })
+                  }
+                </div>
+
+                {/* IN ARBEIT */}
+                <div onDragOver={e => onDragOver(e, "doing")} onDragLeave={onDragLeave} onDrop={e => onDrop(e, "doing")}
+                  style={{ minHeight:90, borderRadius:8, padding:"6px 7px", background:kbDragOver==="doing"?"rgba(232,96,10,0.09)":"rgba(232,96,10,0.04)", border:`1.5px ${doingAufg?"solid":"dashed"} rgba(232,96,10,${kbDragOver==="doing"?0.55:doingAufg?0.32:0.12})`, transition:"all 0.15s" }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:4, marginBottom:7 }}>
+                    <div style={{ width:6, height:6, borderRadius:1.5, background:"#e8600a", boxShadow:doingAufg?"0 0 5px rgba(232,96,10,0.6)":"none" }}/>
+                    <span style={{ fontSize:8.5, fontWeight:800, color:"rgba(232,96,10,0.8)", letterSpacing:".07em", textTransform:"uppercase" }}>In Arbeit</span>
+                    <span style={{ fontSize:7, color:"rgba(232,96,10,0.35)", fontStyle:"italic" }}>WIP 1</span>
+                  </div>
+                  {!doingAufg
+                    ? <div style={{ fontSize:8, color:"rgba(232,96,10,0.28)", textAlign:"center", padding:"12px 4px", lineHeight:1.5 }}>Aufgabe<br/>hierher ziehen</div>
+                    : (() => {
+                        const desk = DESK_MAP[doingAufg.aktion] || "email";
+                        const rgb  = KB_RGB[desk] || "232,96,10";
+                        const area = KB_AREA[desk] || "Aufgabe";
+                        return (
+                          <div draggable="true"
+                            onDragStart={e => onDragStart(e, doingAufg.id)} onDragEnd={onDragEnd}
+                            style={{ background:"rgba(232,96,10,0.09)", border:"1.5px solid rgba(232,96,10,0.32)", borderRadius:8, padding:"8px 9px", cursor:"grab", opacity:kbDragId===doingAufg.id?0.45:1 }}>
+                            <div style={{ fontSize:10, fontWeight:700, color:"#f0ece3", lineHeight:1.35, marginBottom:5 }}>{doingAufg.titel}</div>
+                            <div style={{ display:"flex", alignItems:"center", gap:4, marginBottom:7 }}>
+                              <span style={{ fontSize:7.5, fontWeight:700, color:`rgba(${rgb},0.9)`, background:`rgba(${rgb},0.12)`, border:`1px solid rgba(${rgb},0.22)`, padding:"1px 5px", borderRadius:20 }}>{area}</span>
+                              <span style={{ fontSize:7.5, color:"rgba(240,236,227,0.28)" }}>{doingAufg.punkte}P</span>
+                            </div>
+                            <div style={{ display:"flex", gap:5 }}>
+                              <button onClick={() => { setDeskPopup(null); setSzene("vorfall"); }}
+                                style={{ flex:1, padding:"7px", background:"#e8600a", color:"#fff", border:"none", borderRadius:7, fontWeight:800, fontSize:11, cursor:"pointer" }}>
+                                Öffnen →
+                              </button>
+                              <button onClick={moveDoingToBL}
+                                style={{ padding:"7px 8px", background:"rgba(240,236,227,0.06)", color:"rgba(240,236,227,0.4)", border:"1px solid rgba(240,236,227,0.1)", borderRadius:7, fontSize:10, cursor:"pointer" }} title="Zurück in Backlog (Pause)">⏸</button>
+                            </div>
+                          </div>
+                        );
+                      })()
+                  }
+                </div>
+
+                {/* ERLEDIGT */}
+                <div style={{ minHeight:90, borderRadius:8, padding:"6px 7px", background:"rgba(74,222,128,0.02)", border:"1.5px dashed rgba(74,222,128,0.08)" }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:4, marginBottom:7 }}>
+                    <div style={{ width:6, height:6, borderRadius:1.5, background:"rgba(74,222,128,0.45)" }}/>
+                    <span style={{ fontSize:8.5, fontWeight:800, color:"rgba(74,222,128,0.42)", letterSpacing:".07em", textTransform:"uppercase" }}>Erledigt</span>
+                    {doneAufg.length > 0 && <span style={{ marginLeft:"auto", fontSize:7.5, background:"rgba(74,222,128,0.07)", color:"rgba(74,222,128,0.4)", padding:"1px 5px", borderRadius:20, fontWeight:700 }}>{doneAufg.length}</span>}
+                  </div>
+                  {doneAufg.length === 0
+                    ? <div style={{ fontSize:8, color:"rgba(74,222,128,0.2)", textAlign:"center", padding:"12px 4px", lineHeight:1.5 }}>Noch nichts<br/>erledigt</div>
+                    : doneAufg.slice(0,5).map(a => {
+                        const vEntry = verlauf.find(v => v.id === a.id);
+                        const ok = vEntry?.korrekt;
+                        return (
+                          <div key={a.id} style={{ background:ok?"rgba(74,222,128,0.05)":"rgba(248,113,113,0.04)", border:`1px solid ${ok?"rgba(74,222,128,0.15)":"rgba(248,113,113,0.12)"}`, borderRadius:7, padding:"5px 7px", marginBottom:4 }}>
+                            <div style={{ fontSize:8.5, fontWeight:500, color:ok?"rgba(74,222,128,0.65)":"rgba(248,113,113,0.55)", lineHeight:1.3, overflow:"hidden", whiteSpace:"nowrap", textOverflow:"ellipsis" }}>
+                              {ok ? "✓ " : "✗ "}{a.titel}
+                            </div>
+                          </div>
+                        );
+                      })
+                  }
+                  {doneAufg.length > 5 && <div style={{ fontSize:7.5, color:"rgba(74,222,128,0.28)", textAlign:"center", paddingTop:2 }}>+{doneAufg.length-5} weitere</div>}
+                </div>
+
+              </div>
+            </div>
+          );
+        })()}
+
         {/* ── Zeit-abgelaufen Overlay ── */}
         {zeitAbgelaufen && (
           <div style={{ background:"rgba(248,113,113,0.08)", border:"1.5px solid rgba(248,113,113,0.35)", borderRadius:12, padding:"18px 16px", marginBottom:12, textAlign:"center" }}>
@@ -9725,14 +10598,15 @@ function BankingSimulator7({ firma, onAbschluss, lehrerConfig = {}, klasse = "7"
           const entryMap = Object.fromEntries((klasse === "10" ? KALENDER10_EINTRAEGE : klasse === "9" ? KALENDER9_EINTRAEGE : klasse === "8" ? KALENDER8_EINTRAEGE : KALENDER_EINTRAEGE).map(e => [e.tag, e]));
 
           const getStatus = (entry) => {
-            if (!entry || entry.typ !== "task") return "info";
+            if (!entry) return null;
+            if (entry.typ !== "task") return "info";
             const done = verlauf.some(v => v.aktion === entry.aufgabeAktion && v.korrekt);
             if (done) return "done";
             if (entry.tag < spielTag) return mahnungen.has(entry.tag) ? "overdue" : "verpasst";
             if (entry.tag === spielTag) return "heute";
             return "pending";
           };
-          const statusColor = { pending:"rgba(240,236,227,0.4)", heute:"#e8600a", done:"#4ade80", verpasst:"#f87171", overdue:"#f87171", info:"#10b981" };
+          const statusColor = { pending:"rgba(240,236,227,0.45)", heute:"#e8600a", done:"#4ade80", verpasst:"#f87171", overdue:"#f87171", info:"rgba(96,165,250,0.7)" };
           const selEntry = kalSelTag ? entryMap[kalSelTag] : null;
 
           return (
@@ -9782,28 +10656,28 @@ function BankingSimulator7({ firma, onAbschluss, lehrerConfig = {}, klasse = "7"
                   const isFT      = istFeiertag(day);
                   const isFrei    = istFreierTag(day);
                   const isSelected = kalSelTag === day;
-                  const eventColor = statusColor[status];
-                  const isClickable = entry && entry.typ === "task";
+                  const eventColor = status ? statusColor[status] : null;
+                  const isClickable = !!entry;
                   const isFuture = day > spielTag;
                   return (
                     <div key={day}
                       title={isFT ? FEIERTAGE[day] : undefined}
-                      onClick={() => isClickable && !isFrei && setKalSelTag(kalSelTag === day ? null : day)}
+                      onClick={() => isClickable && setKalSelTag(kalSelTag === day ? null : day)}
                       style={{ borderRadius:5, padding:"3px 2px 4px", minHeight:44,
-                        background: isHeute ? "#e8600a22" : isSelected ? `${eventColor}18` : isFT ? "rgba(232,96,10,0.07)" : isFrei ? "rgba(232,96,10,0.03)" : isFuture ? "rgba(240,236,227,0.02)" : "rgba(240,236,227,0.03)",
-                        border: isSelected ? `1.5px solid ${eventColor}` : isHeute ? "1.5px solid #e8600a" : isFT ? "1px solid rgba(232,96,10,0.2)" : `1px solid rgba(240,236,227,${isFuture || isFrei ? "0.04" : "0.06"})`,
-                        opacity: isFuture && !isFrei ? 0.7 : 1,
-                        cursor: isClickable && !isFrei ? "pointer" : "default" }}>
-                      <div style={{ fontSize:10, fontWeight: isHeute ? 900 : 400, color: isHeute ? "#e8600a" : isFT ? "rgba(232,96,10,0.7)" : isFrei ? "rgba(232,96,10,0.35)" : isFuture ? "rgba(240,236,227,0.3)" : "rgba(240,236,227,0.5)", textAlign:"right", paddingRight:3, marginBottom:2 }}>{day}</div>
+                        background: isHeute ? "rgba(232,96,10,0.13)" : isSelected && eventColor ? `${eventColor}22` : isFT ? "rgba(232,96,10,0.14)" : isWeekend ? "rgba(232,96,10,0.06)" : isFuture ? "rgba(240,236,227,0.02)" : "rgba(240,236,227,0.03)",
+                        border: isSelected && eventColor ? `1.5px solid ${eventColor}` : isHeute ? "1.5px solid #e8600a" : isFT ? "1px solid rgba(232,96,10,0.35)" : isWeekend ? "1px solid rgba(232,96,10,0.15)" : `1px solid rgba(240,236,227,${isFuture ? "0.04" : "0.07"})`,
+                        opacity: isFuture && !isFrei ? 0.75 : 1,
+                        cursor: isClickable ? "pointer" : "default" }}>
+                      <div style={{ fontSize:10, fontWeight: isHeute ? 900 : 600, color: isHeute ? "#e8600a" : isFT ? "rgba(232,96,10,0.85)" : isWeekend ? "rgba(232,96,10,0.55)" : isFuture ? "rgba(240,236,227,0.35)" : "rgba(240,236,227,0.65)", textAlign:"right", paddingRight:3, marginBottom:1 }}>{day}</div>
                       {isFT && (
-                        <div style={{ fontSize:5.5, color:"rgba(232,96,10,0.55)", padding:"0 2px", lineHeight:1.2, textAlign:"center", overflow:"hidden", whiteSpace:"nowrap", textOverflow:"ellipsis" }}>{FEIERTAGE[day]}</div>
+                        <div style={{ fontSize:6, color:"rgba(232,96,10,0.75)", padding:"0 2px", lineHeight:1.2, textAlign:"center", overflow:"hidden", whiteSpace:"nowrap", textOverflow:"ellipsis", fontWeight:700 }}>{FEIERTAGE[day]}</div>
+                      )}
+                      {entry && eventColor && (
+                        <div style={{ width:"100%", height:3, borderRadius:2, background: eventColor, opacity: status === "info" ? 0.6 : 0.9, marginBottom:2 }}/>
                       )}
                       {entry && (
-                        <div style={{ width:"100%", height:4, borderRadius:2, background: eventColor, opacity: status === "info" ? 0.3 : 0.85, marginBottom:1 }}/>
-                      )}
-                      {entry && isClickable && (
-                        <div style={{ fontSize:6.5, color: eventColor, opacity:0.85, padding:"0 2px", lineHeight:1.2, overflow:"hidden", whiteSpace:"nowrap", textOverflow:"ellipsis" }}>
-                          {entry.text.split(" ").slice(0,2).join(" ")}
+                        <div style={{ fontSize:7, color: eventColor || "rgba(240,236,227,0.4)", padding:"0 2px", lineHeight:1.25, overflow:"hidden", display:"-webkit-box", WebkitLineClamp:2, WebkitBoxOrient:"vertical", fontWeight: status === "heute" ? 700 : 500 }}>
+                          {entry.text.split(" ").slice(0,3).join(" ")}
                         </div>
                       )}
                     </div>
@@ -9814,33 +10688,46 @@ function BankingSimulator7({ firma, onAbschluss, lehrerConfig = {}, klasse = "7"
               {/* Ereignis-Detail */}
               {selEntry && (() => {
                 const status = getStatus(selEntry);
-                const col = statusColor[status];
+                const col = statusColor[status] || "rgba(240,236,227,0.45)";
                 const verpasst = (status === "verpasst" || status === "overdue");
+                const isInfo = status === "info";
+                const isTask = !isInfo;
                 return (
                   <div style={{ margin:"0 14px 14px", background:`${col}10`, border:`1px solid ${col}33`, borderRadius:9, padding:"10px 12px" }}>
-                    <div style={{ display:"flex", alignItems:"flex-start", gap:8, marginBottom:8 }}>
+                    <div style={{ display:"flex", alignItems:"flex-start", gap:8, marginBottom: isTask ? 8 : 0 }}>
                       <div style={{ width:8, height:8, borderRadius:2, background:col, flexShrink:0, marginTop:3 }}/>
                       <div style={{ flex:1 }}>
                         <div style={{ fontSize:11.5, fontWeight:700, color:"#f0ece3", marginBottom:2 }}>{selEntry.text}</div>
                         <div style={{ fontSize:10, color:col, fontWeight:600 }}>
+                          {isInfo      && `ℹ️ Termin · ${selEntry.tag}. Januar 2026`}
                           {status === "heute"   && `⚡ Fällig heute (Spieltag ${spielTag}) – jetzt erledigen!`}
-                          {status === "pending" && `Geplant für Spieltag ${selEntry.tag}`}
+                          {status === "pending" && `📋 Geplant für Spieltag ${selEntry.tag}. Jan`}
                           {status === "done"    && "✓ Erledigt"}
                           {verpasst            && `⚠ Verpasst (Spieltag ${selEntry.tag}) – −1 Punkt wurde abgezogen`}
                         </div>
                       </div>
                     </div>
-                    {(status === "heute" || status === "pending") && !verlauf.some(v => v.aktion === selEntry.aufgabeAktion && v.korrekt) && (
-                      <button onClick={() => { setKalSelTag(null); setDeskPopup(null); setSzene("vorfall"); }}
-                        style={{ width:"100%", padding:"8px", background:status==="heute"?"#e8600a":col, color:"#fff", border:"none", borderRadius:7, fontWeight:800, fontSize:12, cursor:"pointer" }}>
+                    {isTask && (status === "heute" || status === "pending") && !verlauf.some(v => v.aktion === selEntry.aufgabeAktion && v.korrekt) && (
+                      <button onClick={() => {
+                        const matchId = aufgabenListe.find(a =>
+                          a.aktion === selEntry.aufgabeAktion && !doneIds.has(a.id) && a.id !== kbDoing
+                        )?.id;
+                        if (!matchId) return;
+                        if (!kbDoing) {
+                          setKbBacklog(b => b.filter(x => x !== matchId));
+                          setKbDoing(matchId);
+                        }
+                        setKalSelTag(null); setDeskPopup(null); setSzene("vorfall");
+                      }}
+                        style={{ width:"100%", padding:"8px", background:status==="heute"?"#e8600a":col, color:"#fff", border:"none", borderRadius:7, fontWeight:800, fontSize:12, cursor:"pointer", marginTop:4 }}>
                         {status === "heute" ? "Jetzt erledigen →" : "Vorziehen und erledigen →"}
                       </button>
                     )}
                     {status === "done" && (
-                      <div style={{ fontSize:10.5, color:"rgba(74,222,128,0.7)" }}>Aufgabe korrekt abgeschlossen.</div>
+                      <div style={{ fontSize:10.5, color:"rgba(74,222,128,0.7)", marginTop:4 }}>Aufgabe korrekt abgeschlossen.</div>
                     )}
                     {verpasst && (
-                      <div style={{ fontSize:10.5, color:"rgba(248,113,113,0.65)", fontStyle:"italic" }}>Strafpunkt wurde beim Übergang zum nächsten Spieltag automatisch abgezogen.</div>
+                      <div style={{ fontSize:10.5, color:"rgba(248,113,113,0.65)", fontStyle:"italic", marginTop:4 }}>Strafpunkt wurde beim Übergang zum nächsten Spieltag automatisch abgezogen.</div>
                     )}
                   </div>
                 );
@@ -10029,6 +10916,8 @@ function BankingSimulator7({ firma, onAbschluss, lehrerConfig = {}, klasse = "7"
           ];
           // Kennzahlen-Daten
           const kz = { ek:180000, lfv:50000, av:184000, gewinn:27000, fo:42000, bk:28000, kfv:56000 };
+          // Welcher Kennzahl-/BAB-Wert wird gerade abgefragt? → maskieren
+          const klrMaskedId = (aktiveDesk === "klr") ? aufgabe?.id : null;
           return (
             <div style={{ background:"rgba(12,9,4,0.99)", border:`1.5px solid rgba(139,92,246,${aktiveDesk==="klr"?"0.4":"0.15"})`, borderRadius:12, overflow:"hidden", marginBottom:12 }}>
               {/* Titelleiste */}
@@ -10094,7 +10983,7 @@ function BankingSimulator7({ firma, onAbschluss, lehrerConfig = {}, klasse = "7"
                             <td style={{ padding:"3px 6px", fontWeight:700, color:"#a78bfa", fontSize:10 }}>Zuschlagssatz</td>
                             <td style={{ padding:"3px 6px", textAlign:"right", color:"rgba(240,236,227,0.3)", fontSize:9.5 }}>—</td>
                             <td style={{ padding:"3px 6px", textAlign:"right", fontWeight:700, color:"#a78bfa", fontFamily:"'Fira Code',monospace", fontSize:9.5 }}>MGKZ {mgkz} %</td>
-                            <td style={{ padding:"3px 6px", textAlign:"right", fontWeight:700, color:"#a78bfa", fontFamily:"'Fira Code',monospace", fontSize:9.5 }}>FGKZ {fgkz} %</td>
+                            <td style={{ padding:"3px 6px", textAlign:"right", fontWeight:700, color: klrMaskedId==="k10_4" ? "#e8600a" : "#a78bfa", fontFamily:"'Fira Code',monospace", fontSize:9.5 }}>{klrMaskedId==="k10_4" ? "FGKZ ??? %" : `FGKZ ${fgkz} %`}</td>
                             <td colSpan={2} style={{ padding:"3px 6px", textAlign:"center", color:"rgba(240,236,227,0.25)", fontSize:9 }}>→ über HK/SK</td>
                           </tr>
                         </tbody>
@@ -10121,7 +11010,7 @@ function BankingSimulator7({ firma, onAbschluss, lehrerConfig = {}, klasse = "7"
                               {[
                                 ["Nettoverkaufspreis (NVP)",   fmt(p.nvp)+" €", "rgba(240,236,227,0.7)"],
                                 ["− Variable Kosten/Stk.",      "−"+fmt(p.vk)+" €",  "rgba(240,236,227,0.5)"],
-                                ["= Stückdeckungsbeitrag",      fmt(db)+" €",   "#a78bfa"],
+                                ["= Stückdeckungsbeitrag",      (klrMaskedId==="k10_6"&&i===0) ? "??? €" : fmt(db)+" €",   "#a78bfa"],
                               ].map(([label,val,col],j) => (
                                 <tr key={j}>
                                   <td style={{ padding:"1px 0", color:"rgba(240,236,227,0.45)", fontSize:9.5 }}>{label}</td>
@@ -10132,7 +11021,7 @@ function BankingSimulator7({ firma, onAbschluss, lehrerConfig = {}, klasse = "7"
                               {p.fixAnteil && (
                                 <>
                                   <tr><td style={{ color:"rgba(240,236,227,0.45)", fontSize:9.5 }}>Fixkosten gesamt</td><td style={{ textAlign:"right", fontFamily:"'Fira Code',monospace", color:"rgba(240,236,227,0.5)", fontSize:9.5 }}>{fmt(p.fixAnteil)} €</td></tr>
-                                  <tr><td style={{ fontWeight:700, color:"#e8600a", fontSize:9.5 }}>Break-even-Menge</td><td style={{ textAlign:"right", fontWeight:800, fontFamily:"'Fira Code',monospace", color:"#e8600a", fontSize:9.5 }}>{be} Stk.</td></tr>
+                                  <tr><td style={{ fontWeight:700, color:"#e8600a", fontSize:9.5 }}>Break-even-Menge</td><td style={{ textAlign:"right", fontWeight:800, fontFamily:"'Fira Code',monospace", color:"#e8600a", fontSize:9.5 }}>{(klrMaskedId==="k10_7"&&i===0) ? "???" : be} Stk.</td></tr>
                                 </>
                               )}
                             </tbody>
@@ -10172,15 +11061,15 @@ function BankingSimulator7({ firma, onAbschluss, lehrerConfig = {}, klasse = "7"
                     </div>
                     <div style={{ fontSize:10, fontWeight:700, color:"rgba(240,236,227,0.35)", letterSpacing:".06em", marginBottom:6 }}>KENNZAHLEN</div>
                     {[
-                      { name:"Anlagendeckung II",       formel:"(EK + LFV) ÷ AV × 100",       wert:((kz.ek+kz.lfv)/kz.av*100).toFixed(2)+" %", ziel:"≥ 100 %", ok:true },
-                      { name:"EK-Rentabilität",         formel:"Gewinn ÷ EK × 100",             wert:(kz.gewinn/kz.ek*100).toFixed(2)+" %",         ziel:"≥ Marktzins", ok:true },
-                      { name:"Einzugsliquidität",       formel:"(FO + BK) ÷ KFV × 100",         wert:((kz.fo+kz.bk)/kz.kfv*100).toFixed(2)+" %",    ziel:"≥ 100 %", ok:true },
-                      { name:"Barliquidität",           formel:"BK ÷ KFV × 100",                wert:(kz.bk/kz.kfv*100).toFixed(2)+" %",             ziel:"20–50 %", ok:(kz.bk/kz.kfv*100)>=20 },
+                      { name:"Anlagendeckung II",       formel:"(EK + LFV) ÷ AV × 100",       wert:((kz.ek+kz.lfv)/kz.av*100).toFixed(2)+" %", ziel:"≥ 100 %", ok:true,  maskId:"k10_1" },
+                      { name:"EK-Rentabilität",         formel:"Gewinn ÷ EK × 100",             wert:(kz.gewinn/kz.ek*100).toFixed(2)+" %",         ziel:"≥ Marktzins", ok:true,  maskId:"k10_2" },
+                      { name:"Einzugsliquidität",       formel:"(FO + BK) ÷ KFV × 100",         wert:((kz.fo+kz.bk)/kz.kfv*100).toFixed(2)+" %",    ziel:"≥ 100 %", ok:true,  maskId:"k10_3" },
+                      { name:"Barliquidität",           formel:"BK ÷ KFV × 100",                wert:(kz.bk/kz.kfv*100).toFixed(2)+" %",             ziel:"20–50 %", ok:(kz.bk/kz.kfv*100)>=20, maskId:null },
                     ].map((kzItem,i) => (
                       <div key={i} style={{ marginBottom:7, padding:"8px 10px", background:"rgba(139,92,246,0.06)", borderRadius:7, border:`1px solid rgba(139,92,246,${kzItem.ok?"0.2":"0.1"})` }}>
                         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:3 }}>
                           <span style={{ fontSize:10, fontWeight:700, color:"#c4b5fd" }}>{kzItem.name}</span>
-                          <span style={{ fontSize:11, fontWeight:800, fontFamily:"'Fira Code',monospace", color: kzItem.ok ? "#4ade80" : "#facc15" }}>{kzItem.wert}</span>
+                          <span style={{ fontSize:11, fontWeight:800, fontFamily:"'Fira Code',monospace", color: (kzItem.maskId && klrMaskedId===kzItem.maskId) ? "#e8600a" : (kzItem.ok ? "#4ade80" : "#facc15") }}>{(kzItem.maskId && klrMaskedId===kzItem.maskId) ? "???%" : kzItem.wert}</span>
                         </div>
                         <div style={{ fontSize:9, color:"rgba(240,236,227,0.35)", display:"flex", justifyContent:"space-between" }}>
                           <span>Formel: {kzItem.formel}</span>
@@ -10191,123 +11080,187 @@ function BankingSimulator7({ firma, onAbschluss, lehrerConfig = {}, klasse = "7"
                   </div>
                 )}
               </div>
+              {/* ── Aufgaben-Banner ── */}
+              {aktiveDesk === "klr" && (
+                <div style={{ borderTop:"1px solid rgba(139,92,246,0.2)", padding:"10px 14px", background:"rgba(139,92,246,0.06)" }}>
+                  <div style={{ fontSize:10.5, color:"rgba(240,236,227,0.5)", marginBottom:7 }}>
+                    <span style={{ color:"#e8600a", fontWeight:700 }}>● Aufgabe läuft:</span> {aufgabe?.titel}
+                    <span style={{ marginLeft:8, color:"rgba(240,236,227,0.3)", fontSize:9.5 }}>— Nutze die Cockpit-Daten oben zur Berechnung</span>
+                  </div>
+                  <button onClick={() => { setDeskPopup(null); setSzene("vorfall"); }}
+                    style={{ width:"100%", padding:"10px 14px", background:"linear-gradient(135deg,#7c3aed,#8b5cf6)", color:"#fff", border:"none", borderRadius:9, fontWeight:800, fontSize:13, cursor:"pointer", letterSpacing:".02em" }}>
+                    Aufgabe bearbeiten →
+                  </button>
+                </div>
+              )}
             </div>
           );
         })()}
 
-        {/* ── E-Mail-Popup – Outlook-Stil ── */}
-        {deskPopup === "email" && (
-          <div style={{ background:"rgba(12,9,4,0.99)", border:`1.5px solid rgba(232,96,10,${aktiveDesk === "email" ? "0.4" : "0.15"})`, borderRadius:12, overflow:"hidden", marginBottom:12 }}>
-            {/* Outlook Titelleiste */}
-            <div style={{ background:"#0f3460", padding:"8px 14px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-              <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                <div style={{ width:20, height:20, background:"#0078d4", borderRadius:4, display:"flex", alignItems:"center", justifyContent:"center" }}>
-                  <AtSign size={11} color="#fff" strokeWidth={2.5}/>
-                </div>
-                <span style={{ fontSize:11.5, fontWeight:700, color:"#fff" }}>Outlook</span>
-                <span style={{ fontSize:9.5, color:"rgba(255,255,255,0.4)" }}>— {firmaName}</span>
-              </div>
-              <button onClick={() => setDeskPopup(null)} style={{ background:"none", border:"none", color:"rgba(255,255,255,0.5)", cursor:"pointer", fontSize:18, lineHeight:1, padding:"0 4px" }}>✕</button>
-            </div>
-
-            {/* Zweispaltiger Bereich: Sidebar + Inhalt */}
-            <div style={{ display:"flex" }}>
-              {/* Schmale Icon-Sidebar */}
-              <div style={{ width:44, background:"#0a0e17", borderRight:"1px solid rgba(255,255,255,0.06)", display:"flex", flexDirection:"column", alignItems:"center", paddingTop:10, gap:6, paddingBottom:10 }}>
-                {[
-                  { icon:<AtSign size={14} strokeWidth={1.8}/>, label:"Posteingang", badge: aktiveDesk==="email" ? 1 : 0 },
-                  { icon:<FileText size={14} strokeWidth={1.8}/>, label:"Entwürfe", badge:0 },
-                  { icon:<Upload size={14} strokeWidth={1.8}/>, label:"Gesendet", badge:0 },
-                  { icon:<Download size={14} strokeWidth={1.8}/>, label:"Archiv", badge:0 },
-                ].map((item, i) => (
-                  <div key={i} style={{ position:"relative" }}>
-                    <div style={{ width:30, height:30, borderRadius:6, background: i===0 ? "rgba(0,120,212,0.2)" : "rgba(255,255,255,0.04)", display:"flex", alignItems:"center", justifyContent:"center", color: i===0 ? "#4da6ff" : "rgba(255,255,255,0.35)", cursor:"default" }}>
-                      {item.icon}
-                    </div>
-                    {item.badge > 0 && (
-                      <div style={{ position:"absolute", top:-3, right:-3, width:14, height:14, background:"#e8600a", borderRadius:"50%", fontSize:8, fontWeight:800, color:"#fff", display:"flex", alignItems:"center", justifyContent:"center" }}>{item.badge}</div>
-                    )}
+        {/* ── E-Mail-Popup – Outlook-Stil – volle Inbox ── */}
+        {deskPopup === "email" && (() => {
+          const doneIds = new Set(verlauf.map(v => v.id));
+          // Alle E-Mail-Aufgaben: doing zuerst, dann backlog, dann pool (nach tag/id sortiert), dann erledigte
+          const emailAufgaben = aufgabenListe.filter(a => DESK_MAP[a.typ] === "email" || a.typ === "buchung" || a.typ === "theorie" || a.typ === "kette" || a.typ === "freitext" || a.typ === "multi_mc" || a.typ === "lueckentext");
+          const order = (a) => {
+            if (a.id === kbDoing) return 0;
+            if (kbBacklog.includes(a.id)) return 1;
+            if (!doneIds.has(a.id)) return 2;
+            return 3;
+          };
+          const inboxMails = [...aufgabenListe].sort((a,b) => order(a)-order(b));
+          const unreadCount = inboxMails.filter(a => !doneIds.has(a.id) && a.id !== kbDoing).length;
+          const selMail = selMailId ? inboxMails.find(a => a.id === selMailId) : (kbDoing ? inboxMails.find(a => a.id === kbDoing) : inboxMails[0]) ?? null;
+          const SENDERS = [
+            { name:"BayernBank AG",        init:"B", col:"#0078d4" },
+            { name:"Steuerberater Müller",  init:"M", col:"#7c3aed" },
+            { name:"Chef – Geschäftsführung",init:"C", col:"#e8600a" },
+            { name:"Einkauf – Beschaffung", init:"E", col:"#059669" },
+            { name:"Kunden-Service",        init:"K", col:"#0891b2" },
+          ];
+          const getSender = (a) => SENDERS[aufgabenListe.indexOf(a) % SENDERS.length];
+          const getMailStatus = (a) => {
+            if (a.id === kbDoing) return "aktiv";
+            if (doneIds.has(a.id)) return "done";
+            if (kbBacklog.includes(a.id)) return "backlog";
+            return "neu";
+          };
+          const statusDot = { neu:"#e8600a", aktiv:"#4ade80", backlog:"rgba(240,236,227,0.4)", done:"rgba(240,236,227,0.2)" };
+          return (
+            <div style={{ background:"rgba(12,9,4,0.99)", border:`1.5px solid rgba(232,96,10,0.3)`, borderRadius:12, overflow:"hidden", marginBottom:12 }}>
+              {/* Outlook Titelleiste */}
+              <div style={{ background:"#0f3460", padding:"8px 14px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+                <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                  <div style={{ width:20, height:20, background:"#0078d4", borderRadius:4, display:"flex", alignItems:"center", justifyContent:"center" }}>
+                    <AtSign size={11} color="#fff" strokeWidth={2.5}/>
                   </div>
-                ))}
+                  <span style={{ fontSize:11.5, fontWeight:700, color:"#fff" }}>Outlook</span>
+                  <span style={{ fontSize:9.5, color:"rgba(255,255,255,0.4)" }}>— {firmaName}</span>
+                  {unreadCount > 0 && <span style={{ background:"#e8600a", color:"#fff", fontSize:8, fontWeight:800, padding:"1px 6px", borderRadius:20 }}>{unreadCount} neu</span>}
+                </div>
+                <button onClick={() => { setDeskPopup(null); setSelMailId(null); }} style={{ background:"none", border:"none", color:"rgba(255,255,255,0.5)", cursor:"pointer", fontSize:18, lineHeight:1, padding:"0 4px" }}>✕</button>
               </div>
 
-              {/* Hauptbereich */}
-              <div style={{ flex:1, minWidth:0 }}>
-                {/* Posteingang-Header */}
-                <div style={{ padding:"8px 12px", borderBottom:"1px solid rgba(255,255,255,0.07)", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-                  <span style={{ fontSize:11, fontWeight:700, color:"rgba(255,255,255,0.7)" }}>Posteingang</span>
-                  {aktiveDesk === "email" && <span style={{ background:"#e8600a", color:"#fff", fontSize:8.5, fontWeight:800, padding:"1px 7px", borderRadius:20 }}>1 ungelesen</span>}
+              {/* Dreispaltig: Sidebar | Mailliste | Detail */}
+              <div style={{ display:"flex", minHeight:280 }}>
+                {/* Schmale Icon-Sidebar */}
+                <div style={{ width:40, background:"#0a0e17", borderRight:"1px solid rgba(255,255,255,0.06)", display:"flex", flexDirection:"column", alignItems:"center", paddingTop:8, gap:5, paddingBottom:8 }}>
+                  {[
+                    { icon:<AtSign size={13} strokeWidth={1.8}/>, active:true, badge:unreadCount },
+                    { icon:<FileText size={13} strokeWidth={1.8}/>, active:false, badge:0 },
+                    { icon:<Upload size={13} strokeWidth={1.8}/>, active:false, badge:0 },
+                  ].map((item, i) => (
+                    <div key={i} style={{ position:"relative" }}>
+                      <div style={{ width:28, height:28, borderRadius:6, background:item.active?"rgba(0,120,212,0.25)":"rgba(255,255,255,0.04)", display:"flex", alignItems:"center", justifyContent:"center", color:item.active?"#4da6ff":"rgba(255,255,255,0.3)" }}>{item.icon}</div>
+                      {item.badge > 0 && <div style={{ position:"absolute", top:-3, right:-3, width:13, height:13, background:"#e8600a", borderRadius:"50%", fontSize:7, fontWeight:800, color:"#fff", display:"flex", alignItems:"center", justifyContent:"center" }}>{item.badge}</div>}
+                    </div>
+                  ))}
                 </div>
 
-                {aktiveDesk === "email" ? (
-                  <div>
-                    {/* E-Mail-Listeneintrag */}
-                    <div style={{ padding:"8px 12px", background:"rgba(0,120,212,0.1)", borderLeft:"3px solid #0078d4", borderBottom:"1px solid rgba(255,255,255,0.06)" }}>
-                      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
-                        <div style={{ display:"flex", alignItems:"center", gap:7 }}>
-                          <div style={{ width:26, height:26, borderRadius:"50%", background:"#0078d4", display:"flex", alignItems:"center", justifyContent:"center", fontSize:11, fontWeight:700, color:"#fff", flexShrink:0 }}>B</div>
-                          <div>
-                            <div style={{ fontSize:11, fontWeight:800, color:"#fff" }}>BayernBank AG – Buchhaltung</div>
-                            <div style={{ fontSize:10.5, fontWeight:700, color:"rgba(255,255,255,0.75)", marginTop:1 }}>{aufgabe.titel}</div>
-                            <div style={{ fontSize:9.5, color:"rgba(255,255,255,0.38)", marginTop:1, overflow:"hidden", whiteSpace:"nowrap", textOverflow:"ellipsis", maxWidth:220 }}>{aufgabe.story.slice(0,60)}…</div>
-                          </div>
+                {/* Mailliste */}
+                <div style={{ width:180, borderRight:"1px solid rgba(255,255,255,0.06)", overflowY:"auto", maxHeight:320 }}>
+                  <div style={{ padding:"6px 10px", borderBottom:"1px solid rgba(255,255,255,0.06)", fontSize:10, fontWeight:700, color:"rgba(255,255,255,0.5)" }}>Posteingang</div>
+                  {inboxMails.map(a => {
+                    const sender = getSender(a);
+                    const ms = getMailStatus(a);
+                    const isOpen = selMail?.id === a.id;
+                    const isDone = ms === "done";
+                    return (
+                      <div key={a.id} onClick={() => setSelMailId(a.id)}
+                        style={{ padding:"7px 10px", borderBottom:"1px solid rgba(255,255,255,0.04)", cursor:"pointer",
+                          background: isOpen ? "rgba(0,120,212,0.15)" : "transparent",
+                          borderLeft: isOpen ? "2.5px solid #0078d4" : "2.5px solid transparent",
+                          opacity: isDone ? 0.45 : 1 }}>
+                        <div style={{ display:"flex", alignItems:"center", gap:5, marginBottom:2 }}>
+                          <div style={{ width:6, height:6, borderRadius:"50%", background:statusDot[ms], flexShrink:0 }}/>
+                          <div style={{ fontSize:10, fontWeight: isDone ? 400 : 700, color:isDone?"rgba(255,255,255,0.4)":"#fff", overflow:"hidden", whiteSpace:"nowrap", textOverflow:"ellipsis" }}>{sender.name}</div>
                         </div>
-                        <span style={{ fontSize:9, color:"rgba(255,255,255,0.3)", flexShrink:0, marginLeft:6 }}>heute</span>
+                        <div style={{ fontSize:9.5, color:isDone?"rgba(255,255,255,0.3)":"rgba(255,255,255,0.65)", overflow:"hidden", whiteSpace:"nowrap", textOverflow:"ellipsis", fontWeight: ms==="neu"?600:400 }}>{a.titel}</div>
+                        {ms === "aktiv" && <div style={{ fontSize:8, color:"#4ade80", marginTop:1 }}>● In Bearbeitung</div>}
+                        {ms === "neu"   && <div style={{ fontSize:8, color:"#e8600a", marginTop:1 }}>● Ungelesen</div>}
                       </div>
-                    </div>
+                    );
+                  })}
+                </div>
 
-                    {/* E-Mail-Detailansicht */}
-                    <div style={{ background:"rgba(255,255,255,0.025)" }}>
-                      {/* Kopfzeile */}
-                      <div style={{ padding:"10px 12px", borderBottom:"1px solid rgba(255,255,255,0.06)" }}>
-                        <div style={{ fontSize:13.5, fontWeight:800, color:"#f0ece3", marginBottom:8 }}>{aufgabe.titel}</div>
-                        <div style={{ display:"flex", gap:8, alignItems:"flex-start" }}>
-                          <div style={{ width:32, height:32, borderRadius:"50%", background:"#0078d4", display:"flex", alignItems:"center", justifyContent:"center", fontSize:13, fontWeight:700, color:"#fff", flexShrink:0 }}>B</div>
+                {/* Mail-Detail */}
+                {selMail ? (() => {
+                  const sender = getSender(selMail);
+                  const ms = getMailStatus(selMail);
+                  const isDone = doneIds.has(selMail.id);
+                  const isInBacklog = kbBacklog.includes(selMail.id);
+                  const isActive = selMail.id === kbDoing;
+                  return (
+                    <div style={{ flex:1, minWidth:0, display:"flex", flexDirection:"column" }}>
+                      {/* Mail-Kopf */}
+                      <div style={{ padding:"10px 12px", borderBottom:"1px solid rgba(255,255,255,0.07)" }}>
+                        <div style={{ fontSize:13, fontWeight:800, color:"#f0ece3", marginBottom:7 }}>{selMail.titel}</div>
+                        <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+                          <div style={{ width:30, height:30, borderRadius:"50%", background:sender.col, display:"flex", alignItems:"center", justifyContent:"center", fontSize:12, fontWeight:700, color:"#fff", flexShrink:0 }}>{sender.init}</div>
                           <div style={{ flex:1, minWidth:0 }}>
-                            <div style={{ fontSize:11, fontWeight:700, color:"#f0ece3" }}>BayernBank AG – Buchhaltung</div>
-                            <div style={{ fontSize:9.5, color:"rgba(240,236,227,0.35)", marginTop:1 }}>
-                              Von: <span style={{ color:"rgba(240,236,227,0.55)" }}>buchhaltung@bayernbank.de</span>
-                            </div>
-                            <div style={{ fontSize:9.5, color:"rgba(240,236,227,0.35)" }}>
-                              An: <span style={{ color:"rgba(240,236,227,0.55)" }}>buchhaltung@{firmaName.toLowerCase().replace(/\s/g,"")}.de</span>
+                            <div style={{ fontSize:10.5, fontWeight:700, color:"#f0ece3" }}>{sender.name}</div>
+                            <div style={{ fontSize:9, color:"rgba(240,236,227,0.4)" }}>
+                              An: buchhaltung@{firmaName.toLowerCase().replace(/[\s\-]/g,"")}.de
                             </div>
                           </div>
+                          {isDone && <span style={{ background:"rgba(74,222,128,0.15)", color:"#4ade80", fontSize:8.5, fontWeight:800, padding:"2px 8px", borderRadius:20, flexShrink:0 }}>✓ Erledigt</span>}
                         </div>
                       </div>
-                      {/* E-Mail-Body */}
-                      <div style={{ padding:"10px 12px 6px", fontSize:12, color:"rgba(240,236,227,0.72)", lineHeight:1.7 }}>
-                        <div style={{ marginBottom:8, color:"rgba(240,236,227,0.45)", fontSize:10.5 }}>
-                          Sehr geehrte Damen und Herren,
-                        </div>
-                        <div>{aufgabe.story}</div>
-                        <div style={{ marginTop:10, color:"rgba(240,236,227,0.35)", fontSize:10 }}>
-                          Mit freundlichen Grüßen<br/>
-                          BayernBank AG · Firmenkundenbetreuung
+                      {/* Mail-Body */}
+                      <div style={{ flex:1, padding:"10px 12px 6px", fontSize:11.5, color:"rgba(240,236,227,0.72)", lineHeight:1.7, overflowY:"auto" }}>
+                        <div style={{ marginBottom:8, color:"rgba(240,236,227,0.4)", fontSize:10 }}>Sehr geehrte Damen und Herren,</div>
+                        <div>{selMail.story}</div>
+                        <div style={{ marginTop:10, color:"rgba(240,236,227,0.3)", fontSize:9.5 }}>
+                          Mit freundlichen Grüßen<br/>{sender.name}
                         </div>
                       </div>
                       {/* Aktionsleiste */}
-                      <div style={{ padding:"8px 12px 12px", display:"flex", gap:6, alignItems:"center", borderTop:"1px solid rgba(255,255,255,0.06)" }}>
-                        <button onClick={() => { setDeskPopup(null); setSzene("vorfall"); }}
-                          style={{ flex:1, padding:"9px 12px", background:"#e8600a", color:"#fff", border:"none", borderRadius:7, fontWeight:800, fontSize:12, cursor:"pointer" }}>
-                          Aufgabe bearbeiten →
-                        </button>
-                        {[["↩ Antworten"],["⇒ Weiterleiten"]].map(([label]) => (
-                          <button key={label} style={{ padding:"9px 10px", background:"rgba(255,255,255,0.06)", color:"rgba(255,255,255,0.5)", border:"1px solid rgba(255,255,255,0.1)", borderRadius:7, fontSize:10.5, cursor:"default", fontWeight:600 }}>{label}</button>
-                        ))}
-                      </div>
+                      {!isDone && (
+                        <div style={{ padding:"8px 12px 10px", display:"flex", gap:6, borderTop:"1px solid rgba(255,255,255,0.06)" }}>
+                          {isActive ? (
+                            <button onClick={() => { setDeskPopup(null); setSelMailId(null); setSzene("vorfall"); }}
+                              style={{ flex:1, padding:"8px", background:"#4ade80", color:"#0f0a04", border:"none", borderRadius:7, fontWeight:800, fontSize:11.5, cursor:"pointer" }}>
+                              ▶ Weiterbearbeiten →
+                            </button>
+                          ) : (
+                            <>
+                              {!isInBacklog ? (
+                                <button onClick={() => { setKbBacklog(b => [...b, selMail.id]); }}
+                                  style={{ flex:1, padding:"8px", background:"rgba(240,236,227,0.1)", color:"#f0ece3", border:"1px solid rgba(240,236,227,0.15)", borderRadius:7, fontWeight:700, fontSize:11, cursor:"pointer" }}>
+                                  + In Backlog
+                                </button>
+                              ) : (
+                                <button onClick={() => { setKbBacklog(b => b.filter(x => x !== selMail.id)); }}
+                                  style={{ flex:1, padding:"8px", background:"rgba(240,236,227,0.06)", color:"rgba(240,236,227,0.45)", border:"1px solid rgba(240,236,227,0.1)", borderRadius:7, fontWeight:600, fontSize:11, cursor:"pointer" }}>
+                                  Aus Backlog entfernen
+                                </button>
+                              )}
+                              {!kbDoing && (
+                                <button onClick={() => {
+                                  if (isInBacklog) setKbBacklog(b => b.filter(x => x !== selMail.id));
+                                  setKbDoing(selMail.id);
+                                  setDeskPopup(null); setSelMailId(null); setSzene("vorfall");
+                                }} style={{ flex:1, padding:"8px", background:"#e8600a", color:"#fff", border:"none", borderRadius:7, fontWeight:800, fontSize:11.5, cursor:"pointer" }}>
+                                  ▶ Jetzt starten →
+                                </button>
+                              )}
+                            </>
+                          )}
+                          <button style={{ padding:"8px 10px", background:"rgba(255,255,255,0.05)", color:"rgba(255,255,255,0.4)", border:"1px solid rgba(255,255,255,0.09)", borderRadius:7, fontSize:10, cursor:"default" }}>↩ Antworten</button>
+                        </div>
+                      )}
                     </div>
-                  </div>
-                ) : (
-                  <div style={{ textAlign:"center", padding:"28px 0", color:"rgba(255,255,255,0.25)", fontSize:12 }}>
-                    <AtSign size={26} strokeWidth={1} style={{ marginBottom:8, opacity:0.25 }}/>
-                    <div style={{ fontWeight:600 }}>Posteingang leer</div>
-                    <div style={{ fontSize:10, marginTop:3, opacity:0.6 }}>Keine neuen Nachrichten</div>
+                  );
+                })() : (
+                  <div style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", color:"rgba(255,255,255,0.2)", gap:8 }}>
+                    <AtSign size={28} strokeWidth={1} style={{ opacity:0.2 }}/>
+                    <div style={{ fontSize:11, fontWeight:600 }}>Keine Mail ausgewählt</div>
                   </div>
                 )}
               </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* ── Briefkasten-Popup ── */}
         {deskPopup === "post" && (
@@ -10384,8 +11337,158 @@ function BankingSimulator7({ firma, onAbschluss, lehrerConfig = {}, klasse = "7"
         <div style={{ fontSize:13, color:"rgba(240,236,227,0.7)", lineHeight:1.55 }}>{aufgabe.story}</div>
       </div>
 
+      {/* ── Ketten-Aufgabe: Stepper + aktueller Schritt ── */}
+      {aufgabe.typ === "kette" && feedback === null && (() => {
+        const ks = aufgabe.kette[ketteSchritt];
+        const KETTE_ICONS = { mc:"❓", kalkulation:"🔢", buchung:"📒" };
+        return (
+          <div style={{ marginBottom:12 }}>
+            {/* Stepper */}
+            <div style={{ display:"flex", alignItems:"flex-start", gap:2, marginBottom:14 }}>
+              {aufgabe.kette.map((s, i) => {
+                const done  = i < ketteSchritt;
+                const aktiv = i === ketteSchritt;
+                return (
+                  <React.Fragment key={i}>
+                    <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:4, flex:1 }}>
+                      <div style={{ width:26, height:26, borderRadius:"50%",
+                        background: done ? "rgba(74,222,128,0.2)" : aktiv ? "#e8600a" : "rgba(240,236,227,0.07)",
+                        border:`2px solid ${done ? "rgba(74,222,128,0.5)" : aktiv ? "#e8600a" : "rgba(240,236,227,0.12)"}`,
+                        display:"flex", alignItems:"center", justifyContent:"center",
+                        fontSize:11, fontWeight:800,
+                        color: done ? "#4ade80" : aktiv ? "#fff" : "rgba(240,236,227,0.3)" }}>
+                        {done ? "✓" : i+1}
+                      </div>
+                      <div style={{ fontSize:8, color: aktiv ? "#e8600a" : done ? "rgba(74,222,128,0.7)" : "rgba(240,236,227,0.22)", fontWeight: aktiv ? 800 : 500, textAlign:"center", lineHeight:1.2 }}>
+                        {s.label}
+                      </div>
+                    </div>
+                    {i < aufgabe.kette.length - 1 && (
+                      <div style={{ height:2, flex:0.5, marginTop:12, background: i < ketteSchritt ? "rgba(74,222,128,0.4)" : "rgba(240,236,227,0.07)", borderRadius:1 }}/>
+                    )}
+                  </React.Fragment>
+                );
+              })}
+            </div>
+
+            {/* Schritt-Karte */}
+            <div style={{ background:"rgba(20,14,4,0.95)", border:"1px solid rgba(240,236,227,0.09)", borderLeft:"3px solid #e8600a", borderRadius:12, padding:"12px 14px", marginBottom:10 }}>
+              <div style={{ fontSize:10.5, fontWeight:700, color:"#e8600a", marginBottom:5 }}>
+                {KETTE_ICONS[ks.typ] || "▶"} Schritt {ketteSchritt+1}/{aufgabe.kette.length} – {ks.label}
+              </div>
+              <div style={{ fontSize:13, color:"rgba(240,236,227,0.82)", lineHeight:1.65, whiteSpace:"pre-line" }}>{ks.aufgabe}</div>
+            </div>
+
+            {/* MC-Antworten */}
+            {ks.typ === "mc" && (
+              <div style={{ background:"rgba(28,20,10,0.85)", border:"1px solid rgba(240,236,227,0.12)", borderRadius:12, padding:"12px 14px" }}>
+                <div style={{ display:"flex", flexDirection:"column", gap:7 }}>
+                  {ks.mcOptionen.map((opt, i) => (
+                    <button key={i} onClick={() => setTheorieAntwort(i)}
+                      style={{ padding:"10px 14px", border:`1.5px solid ${theorieAntwort===i?"#e8600a":"rgba(240,236,227,0.14)"}`, borderRadius:9, background:theorieAntwort===i?"rgba(232,96,10,0.14)":"rgba(240,236,227,0.04)", color:theorieAntwort===i?"#e8600a":"#f0ece3", fontSize:13, textAlign:"left", cursor:"pointer", fontWeight:theorieAntwort===i?700:400, display:"flex", alignItems:"center", gap:10 }}>
+                      <span style={{ width:22, height:22, borderRadius:6, background:theorieAntwort===i?"#e8600a":"rgba(240,236,227,0.1)", color:theorieAntwort===i?"#fff":"rgba(240,236,227,0.5)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:11, fontWeight:800, flexShrink:0 }}>{String.fromCharCode(65+i)}</span>
+                      {opt}
+                    </button>
+                  ))}
+                </div>
+                <button onClick={pruefen} disabled={theorieAntwort === null}
+                  style={{ marginTop:12, width:"100%", padding:"11px", background:"#e8600a", color:"#fff", border:"none", borderRadius:10, fontWeight:700, fontSize:14, cursor:"pointer", opacity:theorieAntwort===null?0.4:1 }}>
+                  Antwort prüfen
+                </button>
+              </div>
+            )}
+
+            {/* Kalkulations-Eingabe */}
+            {ks.typ === "kalkulation" && (
+              <div style={{ background:"rgba(28,20,10,0.85)", border:"1px solid rgba(240,236,227,0.12)", borderRadius:12, padding:"12px 14px" }}>
+                <div style={{ display:"flex", gap:8, alignItems:"flex-end" }}>
+                  <div style={{ flex:1 }}>
+                    <input value={kalkAntwort} onChange={e => setKalkAntwort(e.target.value)}
+                      onKeyDown={e => { if (e.key === "Enter" && kalkAntwort.trim()) pruefen(); }}
+                      placeholder="Ergebnis eingeben …" autoFocus
+                      style={{ width:"100%", padding:"12px 14px", border:"1.5px solid rgba(240,236,227,0.2)", borderRadius:8, fontSize:16, boxSizing:"border-box", background:"rgba(240,236,227,0.06)", color:"#f0ece3", fontFamily:"'Fira Code',monospace", outline:"none", textAlign:"right" }}/>
+                  </div>
+                  <div style={{ fontSize:13, fontWeight:700, color:"rgba(240,236,227,0.5)", paddingBottom:14 }}>{ks.kalkulation?.einheit || "€"}</div>
+                </div>
+                <button onClick={pruefen} disabled={!kalkAntwort.trim()}
+                  style={{ marginTop:10, width:"100%", padding:"11px", background:"#e8600a", color:"#fff", border:"none", borderRadius:10, fontWeight:700, fontSize:14, cursor:"pointer", opacity:!kalkAntwort.trim()?0.4:1 }}>
+                  Ergebnis prüfen
+                </button>
+              </div>
+            )}
+
+            {/* Buchungssatz-Eingabe (kette-Schritt) */}
+            {ks.typ === "buchung" && (() => {
+              const iSt = { width:"100%", padding:"10px 12px", border:"1.5px solid rgba(240,236,227,0.2)", borderRadius:8, fontSize:14, boxSizing:"border-box", background:"rgba(240,236,227,0.06)", color:"#f0ece3", fontFamily:"'Fira Code',monospace", textTransform:"uppercase", outline:"none" };
+              const bSt = { ...iSt, fontSize:13, textTransform:"none", color:"rgba(240,236,227,0.8)", marginTop:4 };
+              const nS = (ks.soll||[]).length;
+              const nH = (ks.haben||[]).length;
+              const maxR = Math.max(nS, nH);
+              const anRow = nH > nS ? 0 : nS - 1;
+              const habenOffset = nS > nH ? nS - nH : 0;
+              const allFilled = (buchAntwort.soll||[""]).every(s=>(s||"").trim())
+                && (buchAntwort.haben||[""]).every(h=>(h||"").trim())
+                && (buchAntwort.betragSoll||[""]).every(b=>(b||"").trim())
+                && (buchAntwort.betragHaben||[""]).every(b=>(b||"").trim());
+              return (
+                <div style={{ background:"rgba(28,20,10,0.85)", border:"1px solid rgba(240,236,227,0.12)", borderRadius:12, padding:"12px 14px" }}>
+                  <div style={{ fontSize:11, color:"rgba(240,236,227,0.35)", marginBottom:9 }}>
+                    Kürzel {lehrerConfig.mitKontennummern ? "oder Nr. – z.B. 6000 / AWR …" : "– z.B. AWR, VE, BK …"}
+                    {" · Betrag: "}
+                    <span style={{ fontFamily:"'Fira Code',monospace", color:"rgba(232,96,10,0.7)" }}>1.234,56</span>
+                  </div>
+                  <div style={{ display:"grid", gridTemplateColumns:"1fr auto 1fr", gap:"0 8px", marginBottom:3 }}>
+                    <div style={{ fontSize:10, color:"rgba(240,236,227,0.45)" }}>{nS>1 ? `Soll (${nS} Konten)` : "Soll"}</div>
+                    <div/>
+                    <div style={{ fontSize:10, color:"rgba(240,236,227,0.45)" }}>{nH>1 ? `Haben (${nH} Konten)` : "Haben"}</div>
+                  </div>
+                  <div style={{ display:"grid", gridTemplateColumns:"1fr auto 1fr", gap:"6px 8px", alignItems:"start" }}>
+                    {Array.from({length: maxR}).map((_,row) => {
+                      const si = row; const hi = row - habenOffset;
+                      return (<React.Fragment key={row}>
+                        {si < nS
+                          ? <div>
+                              <input value={(buchAntwort.soll||[])[si]||""}
+                                onChange={e=>{ const v=[...(buchAntwort.soll||[])]; v[si]=e.target.value; setBuchAntwort(a=>({...a,soll:v})); }}
+                                onKeyDown={e=>{ if(e.key==="Enter"&&allFilled) pruefen(); }}
+                                placeholder={nS>1 ? `Soll-Konto ${si+1}` : "Soll-Konto"} autoFocus={row===0}
+                                style={iSt}/>
+                              <input value={(buchAntwort.betragSoll||[])[si]||""}
+                                onChange={e=>{ const v=[...(buchAntwort.betragSoll||[])]; v[si]=e.target.value; setBuchAntwort(a=>({...a,betragSoll:v})); }}
+                                onKeyDown={e=>{ if(e.key==="Enter"&&allFilled) pruefen(); }}
+                                placeholder="0,00 €" inputMode="decimal" style={bSt}/>
+                            </div>
+                          : <div/>}
+                        <div style={{ fontWeight:800, color:"rgba(240,236,227,0.35)", fontSize:12, textAlign:"center", paddingTop:12, visibility: row===anRow?"visible":"hidden" }}>an</div>
+                        {hi>=0 && hi<nH
+                          ? <div>
+                              <input value={(buchAntwort.haben||[])[hi]||""}
+                                onChange={e=>{ const v=[...(buchAntwort.haben||[])]; v[hi]=e.target.value; setBuchAntwort(a=>({...a,haben:v})); }}
+                                onKeyDown={e=>{ if(e.key==="Enter"&&allFilled) pruefen(); }}
+                                placeholder={nH>1 ? `Haben-Konto ${hi+1}` : "Haben-Konto"}
+                                style={iSt}/>
+                              <input value={(buchAntwort.betragHaben||[])[hi]||""}
+                                onChange={e=>{ const v=[...(buchAntwort.betragHaben||[])]; v[hi]=e.target.value; setBuchAntwort(a=>({...a,betragHaben:v})); }}
+                                onKeyDown={e=>{ if(e.key==="Enter"&&allFilled) pruefen(); }}
+                                placeholder="0,00 €" inputMode="decimal" style={bSt}/>
+                            </div>
+                          : <div/>}
+                      </React.Fragment>);
+                    })}
+                  </div>
+                  <button onClick={pruefen} disabled={!allFilled}
+                    style={{ marginTop:10, width:"100%", padding:"11px", background:"#e8600a", color:"#fff", border:"none", borderRadius:10, fontWeight:700, fontSize:14, cursor:"pointer", opacity:!allFilled?0.4:1 }}>
+                    Buchungssatz prüfen
+                  </button>
+                </div>
+              );
+            })()}
+          </div>
+        );
+      })()}
+
       {/* ── PC/Banking Interface with monitor framing ── */}
-      <div style={{ marginBottom:12 }}>
+      {aufgabe.typ !== "kette" && <div style={{ marginBottom:12 }}>
         {/* Monitor bezel */}
         <div style={{ background:"#1a3a5c", borderRadius:"10px 10px 0 0", padding:"7px 14px 4px" }}>
           <div style={{ display:"flex", gap:5, marginBottom:3 }}>
@@ -10551,7 +11654,7 @@ function BankingSimulator7({ firma, onAbschluss, lehrerConfig = {}, klasse = "7"
                       </thead>
                       <tbody>
                         {b.positionen.map((p, i) => (
-                          <tr key={i} style={{ borderBottom:`1px solid ${BD}26` }}>
+                          <tr key={i} style={{ borderBottom:`1px solid ${BD}26`, color:"#1e293b" }}>
                             <td style={{ padding:"2px 3px", textAlign:"right" }}>{p.menge}</td>
                             <td style={{ padding:"2px 3px" }}>{p.einheit}</td>
                             <td style={{ padding:"2px 3px", fontWeight:500 }}>{p.beschreibung}</td>
@@ -10561,11 +11664,15 @@ function BankingSimulator7({ firma, onAbschluss, lehrerConfig = {}, klasse = "7"
                         ))}
                       </tbody>
                     </table>
-                    <div style={{ display:"flex", justifyContent:"flex-end", fontWeight:700, fontSize:11, borderTop:`1px solid ${BD}`, paddingTop:5 }}>
-                      <span style={{ color:"#0f172a" }}>Gesamt: {b.brutto.toLocaleString("de-DE",{minimumFractionDigits:2})} €</span>
+                    <div style={{ borderTop:`1px solid ${BD}`, paddingTop:5, display:"flex", flexDirection:"column", alignItems:"flex-end", gap:2, fontSize:10.5 }}>
+                      {b.netto !== undefined && b.netto !== b.brutto && <>
+                        <div style={{ color:"#374151" }}>Nettobetrag: <span style={{ fontFamily:"monospace", fontWeight:600 }}>{b.netto.toLocaleString("de-DE",{minimumFractionDigits:2})} €</span></div>
+                        <div style={{ color:"#374151" }}>zzgl. 19 % USt: <span style={{ fontFamily:"monospace", fontWeight:600 }}>{(b.brutto-b.netto).toLocaleString("de-DE",{minimumFractionDigits:2})} €</span></div>
+                      </>}
+                      <div style={{ fontWeight:700, fontSize:11, color:"#0f172a" }}>Rechnungsbetrag (brutto): <span style={{ fontFamily:"monospace" }}>{b.brutto.toLocaleString("de-DE",{minimumFractionDigits:2})} €</span></div>
                     </div>
                   </div>
-                  {!belegUeOk ? (
+                  {aufgabe.aktion === "beleg" && (!belegUeOk ? (
                     <div>
                       <div style={{ fontSize:9.5, fontWeight:700, color:"#94a3b8", marginBottom:6, textTransform:"uppercase", letterSpacing:"0.07em" }}>Überweisung ausfüllen</div>
                       {[["Empfänger","empfaenger","text"],["IBAN Empfänger","iban","text"],["Betrag (€)","betrag","number"],["Verwendungszweck","verwendung","text"]].map(([label,key,type]) => (
@@ -10593,49 +11700,91 @@ function BankingSimulator7({ firma, onAbschluss, lehrerConfig = {}, klasse = "7"
                     <div style={{ padding:"7px 11px", background:"#f0fdf4", border:"1px solid #86efac", borderRadius:8, fontSize:11, color:"#15803d", fontWeight:600, display:"flex", alignItems:"center", gap:6 }}>
                       <CheckSquare size={12} strokeWidth={1.5}/> Überweisung übermittelt! {belegUePunkte > 0 ? `(+${belegUePunkte} Pkt für Richtigkeit)` : "(Daten unvollständig)"}
                     </div>
-                  )}
+                  ))}
                 </div>
               );
             })()}
           </div>
         </div>
-      </div>
+      </div>}
 
       {/* ── Buchungssatz-Eingabe (Buchung / Überweisung / Beleg) ── */}
-      {aufgabe.typ !== "mc" && aufgabe.typ !== "kalkulation" &&
+      {aufgabe.typ !== "mc" && aufgabe.typ !== "kalkulation" && aufgabe.typ !== "kette" &&
        (aufgabe.aktion === "buchung" || aktionOk || belegUeOk) && feedback === null && (
         <div style={{ background:"rgba(28,20,10,0.85)", border:"1px solid rgba(240,236,227,0.12)", borderRadius:12, padding:"14px 16px" }}>
           <div style={{ fontSize:13, fontWeight:700, color:"#f0ece3", marginBottom:5 }}>{aufgabe.aufgabe}</div>
-          <div style={{ fontSize:11, color:"rgba(240,236,227,0.35)", marginBottom:9 }}>{klasse === "8" ? "Kürzel oder Nr. – z.B. BZKR / 6001, AWR / 6000, VE / 4400 …" : "Kürzel eingeben – z.B. BK, AWMP, FO, LG, KOM, WER …"}</div>
-          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-            <div style={{ flex:1 }}>
-              <div style={{ fontSize:10, color:"rgba(240,236,227,0.45)", marginBottom:3 }}>Soll</div>
-              <input value={buchAntwort.soll}
-                onChange={e => setBuchAntwort(a => ({...a, soll: e.target.value}))}
-                onKeyDown={e => { if (e.key === "Enter" && buchAntwort.soll && buchAntwort.haben) pruefen(); }}
-                placeholder="Soll-Konto" autoFocus
-                style={{ width:"100%", padding:"10px 12px", border:"1.5px solid rgba(240,236,227,0.2)", borderRadius:8, fontSize:15, boxSizing:"border-box", background:"rgba(240,236,227,0.06)", color:"#f0ece3", fontFamily:"'Fira Code',monospace", textTransform:"uppercase", outline:"none" }}/>
-            </div>
-            <div style={{ fontWeight:800, color:"rgba(240,236,227,0.35)", fontSize:12, paddingTop:18 }}>an</div>
-            <div style={{ flex:1 }}>
-              <div style={{ fontSize:10, color:"rgba(240,236,227,0.45)", marginBottom:3 }}>Haben</div>
-              <input value={buchAntwort.haben}
-                onChange={e => setBuchAntwort(a => ({...a, haben: e.target.value}))}
-                onKeyDown={e => { if (e.key === "Enter" && buchAntwort.soll && buchAntwort.haben) pruefen(); }}
-                placeholder="Haben-Konto"
-                style={{ width:"100%", padding:"10px 12px", border:"1.5px solid rgba(240,236,227,0.2)", borderRadius:8, fontSize:15, boxSizing:"border-box", background:"rgba(240,236,227,0.06)", color:"#f0ece3", fontFamily:"'Fira Code',monospace", textTransform:"uppercase", outline:"none" }}/>
-            </div>
+          <div style={{ fontSize:11, color:"rgba(240,236,227,0.35)", marginBottom:9 }}>
+            {lehrerConfig.mitKontennummern ? "Nr. oder Kürzel – z.B. 6000 / AWR, 2800 / BK …" : "Kürzel – z.B. BK, AWMP, FO, LG, AWR, VE …"}
+            {" · Beträge: GoB-Format "}
+            <span style={{ fontFamily:"'Fira Code',monospace", color:"rgba(232,96,10,0.8)" }}>1.234,56</span>
           </div>
-          <button onClick={pruefen} disabled={!buchAntwort.soll || !buchAntwort.haben}
-            style={{ marginTop:10, width:"100%", padding:"12px", background:"#e8600a", color:"#fff", border:"none", borderRadius:10, fontWeight:700, fontSize:14, cursor:"pointer", opacity: (!buchAntwort.soll || !buchAntwort.haben) ? 0.4 : 1 }}>
-            Buchungssatz prüfen
-          </button>
+          {(() => {
+            const iSt = { width:"100%", padding:"10px 12px", border:"1.5px solid rgba(240,236,227,0.2)", borderRadius:8, fontSize:14, boxSizing:"border-box", background:"rgba(240,236,227,0.06)", color:"#f0ece3", fontFamily:"'Fira Code',monospace", textTransform:"uppercase", outline:"none" };
+            const bSt = { ...iSt, fontSize:13, textTransform:"none", color:"rgba(240,236,227,0.8)", marginTop:4 };
+            const nS = (aufgabe.soll||[]).length;
+            const nH = (aufgabe.haben||[]).length;
+            const maxR = Math.max(nS, nH);
+            const anRow = nH > nS ? 0 : nS - 1;
+            const habenOffset = nS > nH ? nS - nH : 0;
+            const allFilled = (buchAntwort.soll||[""]).every(s=>(s||"").trim())
+              && (buchAntwort.haben||[""]).every(h=>(h||"").trim())
+              && (buchAntwort.betragSoll||[""]).every(b=>(b||"").trim())
+              && (buchAntwort.betragHaben||[""]).every(b=>(b||"").trim());
+            return (<>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr auto 1fr", gap:"0 8px", marginBottom:3 }}>
+                <div style={{ fontSize:10, color:"rgba(240,236,227,0.45)" }}>{nS>1 ? `Soll (${nS} Konten)` : "Soll"}</div>
+                <div/>
+                <div style={{ fontSize:10, color:"rgba(240,236,227,0.45)" }}>{nH>1 ? `Haben (${nH} Konten)` : "Haben"}</div>
+              </div>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr auto 1fr", gap:"6px 8px", alignItems:"start" }}>
+                {Array.from({length: maxR}).map((_,row) => {
+                  const si = row; const hi = row - habenOffset;
+                  return (<React.Fragment key={row}>
+                    {si < nS
+                      ? <div>
+                          <input value={(buchAntwort.soll||[])[si]||""}
+                            onChange={e=>{ const v=[...(buchAntwort.soll||[])]; v[si]=e.target.value; setBuchAntwort(a=>({...a,soll:v})); }}
+                            onKeyDown={e=>{ if(e.key==="Enter"&&allFilled) pruefen(); }}
+                            placeholder={nS>1 ? `Soll-Konto ${si+1}` : "Soll-Konto"} autoFocus={row===0}
+                            style={iSt}/>
+                          <input value={(buchAntwort.betragSoll||[])[si]||""}
+                            onChange={e=>{ const v=[...(buchAntwort.betragSoll||[])]; v[si]=e.target.value; setBuchAntwort(a=>({...a,betragSoll:v})); }}
+                            onKeyDown={e=>{ if(e.key==="Enter"&&allFilled) pruefen(); }}
+                            placeholder="0,00 €" inputMode="decimal"
+                            style={bSt}/>
+                        </div>
+                      : <div/>}
+                    <div style={{ fontWeight:800, color:"rgba(240,236,227,0.35)", fontSize:12, textAlign:"center", paddingTop:12, visibility: row===anRow?"visible":"hidden" }}>an</div>
+                    {hi>=0 && hi<nH
+                      ? <div>
+                          <input value={(buchAntwort.haben||[])[hi]||""}
+                            onChange={e=>{ const v=[...(buchAntwort.haben||[])]; v[hi]=e.target.value; setBuchAntwort(a=>({...a,haben:v})); }}
+                            onKeyDown={e=>{ if(e.key==="Enter"&&allFilled) pruefen(); }}
+                            placeholder={nH>1 ? `Haben-Konto ${hi+1}` : "Haben-Konto"}
+                            style={iSt}/>
+                          <input value={(buchAntwort.betragHaben||[])[hi]||""}
+                            onChange={e=>{ const v=[...(buchAntwort.betragHaben||[])]; v[hi]=e.target.value; setBuchAntwort(a=>({...a,betragHaben:v})); }}
+                            onKeyDown={e=>{ if(e.key==="Enter"&&allFilled) pruefen(); }}
+                            placeholder="0,00 €" inputMode="decimal"
+                            style={bSt}/>
+                        </div>
+                      : <div/>}
+                  </React.Fragment>);
+                })}
+              </div>
+              <button onClick={pruefen} disabled={!allFilled}
+                style={{ marginTop:10, width:"100%", padding:"12px", background:"#e8600a", color:"#fff", border:"none", borderRadius:10, fontWeight:700, fontSize:14, cursor:"pointer", opacity:!allFilled?0.4:1 }}>
+                Buchungssatz prüfen
+              </button>
+            </>);
+          })()}
         </div>
       )}
 
       {/* ── Multiple-Choice (Theoriefragen) ── */}
       {aufgabe.typ === "mc" && feedback === null && (
         <div style={{ background:"rgba(28,20,10,0.85)", border:"1px solid rgba(240,236,227,0.12)", borderRadius:12, padding:"14px 16px" }}>
+          {aufgabe.schaubild && <SchaubildAnzeige schaubild={aufgabe.schaubild} />}
           <div style={{ fontSize:13, fontWeight:700, color:"#f0ece3", marginBottom:12 }}>{aufgabe.aufgabe}</div>
           <div style={{ display:"flex", flexDirection:"column", gap:7 }}>
             {aufgabe.mcOptionen.map((opt, i) => (
@@ -10656,6 +11805,7 @@ function BankingSimulator7({ firma, onAbschluss, lehrerConfig = {}, klasse = "7"
       {/* ── Kalkulation ── */}
       {aufgabe.typ === "kalkulation" && feedback === null && (
         <div style={{ background:"rgba(28,20,10,0.85)", border:"1px solid rgba(240,236,227,0.12)", borderRadius:12, padding:"14px 16px" }}>
+          {aufgabe.schaubild && <SchaubildAnzeige schaubild={aufgabe.schaubild} />}
           <div style={{ fontSize:13, fontWeight:700, color:"#f0ece3", marginBottom:5 }}>{aufgabe.aufgabe}</div>
           <div style={{ fontSize:10.5, color:"rgba(240,236,227,0.35)", marginBottom:8 }}>
             GoB-Format: <span style={{ fontFamily:"'Fira Code',monospace", color:"rgba(232,96,10,0.7)" }}>1.234,56</span> (Tausenderpunkt, Komma als Dezimalzeichen)
@@ -10799,59 +11949,102 @@ function BankingSimulator7({ firma, onAbschluss, lehrerConfig = {}, klasse = "7"
       )}
 
       {/* ── Feedback ── */}
-      {feedback !== null && (
-        <div style={{ background:"rgba(28,20,10,0.85)", border:`1.5px solid ${feedback==="richtig" ? "rgba(74,222,128,0.4)" : "rgba(248,113,113,0.4)"}`, borderRadius:12, padding:"14px 16px" }}>
-          <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:8, fontWeight:800, fontSize:14, color: feedback === "richtig" ? "#4ade80" : "#f87171" }}>
-            {aufgabe.typ === "freitext"
-              ? <><CheckSquare size={16} strokeWidth={1.5}/>Abgegeben! +{verlauf[verlauf.length-1]?.gewPunkte} Punkte</>
-              : feedback === "richtig"
-              ? <><CheckSquare size={16} strokeWidth={1.5}/>Richtig! +{verlauf[verlauf.length-1]?.gewPunkte} Punkte</>
-              : <><XCircle size={16} strokeWidth={1.5}/>Leider falsch</>}
-          </div>
-          {aufgabe.typ === "freitext" && (
-            <div style={{ fontSize:11, color:"rgba(240,236,227,0.4)", marginBottom:8, fontStyle:"italic" }}>
-              Vergleiche deine Antwort mit der Musterlösung und bewerte dich selbst.
+      {feedback !== null && (() => {
+        // Für Ketten-Aufgaben: Daten des aktuellen Schritts
+        const isKette = aufgabe.typ === "kette";
+        const ks = isKette ? aufgabe.kette[ketteSchritt] : null;
+        const istLetzterKetteSchritt = isKette && ketteSchritt === aufgabe.kette.length - 1;
+        const erklaerungText = isKette ? (ks?.erklaerung || "") : aufgabe.erklaerung;
+
+        // T-Konto anzeigen? Nur bei richtigem Buchungssatz
+        const stdBuchungRichtig = feedback === "richtig" && !aufgabe.typ && (aufgabe.soll?.length||0) > 0 && (aufgabe.betrag||0) > 0;
+        const ketteBuchungRichtig = feedback === "richtig" && isKette && ks?.typ === "buchung";
+
+        return (
+          <div style={{ background:"rgba(28,20,10,0.85)", border:`1.5px solid ${feedback==="richtig" ? "rgba(74,222,128,0.4)" : "rgba(248,113,113,0.4)"}`, borderRadius:12, padding:"14px 16px" }}>
+            {/* Titel */}
+            <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:8, fontWeight:800, fontSize:14, color: feedback === "richtig" ? "#4ade80" : "#f87171" }}>
+              {aufgabe.typ === "freitext"
+                ? <><CheckSquare size={16} strokeWidth={1.5}/>Abgegeben! +{verlauf[verlauf.length-1]?.gewPunkte} Punkte</>
+                : feedback === "richtig"
+                ? <><CheckSquare size={16} strokeWidth={1.5}/>Richtig!{isKette ? ` (Schritt ${ketteSchritt+1})` : ` +${verlauf[verlauf.length-1]?.gewPunkte} Punkte`}</>
+                : <><XCircle size={16} strokeWidth={1.5}/>Leider falsch{isKette ? ` (Schritt ${ketteSchritt+1})` : ""}</>}
             </div>
-          )}
-          <div style={{ fontSize:12, color:"rgba(240,236,227,0.75)", marginBottom:8, padding:"8px 10px", background:"rgba(240,236,227,0.05)", borderRadius:8 }}>
-            <strong style={{color:"#f0ece3"}}>{aufgabe.typ === "freitext" ? "Musterlösung: " : "Lösung: "}</strong>
-            {aufgabe.typ === "mc"
-              ? <>{String.fromCharCode(65 + aufgabe.mcKorrekt)}. {aufgabe.mcOptionen[aufgabe.mcKorrekt]}</>
-              : aufgabe.typ === "multi_mc"
-              ? <>{(aufgabe.multiKorrekt || []).map(i => String.fromCharCode(65+i)+". "+aufgabe.mcOptionen[i]).join(" | ")}</>
-              : aufgabe.typ === "kalkulation"
-              ? <span style={{ fontFamily:"'Fira Code',monospace" }}>{aufgabe.kalkulation.richtigerWert.toLocaleString("de-DE",{minimumFractionDigits:2, maximumFractionDigits:2})} {aufgabe.kalkulation.einheit}</span>
-              : aufgabe.typ === "lueckentext"
-              ? <span style={{ fontFamily:"'Fira Code',monospace", wordBreak:"break-word" }}>
-                  {(aufgabe.lueckentext?.template || "").replace(/\[L(\d+)\]/g, (_, id) => {
-                    const l = (aufgabe.lueckentext.luecken || []).find(l => l.id === parseInt(id));
-                    return `[${l?.korrekt || "?"}]`;
-                  })}
-                </span>
-              : aufgabe.typ === "zuordnung"
-              ? <div style={{ display:"flex", flexWrap:"wrap", gap:4, marginTop:4 }}>
-                  {(aufgabe.zuordnung?.items || []).map(item => {
-                    const kat = (aufgabe.zuordnung.kategorien || []).find(k => k.id === item.korrektKat);
-                    return (
-                      <span key={item.id} style={{ fontSize:11, background:`rgba(${kat?.rgb || "240,236,227"},0.12)`, color: kat?.color || "#f0ece3", border:`1px solid rgba(${kat?.rgb || "240,236,227"},0.25)`, padding:"2px 8px", borderRadius:5 }}>
-                        {item.id} → {kat?.label || item.korrektKat}
-                      </span>
-                    );
-                  })}
-                </div>
-              : aufgabe.typ === "freitext"
-              ? <div style={{ fontSize:12, color:"rgba(240,236,227,0.85)", lineHeight:1.7, whiteSpace:"pre-wrap" }}>{aufgabe.freitext?.loesung}</div>
-              : <>{aufgabe.soll.map(s=>s.kuerzel).join(" + ")} an {aufgabe.haben.map(h=>h.kuerzel).join(" + ")}{" "}
-                  ({aufgabe.betrag.toLocaleString("de-DE",{minimumFractionDigits:2, maximumFractionDigits:2})} €)</>
-            }
+            {aufgabe.typ === "freitext" && (
+              <div style={{ fontSize:11, color:"rgba(240,236,227,0.4)", marginBottom:8, fontStyle:"italic" }}>
+                Vergleiche deine Antwort mit der Musterlösung und bewerte dich selbst.
+              </div>
+            )}
+            {/* Lösung */}
+            <div style={{ fontSize:12, color:"rgba(240,236,227,0.75)", marginBottom:8, padding:"8px 10px", background:"rgba(240,236,227,0.05)", borderRadius:8 }}>
+              <strong style={{color:"#f0ece3"}}>Lösung: </strong>
+              {isKette
+                ? ks?.typ === "mc"        ? <>{String.fromCharCode(65+ks.mcKorrekt)}. {ks.mcOptionen[ks.mcKorrekt]}</>
+                : ks?.typ === "kalkulation"? <span style={{fontFamily:"'Fira Code',monospace"}}>{ks.kalkulation.richtigerWert.toLocaleString("de-DE",{minimumFractionDigits:2})} {ks.kalkulation.einheit}</span>
+                : ks?.typ === "buchung"    ? <span style={{fontFamily:"'Fira Code',monospace"}}>{ks.soll.map(s=>s.kuerzel).join("+")} an {ks.haben.map(h=>h.kuerzel).join("+")} ({(ks.betrag||0).toLocaleString("de-DE",{minimumFractionDigits:2})} €)</span>
+                : null
+                : aufgabe.typ === "mc"
+                ? <>{String.fromCharCode(65 + aufgabe.mcKorrekt)}. {aufgabe.mcOptionen[aufgabe.mcKorrekt]}</>
+                : aufgabe.typ === "multi_mc"
+                ? <>{(aufgabe.multiKorrekt || []).map(i => String.fromCharCode(65+i)+". "+aufgabe.mcOptionen[i]).join(" | ")}</>
+                : aufgabe.typ === "kalkulation"
+                ? <span style={{ fontFamily:"'Fira Code',monospace" }}>{aufgabe.kalkulation.richtigerWert.toLocaleString("de-DE",{minimumFractionDigits:2, maximumFractionDigits:2})} {aufgabe.kalkulation.einheit}</span>
+                : aufgabe.typ === "lueckentext"
+                ? <span style={{ fontFamily:"'Fira Code',monospace", wordBreak:"break-word" }}>
+                    {(aufgabe.lueckentext?.template || "").replace(/\[L(\d+)\]/g, (_, id) => {
+                      const l = (aufgabe.lueckentext.luecken || []).find(l => l.id === parseInt(id));
+                      return `[${l?.korrekt || "?"}]`;
+                    })}
+                  </span>
+                : aufgabe.typ === "zuordnung"
+                ? <div style={{ display:"flex", flexWrap:"wrap", gap:4, marginTop:4 }}>
+                    {(aufgabe.zuordnung?.items || []).map(item => {
+                      const kat = (aufgabe.zuordnung.kategorien || []).find(k => k.id === item.korrektKat);
+                      return (
+                        <span key={item.id} style={{ fontSize:11, background:`rgba(${kat?.rgb || "240,236,227"},0.12)`, color: kat?.color || "#f0ece3", border:`1px solid rgba(${kat?.rgb || "240,236,227"},0.25)`, padding:"2px 8px", borderRadius:5 }}>
+                          {item.id} → {kat?.label || item.korrektKat}
+                        </span>
+                      );
+                    })}
+                  </div>
+                : aufgabe.typ === "freitext"
+                ? <div style={{ fontSize:12, color:"rgba(240,236,227,0.85)", lineHeight:1.7, whiteSpace:"pre-wrap" }}>{aufgabe.freitext?.loesung}</div>
+                : <>{aufgabe.soll.map(s=>s.kuerzel).join(" + ")} an {aufgabe.haben.map(h=>h.kuerzel).join(" + ")}{" "}
+                    ({aufgabe.betrag.toLocaleString("de-DE",{minimumFractionDigits:2, maximumFractionDigits:2})} €)</>
+              }
+            </div>
+
+            {/* Live T-Konto (Prio 2) */}
+            {stdBuchungRichtig && (
+              <LiveTKonto sollKuerzel={aufgabe.soll[0].kuerzel} habenKuerzel={aufgabe.haben[0].kuerzel} betrag={aufgabe.betrag}/>
+            )}
+            {ketteBuchungRichtig && (
+              <LiveTKonto sollKuerzel={ks.soll[0].kuerzel} habenKuerzel={ks.haben[0].kuerzel} betrag={ks.betrag||0}/>
+            )}
+
+            <div style={{ fontSize:12, color:"rgba(240,236,227,0.5)", lineHeight:1.6, marginBottom:10, marginTop:10 }}>{erklaerungText}</div>
+            <button onClick={() => {
+              if (isKette && !istLetzterKetteSchritt) {
+                const nextKs = aufgabe.kette[ketteSchritt + 1];
+                const nxtS = (nextKs?.soll||[]).length || 1;
+                const nxtH = (nextKs?.haben||[]).length || 1;
+                setKetteSchritt(s => s + 1);
+                setFeedback(null);
+                setTheorieAntwort(null);
+                setKalkAntwort("");
+                setBuchAntwort({ soll: Array(nxtS).fill(""), haben: Array(nxtH).fill(""), betragSoll: Array(nxtS).fill(""), betragHaben: Array(nxtH).fill("") });
+              } else {
+                weiter();
+              }
+            }}
+              style={{ width:"100%", padding:"11px", background:"rgba(240,236,227,0.08)", color:"#f0ece3", border:"1px solid rgba(240,236,227,0.16)", borderRadius:10, fontWeight:700, fontSize:13, cursor:"pointer" }}>
+              {isKette && !istLetzterKetteSchritt
+                ? `Schritt ${ketteSchritt+2} / ${aufgabe.kette.length} →`
+                : aufgabeIdx + 1 >= aufgabenListe.length ? "Abschluss →" : "Weiter →"}
+            </button>
           </div>
-          <div style={{ fontSize:12, color:"rgba(240,236,227,0.5)", lineHeight:1.6, marginBottom:10 }}>{aufgabe.erklaerung}</div>
-          <button onClick={weiter}
-            style={{ width:"100%", padding:"11px", background:"rgba(240,236,227,0.08)", color:"#f0ece3", border:"1px solid rgba(240,236,227,0.16)", borderRadius:10, fontWeight:700, fontSize:13, cursor:"pointer" }}>
-            {aufgabeIdx + 1 >= aufgabenListe.length ? "Abschluss →" : "Weiter →"}
-          </button>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 }
@@ -10978,14 +12171,98 @@ function simEreignisse(klasse, firma) {
   return gemischt.slice(0, Math.min(15, gemischt.length));
 }
 
-function SimulationModus({ onZurueck }) {
+function LehrerDashboard({ rangliste, klassenCode, phase, onSchliessen }) {
+  const aktiv  = rangliste.filter(r => !r.zeit || r.zeit === 0);
+  const fertig = rangliste.filter(r => r.zeit && r.zeit > 0);
+  const fmtT   = s => `${Math.floor(s/60)}:${String(s%60).padStart(2,"0")}`;
+  return (
+    <div style={{ position:"fixed", inset:0, zIndex:600, display:"flex", alignItems:"flex-start", justifyContent:"flex-end", pointerEvents:"none" }}>
+      <div style={{ pointerEvents:"all", width:320, maxHeight:"100vh", overflowY:"auto", background:"rgba(10,7,2,0.97)", border:"1px solid rgba(232,96,10,0.3)", borderRight:"none", borderTop:"none", boxShadow:"-4px 0 24px rgba(0,0,0,0.6)", display:"flex", flexDirection:"column" }}>
+        {/* Header */}
+        <div style={{ padding:"14px 16px", borderBottom:"1px solid rgba(240,236,227,0.08)", display:"flex", alignItems:"center", justifyContent:"space-between", background:"rgba(232,96,10,0.06)", flexShrink:0 }}>
+          <div>
+            <div style={{ display:"flex", alignItems:"center", gap:7 }}>
+              <Users size={14} strokeWidth={1.5} style={{ color:"#e8600a" }}/>
+              <span style={{ fontSize:13, fontWeight:800, color:"#f0ece3" }}>Live-Dashboard</span>
+            </div>
+            <div style={{ fontSize:10, color:"rgba(240,236,227,0.35)", marginTop:2, fontFamily:"'Fira Code',monospace" }}>{klassenCode || "Keine Session"} · Phase: {phase}</div>
+          </div>
+          <button onClick={onSchliessen} style={{ background:"none", border:"none", color:"rgba(240,236,227,0.4)", cursor:"pointer", fontSize:18, lineHeight:1, padding:"0 4px" }}>✕</button>
+        </div>
+        {/* Statistik-Kacheln */}
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:8, padding:"12px 14px", borderBottom:"1px solid rgba(240,236,227,0.07)", flexShrink:0 }}>
+          {[
+            { label:"Verbunden", value:rangliste.length, color:"#4ade80" },
+            { label:"Aktiv", value:aktiv.length, color:"#e8600a" },
+            { label:"Fertig", value:fertig.length, color:"#93c5fd" },
+          ].map(({label,value,color}) => (
+            <div key={label} style={{ background:"rgba(240,236,227,0.04)", border:"1px solid rgba(240,236,227,0.08)", borderRadius:8, padding:"8px", textAlign:"center" }}>
+              <div style={{ fontSize:20, fontWeight:900, color, lineHeight:1 }}>{value}</div>
+              <div style={{ fontSize:9, color:"rgba(240,236,227,0.4)", marginTop:2, textTransform:"uppercase", letterSpacing:".06em" }}>{label}</div>
+            </div>
+          ))}
+        </div>
+        {/* Rangliste */}
+        <div style={{ flex:1, overflowY:"auto", padding:"12px 14px" }}>
+          {rangliste.length === 0 ? (
+            <div style={{ textAlign:"center", padding:"24px 0", color:"rgba(240,236,227,0.2)", fontSize:12 }}>Warten auf Schüler…</div>
+          ) : (
+            rangliste.map((r, i) => {
+              const pct = r.max_punkte ? Math.round(r.punkte / r.max_punkte * 100) : 0;
+              const laufend = !r.zeit || r.zeit === 0;
+              return (
+                <div key={i} style={{ marginBottom:8, padding:"9px 10px", background:"rgba(240,236,227,0.04)", border:"1px solid rgba(240,236,227,0.07)", borderRadius:8 }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:5 }}>
+                    <span style={{ fontWeight:800, fontSize:11, color:"#e8600a", minWidth:18 }}>{i+1}.</span>
+                    <span style={{ flex:1, fontSize:12, fontWeight:700, color:"#f0ece3" }}>{r.spieler || "Anonym"}</span>
+                    <span style={{ fontSize:10, color: laufend ? "#e8600a" : "#4ade80", fontWeight:700 }}>
+                      {laufend ? "●" : "✓"} {r.punkte}/{r.max_punkte} P
+                    </span>
+                  </div>
+                  <div style={{ height:4, background:"rgba(240,236,227,0.07)", borderRadius:2, overflow:"hidden" }}>
+                    <div style={{ height:"100%", width:`${pct}%`, background: pct>=80?"#4ade80":pct>=50?"#e8600a":"#f87171", borderRadius:2, transition:"width 1s" }}/>
+                  </div>
+                  <div style={{ display:"flex", justifyContent:"space-between", marginTop:3 }}>
+                    <span style={{ fontSize:9, color:"rgba(240,236,227,0.3)" }}>{pct}%</span>
+                    {!laufend && <span style={{ fontSize:9, color:"rgba(240,236,227,0.3)", fontFamily:"monospace" }}>{fmtT(r.zeit)}</span>}
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+        <div style={{ padding:"8px 14px", borderTop:"1px solid rgba(240,236,227,0.07)", fontSize:9, color:"rgba(240,236,227,0.2)", flexShrink:0 }}>Aktualisiert alle 5 s</div>
+      </div>
+    </div>
+  );
+}
+
+function SimulationModus({ onZurueck, onVonURLDetected, onRegisterReset }) {
   const [phase, setPhase] = useState("setup"); // setup | firma | spiel | abschluss
   const [schwierigkeit, setSchwierigkeit] = useState("8");
-  const [modus, setModus] = useState("solo"); // solo | klasse
+  const [modus, setModus] = useState("stunde"); // stunde | projekt
+  const [stundenMin, setStundenMin] = useState(45); // 45 | 90
   const [klassenCode, setKlassenCode] = useState("");
   const [spielerName, setSpielerName] = useState("");
+  const [streakData, setStreakData] = useState(null);
+  const [levelData,  setLevelData]  = useState(null);
+  const { recordCompletion } = useStreak(spielerName || null);
+  const { recordLevel }      = useLevel(spielerName || null);
   const [firma, setFirma] = useState(null);
   const [showLehrerKonfig, setShowLehrerKonfig] = useState(false);
+  const [themenOffen, setThemenOffen] = useState(false);
+  const [dashboardOffen, setDashboardOffen] = useState(false);
+  const [endeAnkuendigung, setEndeAnkuendigung] = useState(null); // {end_in, ts} | null
+  const [endAnnouncement, setEndAnnouncement] = useState(0);      // teacher UI: selected end_in
+  const [savedStand, setSavedStand] = useState(null);             // {found,punkte,max_punkte,aufgabe_idx} | null
+  const [selectedFirma, setSelectedFirma] = useState(null);       // LK-Firmenwahl in Schritt 3
+  const fortschrittRef = useRef({ punkte: 0, maxPunkte: 0 });    // aktueller Spielstand für Heartbeat
+
+  // "← Zur Session"-Callback beim Lehrer registrieren
+  React.useEffect(() => {
+    onRegisterReset?.(() => { setPhase("setup"); setEndeAnkuendigung(null); setEndAnnouncement(0); });
+    return () => onRegisterReset?.(null);
+  }, []); // eslint-disable-line
   const LC_DEFAULTS = {
     zeitlimitSek: 0,
     erklaerungSofort: true,
@@ -10994,6 +12271,7 @@ function SimulationModus({ onZurueck }) {
     themen: ["buchung","ueberweisung","dauerauftrag","beleg","theorie"],
     mitUst: false,
     grundwissen: false,
+    mitKontennummern: false,
   };
   const [lehrerConfig, setLehrerConfig] = useState(() => {
     try {
@@ -11033,9 +12311,10 @@ function SimulationModus({ onZurueck }) {
     const f = params.get("firma");
     const kl = params.get("klasse");
     if (s) {
-      setModus("klasse");
+      setModus("stunde");
       setKlassenCode(s.toUpperCase());
       setVonURL(true);
+      onVonURLDetected?.();
       if (f) setKlassenFirmaId(f);
       if (kl) setKlassenKlasse(kl);
       const url = new URL(window.location.href);
@@ -11048,7 +12327,7 @@ function SimulationModus({ onZurueck }) {
 
   // Rangliste live für Lehrer (alle 5s) – läuft in setup UND abschluss
   React.useEffect(() => {
-    if (modus !== "klasse" || !klassenCode || vonURL) return;
+    if (!klassenCode || vonURL) return;
     if (phase !== "setup" && phase !== "abschluss") return;
     const poll = async () => {
       const rl = await apiFetch(`/rangliste/${klassenCode}`);
@@ -11058,6 +12337,50 @@ function SimulationModus({ onZurueck }) {
     const t = setInterval(poll, 5000);
     return () => clearInterval(t);
   }, [modus, klassenCode, phase, vonURL]);
+
+  // Kampagne-Ende-Polling (Schüler) – alle 20s
+  React.useEffect(() => {
+    if (!vonURL || !klassenCode || modus !== "projekt") return;
+    if (phase === "setup" || phase === "abschluss") return;
+    const poll = async () => {
+      const res = await apiFetch(`/session/kontrolle/${klassenCode}`);
+      if (res && res.end_in > 0) setEndeAnkuendigung(res);
+      else setEndeAnkuendigung(null);
+    };
+    poll();
+    const t = setInterval(poll, 20000);
+    return () => clearInterval(t);
+  }, [vonURL, klassenCode, modus, phase]);
+
+  // Heartbeat (Schüler) – alle 30s solange Spiel läuft; sendet aktuellen Spielstand
+  React.useEffect(() => {
+    if (!vonURL || !klassenCode) return;
+    if (phase === "setup" || phase === "abschluss") return;
+    const beat = () => apiFetch("/session/join", "POST", {
+      session_code: klassenCode,
+      spieler: spielerName || "Anonym",
+      klasse: klassenKlasse,
+      punkte: fortschrittRef.current.punkte,
+      max_punkte: fortschrittRef.current.maxPunkte,
+    });
+    beat();
+    const t = setInterval(beat, 30000);
+    return () => clearInterval(t);
+  }, [vonURL, klassenCode, phase, spielerName, klassenKlasse]);
+
+  // Auto-fill: Name + savedStand aus localStorage wenn via URL beigetreten
+  React.useEffect(() => {
+    if (!vonURL) return;
+    try {
+      const last = JSON.parse(localStorage.getItem("bw_last_session") || "null");
+      if (last?.code === klassenCode && last?.name) {
+        setSpielerName(last.name);
+        apiFetch(`/session/stand/${klassenCode}/${encodeURIComponent(last.name)}`).then(res => {
+          if (res?.found) setSavedStand(res);
+        });
+      }
+    } catch {}
+  }, [vonURL]); // eslint-disable-line
 
   function startSpiel(f) {
     setFirma(f);
@@ -11142,7 +12465,7 @@ function SimulationModus({ onZurueck }) {
     setAntwort({ soll: "", haben: "", betrag: "" });
     if (aktuellesIdx + 1 >= ereignisse.length) {
       // Abschluss
-      if (modus === "klasse" && klassenCode) {
+      if (klassenCode) {
         await apiFetch("/spielrangliste", "POST", { session_code: klassenCode, spieler: spielerName || "Anonym", punkte, max_punkte: maxPunkte, zeit: Math.round(elapsed/1000), klasse: schwierigkeit });
         const rl = await apiFetch(`/rangliste/${klassenCode}`);
         setRangliste(rl || []);
@@ -11198,11 +12521,18 @@ function SimulationModus({ onZurueck }) {
               <div style={{ fontSize:11, color:"rgba(240,236,227,0.4)", marginTop:2 }}>Schaltet USt-Aufgaben (Brutto-Kalkulation) frei. Lehrplan Klasse 7 – nur aktivieren wenn im Unterricht behandelt.</div>
             </div>
           </label>
-          <label style={{ display:"flex", alignItems:"flex-start", gap:10, padding:"8px 0", cursor:"pointer" }}>
+          <label style={{ display:"flex", alignItems:"flex-start", gap:10, padding:"8px 0", borderBottom:"1px solid rgba(240,236,227,0.07)", cursor:"pointer" }}>
             <input type="checkbox" checked={!!lc.grundwissen} onChange={e => setLC("grundwissen", e.target.checked)} style={{ width:16, height:16, accentColor:"#4ade80", cursor:"pointer", marginTop:2, flexShrink:0 }}/>
             <div>
               <span style={{ fontSize:13, color:"#f0ece3", fontWeight:600 }}>Grundwissen aus Vorklassen einblenden</span>
               <div style={{ fontSize:11, color:"rgba(240,236,227,0.4)", marginTop:2 }}>Stellt 2–3 einfache Aufgaben aus der Vorstufe an den Anfang (als grüne „Grundwissen"-Karte). Nur für Klasse 8–10 sinnvoll.</div>
+            </div>
+          </label>
+          <label style={{ display:"flex", alignItems:"flex-start", gap:10, padding:"8px 0", cursor:"pointer" }}>
+            <input type="checkbox" checked={!!lc.mitKontennummern} onChange={e => setLC("mitKontennummern", e.target.checked)} style={{ width:16, height:16, accentColor:"#93c5fd", cursor:"pointer", marginTop:2, flexShrink:0 }}/>
+            <div>
+              <span style={{ fontSize:13, color:"#f0ece3", fontWeight:600 }}>Kontennummern verwenden</span>
+              <div style={{ fontSize:11, color:"rgba(240,236,227,0.4)", marginTop:2 }}>Schüler geben Nr. (6000, 4400 …) statt Kürzel (AWR, VE …) ein. Ab Klasse 8 HJ2 lehrplankonform. Kürzel werden trotzdem akzeptiert.</div>
             </div>
           </label>
         </div>
@@ -11223,6 +12553,13 @@ function SimulationModus({ onZurueck }) {
     );
   }
 
+  // ── Dashboard-Overlay (Lehrer, alle Phasen) ────────────────────────────────
+  if (dashboardOffen && !vonURL) return (
+    <div style={{ position:"relative" }}>
+      <LehrerDashboard rangliste={rangliste} klassenCode={klassenCode} phase={phase} onSchliessen={() => setDashboardOffen(false)}/>
+    </div>
+  );
+
   // ── Schüler-Gastzugang: Minimaler Willkommensscreen ───────────────────────
   if (phase === "setup" && vonURL) return (
     <div style={{ maxWidth: 480, margin: "0 auto", padding: "24px 16px" }}>
@@ -11235,7 +12572,10 @@ function SimulationModus({ onZurueck }) {
         <span style={{ fontSize: 12, color: "rgba(240,236,227,0.45)" }}>Session beigetreten ✓</span>
       </div>
       <div style={{ marginBottom: 24 }}>
-        <div style={{ fontSize: 12, fontWeight: 700, color: "rgba(240,236,227,0.5)", marginBottom: 4 }}>Dein Spitzname</div>
+        <div style={{ fontSize: 12, fontWeight: 700, color: "rgba(240,236,227,0.5)", marginBottom: 4, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+          <span>Dein Spitzname</span>
+          <StreakBadge streak={streakData} />
+        </div>
         <input
           value={spielerName}
           onChange={e => setSpielerName(e.target.value)}
@@ -11247,12 +12587,45 @@ function SimulationModus({ onZurueck }) {
           Kein echter Name nötig · Nur du und deine Lehrkraft sehen diesen Spitznamen
         </div>
       </div>
+      {/* Wiederverbindungs-Code – prominent anzeigen */}
+      <div style={{ background:"rgba(0,0,0,0.3)", border:"1px solid rgba(240,236,227,0.13)", borderRadius:10, padding:"12px 14px", marginBottom:16 }}>
+        <div style={{ fontSize:10, fontWeight:700, color:"rgba(240,236,227,0.4)", marginBottom:6, textTransform:"uppercase", letterSpacing:".07em" }}>Merke dir deinen Wiederverbindungs-Code:</div>
+        <div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap", marginBottom:5 }}>
+          <span style={{ fontFamily:"'Fira Code',monospace", fontWeight:900, fontSize:22, color:"#93c5fd", letterSpacing:".1em" }}>{klassenCode}</span>
+          <span style={{ color:"rgba(240,236,227,0.3)", fontSize:16 }}>+</span>
+          <span style={{ color:"#e8600a", fontWeight:800, fontSize:16 }}>{spielerName || "dein Name"}</span>
+        </div>
+        <div style={{ fontSize:10, color:"rgba(240,236,227,0.35)", lineHeight:1.5 }}>
+          Damit kannst du dich jederzeit von jedem Gerät wieder einloggen – ohne Registrierung.
+        </div>
+      </div>
+      {savedStand && (
+        <div style={{ background:"rgba(74,158,255,0.08)", border:"1px solid rgba(74,158,255,0.25)", borderRadius:10, padding:"12px 14px", marginBottom:16, display:"flex", alignItems:"center", gap:10 }}>
+          <Trophy size={16} strokeWidth={1.5} style={{ color:"#93c5fd", flexShrink:0 }}/>
+          <div style={{ flex:1 }}>
+            <div style={{ fontSize:12, fontWeight:700, color:"#93c5fd", marginBottom:2 }}>
+              Willkommen zurück, {spielerName}!
+            </div>
+            <div style={{ fontSize:11, color:"rgba(240,236,227,0.55)" }}>
+              Letzter Stand: {savedStand.punkte} / {savedStand.max_punkte} Punkte · Aufgabe {(savedStand.aufgabe_idx || 0) + 1}
+            </div>
+          </div>
+          <button onClick={() => setSavedStand(null)}
+            style={{ background:"none", border:"none", color:"rgba(240,236,227,0.3)", cursor:"pointer", fontSize:18, lineHeight:1, padding:"0 4px" }}>✕</button>
+        </div>
+      )}
       <button
-        onClick={() => {
+        onClick={async () => {
+          const name = (spielerName.trim() || "Anonym");
+          // Persist for auto-fill on same device
+          try { localStorage.setItem("bw_last_session", JSON.stringify({ code: klassenCode, name })); } catch {}
+          // Register as active in session
+          await apiFetch("/session/join", "POST", { session_code: klassenCode, spieler: name, klasse: klassenKlasse });
           const chosen = klassenFirmaId
             ? (UNTERNEHMEN.find(u => u.id === klassenFirmaId) || UNTERNEHMEN[0])
             : UNTERNEHMEN[Math.floor(Math.random() * Math.min(UNTERNEHMEN.length, 12))];
           setFirma(chosen);
+          setSpielerName(name);
           setPhase(klassenKlasse === "10" ? "bank10" : klassenKlasse === "9" ? "bank9" : klassenKlasse === "8" ? "bank8" : "bank7");
         }}
         style={{ width: "100%", padding: "14px", background: "#e8600a", color: "#fff", border: "none", borderRadius: 12, fontWeight: 800, fontSize: 15, cursor: "pointer" }}>
@@ -11262,14 +12635,18 @@ function SimulationModus({ onZurueck }) {
   );
 
   // ── Setup ──────────────────────────────────────────────────────────────────
-  if (phase === "setup") return (
-    <div style={{ maxWidth: 520, margin: "0 auto", padding: "24px 16px" }}>
-      <button onClick={onZurueck} style={{ background:"none", border:"none", color:"rgba(240,236,227,0.45)", cursor:"pointer", fontSize:13, marginBottom:16 }}>← Zurück</button>
-      <div style={{ fontSize:28, fontWeight:900, color:"#f0ece3", marginBottom:4, display:"flex", alignItems:"center", gap:10 }}><Factory size={26} strokeWidth={1.5} style={{ color:"#e8600a", flexShrink:0 }}/>Simulation</div>
-      <div style={{ fontSize:14, color:"rgba(240,236,227,0.5)", marginBottom:24 }}>Führe eine Firma durch ein Geschäftsjahr und buche alle Vorfälle korrekt.</div>
+  if (phase === "setup" || phase === "firma") {
+    const lc = lehrerConfig;
+    const setLC = (k, v) => setLehrerConfig(c => ({...c, [k]: v}));
+    const themaToggle = (t) => setLC("themen", lc.themen.includes(t) ? lc.themen.filter(x=>x!==t) : [...lc.themen, t]);
+    const alleThemen = [["buchung","Kontoauszug buchen"],["ueberweisung","Überweisung (interaktiv)"],["dauerauftrag","Dauerauftrag einrichten"],["beleg","Beleg → Überweisung"],["theorie","Theorie & Kalkulation"],["lueckentext","Lückentext"],["zuordnung","Zuordnung"],["multi_mc","Multiple Choice"],["freitext","Freitext (offen)"]];
+    const themenAngepasst = JSON.stringify(lc.themen.slice().sort()) !== JSON.stringify(LC_DEFAULTS.themen.slice().sort()) || lc.mitUst || lc.grundwissen || lc.mitKontennummern;
+    return (
+    <div style={{ maxWidth: 540, margin: "0 auto", padding: "24px 16px" }}>
 
+      {/* ── Schritt 1: Klassenstufe ── */}
       <div style={{ marginBottom:20 }}>
-        <div style={{ fontSize:12, fontWeight:700, color:"rgba(240,236,227,0.5)", marginBottom:8 }}>Schwierigkeit</div>
+        <div style={{ fontSize:11, fontWeight:800, color:"#e8600a", letterSpacing:".09em", textTransform:"uppercase", marginBottom:8 }}>1 · Klassenstufe</div>
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
           {SIM_SCHWIERIGKEITEN.map(s => (
             <button key={s.id} onClick={() => setSchwierigkeit(s.id)}
@@ -11281,238 +12658,285 @@ function SimulationModus({ onZurueck }) {
         </div>
       </div>
 
+      {/* ── Schritt 2: Themen & Grundwissen ── */}
       <div style={{ marginBottom:20 }}>
-        <div style={{ fontSize:12, fontWeight:700, color:"rgba(240,236,227,0.5)", marginBottom:8 }}>Modus</div>
-        <div style={{ display:"flex", gap:8 }}>
-          {[["solo","Solo","Einzeln üben"],["klasse","Klasse","Wettbewerb"]].map(([id,l,d]) => (
-            <button key={id} onClick={() => setModus(id)}
-              style={{ flex:1, padding:"12px", border:`2px solid ${modus===id?"#e8600a":"rgba(240,236,227,0.12)"}`, borderRadius:10, background:modus===id?"rgba(232,96,10,0.1)":"rgba(240,236,227,0.04)", cursor:"pointer" }}>
-              <div style={{ fontWeight:700, fontSize:13, color:modus===id?"#e8600a":"#f0ece3" }}>{l}</div>
-              <div style={{ fontSize:11, color:"rgba(240,236,227,0.4)", marginTop:2 }}>{d}</div>
+        <button onClick={() => setThemenOffen(v => !v)}
+          style={{ width:"100%", display:"flex", alignItems:"center", justifyContent:"space-between", padding:"11px 14px", background:"rgba(240,236,227,0.04)", border:`1.5px solid ${themenAngepasst?"rgba(232,96,10,0.4)":"rgba(240,236,227,0.12)"}`, borderRadius:10, cursor:"pointer", color:"#f0ece3" }}>
+          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+            <span style={{ fontSize:11, fontWeight:800, color:"#e8600a", letterSpacing:".09em", textTransform:"uppercase" }}>2 · Themen & Inhalte</span>
+            {themenAngepasst && <span style={{ fontSize:9, background:"rgba(232,96,10,0.2)", color:"#e8600a", padding:"2px 7px", borderRadius:20, fontWeight:700 }}>Angepasst</span>}
+          </div>
+          <span style={{ fontSize:13, color:"rgba(240,236,227,0.4)" }}>{themenOffen?"▾":"▸"}</span>
+        </button>
+        {themenOffen && (
+          <div style={{ background:"rgba(240,236,227,0.03)", border:"1px solid rgba(240,236,227,0.09)", borderTop:"none", borderRadius:"0 0 10px 10px", padding:"14px" }}>
+            <div style={{ fontSize:11, fontWeight:700, color:"rgba(240,236,227,0.4)", marginBottom:8, textTransform:"uppercase", letterSpacing:".07em" }}>Aufgaben-Typen</div>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:0, marginBottom:12 }}>
+              {alleThemen.map(([t, label]) => (
+                <label key={t} style={{ display:"flex", alignItems:"center", gap:8, padding:"6px 4px", cursor:"pointer" }}>
+                  <input type="checkbox" checked={lc.themen.includes(t)} onChange={() => themaToggle(t)} style={{ width:15, height:15, accentColor:"#e8600a", cursor:"pointer", flexShrink:0 }}/>
+                  <span style={{ fontSize:12, color:"#f0ece3" }}>{label}</span>
+                </label>
+              ))}
+            </div>
+            <div style={{ fontSize:11, fontWeight:700, color:"rgba(240,236,227,0.4)", marginBottom:8, textTransform:"uppercase", letterSpacing:".07em" }}>Lehrplan-Optionen</div>
+            <label style={{ display:"flex", alignItems:"center", gap:8, padding:"5px 0", cursor:"pointer", borderTop:"1px solid rgba(240,236,227,0.07)" }}>
+              <input type="checkbox" checked={!!lc.mitUst} onChange={e => setLC("mitUst", e.target.checked)} style={{ width:15, height:15, accentColor:"#e8600a", cursor:"pointer", flexShrink:0 }}/>
+              <span style={{ fontSize:12, color:"#f0ece3" }}>USt/VorSt berücksichtigen</span>
+            </label>
+            <label style={{ display:"flex", alignItems:"center", gap:8, padding:"5px 0", cursor:"pointer" }}>
+              <input type="checkbox" checked={!!lc.grundwissen} onChange={e => setLC("grundwissen", e.target.checked)} style={{ width:15, height:15, accentColor:"#4ade80", cursor:"pointer", flexShrink:0 }}/>
+              <span style={{ fontSize:12, color:"#f0ece3" }}>Grundwissen aus Vorklassen einblenden</span>
+            </label>
+            <label style={{ display:"flex", alignItems:"center", gap:8, padding:"5px 0", cursor:"pointer" }}>
+              <input type="checkbox" checked={!!lc.mitKontennummern} onChange={e => setLC("mitKontennummern", e.target.checked)} style={{ width:15, height:15, accentColor:"#93c5fd", cursor:"pointer", flexShrink:0 }}/>
+              <span style={{ fontSize:12, color:"#f0ece3" }}>Kontennummern (Kl. 8+)</span>
+            </label>
+            <div style={{ fontSize:11, fontWeight:700, color:"rgba(240,236,227,0.4)", marginTop:10, marginBottom:6, textTransform:"uppercase", letterSpacing:".07em" }}>Zeitlimit pro Aufgabe</div>
+            <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+              {[[0,"Kein"],[60,"1 Min"],[90,"90 Sek"],[120,"2 Min"]].map(([sek,label]) => (
+                <button key={sek} onClick={() => setLC("zeitlimitSek", sek)}
+                  style={{ padding:"6px 12px", borderRadius:7, border:`2px solid ${lc.zeitlimitSek===sek?"#e8600a":"rgba(240,236,227,0.15)"}`, background:lc.zeitlimitSek===sek?"rgba(232,96,10,0.12)":"rgba(240,236,227,0.04)", color:lc.zeitlimitSek===sek?"#e8600a":"rgba(240,236,227,0.65)", fontWeight:700, fontSize:11, cursor:"pointer" }}>
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ── Schritt 3: Firma wählen ── */}
+      <div style={{ marginBottom:20 }}>
+        <div style={{ fontSize:11, fontWeight:800, color:"#e8600a", letterSpacing:".09em", textTransform:"uppercase", marginBottom:8 }}>3 · Firma wählen</div>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
+          {UNTERNEHMEN.slice(0, 12).map(u => (
+            <button key={u.id} onClick={() => setSelectedFirma(u)}
+              style={{ padding:"13px 14px", border:`2px solid ${selectedFirma?.id===u.id?"#e8600a":"rgba(240,236,227,0.12)"}`, borderRadius:11, background:selectedFirma?.id===u.id?"rgba(232,96,10,0.1)":"rgba(240,236,227,0.04)", cursor:"pointer", textAlign:"left", transition:"all 0.15s" }}>
+              <div style={{ fontWeight:700, fontSize:13, color:selectedFirma?.id===u.id?"#e8600a":"#f0ece3", marginBottom:2 }}>{u.name}</div>
+              <div style={{ fontSize:10, color:"rgba(240,236,227,0.4)" }}>{u.branche}</div>
             </button>
           ))}
         </div>
       </div>
 
-      {modus === "klasse" && (
-        <div style={{ marginBottom:20 }}>
-          {/* Schüler-Ansicht: via Link beigetreten */}
-          {vonURL ? (
-            <div>
-              <div style={{ background:"rgba(15,52,96,0.2)", border:"1px solid rgba(0,120,212,0.3)", borderRadius:10, padding:"12px 14px", marginBottom:12, display:"flex", alignItems:"center", gap:10 }}>
-                <span style={{ fontSize:20, fontFamily:"'Fira Code',monospace", fontWeight:900, color:"#93c5fd", letterSpacing:".08em" }}>{klassenCode}</span>
-                <span style={{ fontSize:12, color:"rgba(240,236,227,0.45)" }}>Du bist dieser Session beigetreten.</span>
-              </div>
-              <div style={{ fontSize:12, fontWeight:700, color:"rgba(240,236,227,0.5)", marginBottom:4 }}>Dein Name</div>
-              <input value={spielerName} onChange={e=>setSpielerName(e.target.value)} placeholder="Vorname eingeben"
-                style={{ width:"100%", padding:"10px", border:"1.5px solid rgba(240,236,227,0.2)", borderRadius:8, fontSize:13, boxSizing:"border-box", background:"rgba(240,236,227,0.05)", color:"#f0ece3" }} />
-            </div>
-          ) : (
-            <div>
-              {/* Lehrer-Ansicht: Name + Code-Generator */}
-              <div style={{ display:"flex", gap:8, marginBottom:12 }}>
-                <div style={{ flex:1 }}>
-                  <div style={{ fontSize:12, fontWeight:700, color:"rgba(240,236,227,0.5)", marginBottom:4 }}>Dein Name</div>
-                  <input value={spielerName} onChange={e=>setSpielerName(e.target.value)} placeholder="Vorname"
-                    style={{ width:"100%", padding:"10px", border:"1.5px solid rgba(240,236,227,0.2)", borderRadius:8, fontSize:13, boxSizing:"border-box", background:"rgba(240,236,227,0.05)", color:"#f0ece3" }} />
-                </div>
-                <div style={{ flex:1 }}>
-                  <div style={{ fontSize:12, fontWeight:700, color:"rgba(240,236,227,0.5)", marginBottom:4 }}>Klassen-Code</div>
-                  <div style={{ display:"flex", gap:6 }}>
-                    <input value={klassenCode} onChange={e=>{ setKlassenCode(e.target.value.toUpperCase()); setVonURL(false); }} placeholder="z.B. BW-7A2F"
-                      style={{ flex:1, padding:"10px", border:"1.5px solid rgba(240,236,227,0.2)", borderRadius:8, fontSize:13, boxSizing:"border-box", background:"rgba(240,236,227,0.05)", color:"#f0ece3" }} />
-                    <button onClick={genCode} title="Neuen Code generieren"
-                      style={{ padding:"10px 11px", background:"rgba(232,96,10,0.12)", border:"1.5px solid rgba(232,96,10,0.35)", borderRadius:8, color:"#e8600a", cursor:"pointer", fontSize:11, fontWeight:800, whiteSpace:"nowrap" }}>
-                      + Neu
-                    </button>
-                  </div>
-                </div>
-              </div>
-              {/* Teilen-Panel */}
-              {klassenCode && (
-                <div style={{ background:"rgba(15,52,96,0.15)", border:"1px solid rgba(0,120,212,0.22)", borderRadius:12, padding:"16px" }}>
-                  <div style={{ fontSize:10, fontWeight:700, color:"rgba(147,197,253,0.6)", textTransform:"uppercase", letterSpacing:".08em", marginBottom:10 }}>
-                    Session teilen
-                  </div>
-                  <div style={{ textAlign:"center", marginBottom:12 }}>
-                    <div style={{ fontSize:34, fontWeight:900, color:"#f0ece3", fontFamily:"'Fira Code',monospace", letterSpacing:".12em" }}>
-                      {klassenCode}
-                    </div>
-                    <div style={{ fontSize:11, color:"rgba(240,236,227,0.35)", marginTop:2 }}>Session-Code</div>
-                  </div>
-                  {/* Firma-Auswahl für Schüler */}
-                  <div style={{ marginBottom:12 }}>
-                    <div style={{ fontSize:10, fontWeight:700, color:"rgba(240,236,227,0.4)", textTransform:"uppercase", letterSpacing:".06em", marginBottom:6 }}>Firma für Schüler</div>
-                    <div style={{ display:"flex", flexWrap:"wrap", gap:5 }}>
-                      {UNTERNEHMEN.slice(0,12).map(u => (
-                        <button key={u.id} onClick={() => setKlassenFirmaId(u.id)}
-                          style={{ padding:"5px 10px", borderRadius:6, border:`1.5px solid ${klassenFirmaId===u.id?"#e8600a":"rgba(240,236,227,0.12)"}`, background:klassenFirmaId===u.id?"rgba(232,96,10,0.12)":"rgba(240,236,227,0.04)", color:klassenFirmaId===u.id?"#e8600a":"rgba(240,236,227,0.55)", fontSize:11, fontWeight:700, cursor:"pointer" }}>
-                          {u.name}
-                        </button>
-                      ))}
-                    </div>
-                    {!klassenFirmaId && <div style={{ fontSize:10, color:"rgba(240,236,227,0.25)", marginTop:4 }}>Nicht gewählt → zufällige Firma für jeden Schüler</div>}
-                  </div>
-                  {(() => {
-                    const sessionUrl = `https://buchungswerk.org/?session=${klassenCode}${klassenFirmaId ? `&firma=${klassenFirmaId}` : ""}&klasse=${schwierigkeit}`;
-                    const sessionDisplay = `buchungswerk.org/?session=${klassenCode}${klassenFirmaId ? `&firma=${klassenFirmaId}` : ""}&klasse=${schwierigkeit}`;
-                    return (
-                      <div style={{ display:"flex", gap:12, marginBottom:14, alignItems:"flex-start" }}>
-                        <img
-                          src={`https://api.qrserver.com/v1/create-qr-code/?size=120x120&color=f0ece3&bgcolor=141008&data=${encodeURIComponent(sessionUrl)}`}
-                          alt="QR-Code"
-                          width={100} height={100}
-                          style={{ borderRadius:8, flexShrink:0, border:"1px solid rgba(240,236,227,0.12)" }}
-                        />
-                        <div style={{ flex:1, display:"flex", flexDirection:"column", gap:6 }}>
-                          <div style={{ background:"rgba(0,0,0,0.3)", border:"1px solid rgba(240,236,227,0.08)", borderRadius:7, padding:"8px 10px", fontSize:10, color:"rgba(240,236,227,0.35)", fontFamily:"'Fira Code',monospace", wordBreak:"break-all" }}>
-                            {sessionDisplay}
-                          </div>
-                          <button onClick={() => navigator.clipboard?.writeText(sessionUrl)}
-                            style={{ padding:"8px 12px", background:"rgba(232,96,10,0.12)", border:"1px solid rgba(232,96,10,0.25)", borderRadius:7, color:"#e8600a", cursor:"pointer", fontSize:11, fontWeight:700 }}>
-                            Link kopieren
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })()}
-                  <div style={{ fontSize:10, fontWeight:700, color:"rgba(240,236,227,0.3)", textTransform:"uppercase", letterSpacing:".06em", marginBottom:6 }}>
-                    Rangliste · live
-                  </div>
-                  {rangliste.length === 0 ? (
-                    <div style={{ fontSize:12, color:"rgba(240,236,227,0.2)", textAlign:"center", padding:"8px 0" }}>
-                      Warten auf erste Ergebnisse…
-                    </div>
-                  ) : (
-                    rangliste.map((r, i) => (
-                      <div key={i} style={{ display:"flex", gap:8, fontSize:12, padding:"5px 0", borderBottom:"1px solid rgba(240,236,227,0.06)", color:"#f0ece3" }}>
-                        <span style={{ fontWeight:700, minWidth:18, color:"#e8600a" }}>{i+1}.</span>
-                        <span style={{ flex:1 }}>{r.spieler}</span>
-                        <span style={{ color:"#4ade80", fontWeight:700 }}>{r.punkte}/{r.max_punkte} P</span>
-                        <span style={{ color:"rgba(240,236,227,0.3)", fontFamily:"'Fira Code',monospace", fontSize:11 }}>{r.zeit ? fmtTime(r.zeit) : "läuft…"}</span>
-                      </div>
-                    ))
-                  )}
-                </div>
-              )}
-            </div>
-          )}
+      {/* ── Schritt 4: Modus & Start ── */}
+      <div style={{ marginBottom:8 }}>
+        <div style={{ fontSize:11, fontWeight:800, color:"#e8600a", letterSpacing:".09em", textTransform:"uppercase", marginBottom:8 }}>4 · Modus &amp; Start</div>
+
+        {/* Modus-Auswahl */}
+        <div style={{ display:"flex", gap:8, marginBottom:12 }}>
+          {[
+            ["stunde",  "Übungsstunde",  "45 / 90 Min · Timer · Live-Rangliste"],
+            ["projekt", "Kampagne",      "Kein Zeitlimit · Lehrer steuert Ende"],
+          ].map(([id,l,d]) => (
+            <button key={id} onClick={() => setModus(id)}
+              style={{ flex:1, padding:"12px", border:`2px solid ${modus===id?"#e8600a":"rgba(240,236,227,0.12)"}`, borderRadius:10, background:modus===id?"rgba(232,96,10,0.1)":"rgba(240,236,227,0.04)", cursor:"pointer", textAlign:"left" }}>
+              <div style={{ fontWeight:700, fontSize:12, color:modus===id?"#e8600a":"#f0ece3" }}>{l}</div>
+              <div style={{ fontSize:10, color:"rgba(240,236,227,0.4)", marginTop:3 }}>{d}</div>
+            </button>
+          ))}
         </div>
-      )}
 
-      <button onClick={() => setShowLehrerKonfig(true)}
-        style={{ width:"100%", padding:"11px", background:"rgba(240,236,227,0.05)", color:"rgba(240,236,227,0.5)", border:"1px solid rgba(240,236,227,0.12)", borderRadius:10, fontWeight:600, fontSize:13, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:7, marginBottom:10 }}>
-        <Settings2 size={14} strokeWidth={1.5}/>Konfiguration
-      </button>
+        {/* Übungsstunde: Zeitfenster */}
+        {modus === "stunde" && (
+          <div style={{ display:"flex", gap:8, marginBottom:10 }}>
+            {[["45","45 Min · Einzelstunde"],["90","90 Min · Doppelstunde"]].map(([min, label]) => (
+              <button key={min} onClick={() => setStundenMin(Number(min))}
+                style={{ flex:1, padding:"9px 12px", border:`2px solid ${stundenMin===Number(min)?"#e8600a":"rgba(240,236,227,0.12)"}`, borderRadius:8, background:stundenMin===Number(min)?"rgba(232,96,10,0.1)":"rgba(240,236,227,0.04)", cursor:"pointer", textAlign:"left" }}>
+                <div style={{ fontWeight:700, fontSize:12, color:stundenMin===Number(min)?"#e8600a":"#f0ece3" }}>{label}</div>
+              </button>
+            ))}
+          </div>
+        )}
 
-      <button onClick={() => setPhase("firma")}
-        style={{ width:"100%", padding:"14px", background:"#e8600a", color:"#fff", border:"none", borderRadius:12, fontWeight:800, fontSize:15, cursor:"pointer" }}>
-        Weiter: Firma wählen →
-      </button>
-    </div>
-  );
+        {/* Session-Code (für beide Modi) */}
+        <div style={{ background:"rgba(240,236,227,0.03)", border:"1px solid rgba(240,236,227,0.09)", borderRadius:10, padding:"12px", marginBottom:10 }}>
+          <div style={{ display:"flex", gap:8, marginBottom:10 }}>
+            <div style={{ flex:1 }}>
+              <div style={{ fontSize:10, fontWeight:700, color:"rgba(240,236,227,0.4)", marginBottom:4 }}>Dein Name (LK)</div>
+              <input value={spielerName} onChange={e=>setSpielerName(e.target.value)} placeholder="Vorname"
+                style={{ width:"100%", padding:"9px 10px", border:"1.5px solid rgba(240,236,227,0.15)", borderRadius:7, fontSize:12, boxSizing:"border-box", background:"rgba(240,236,227,0.05)", color:"#f0ece3", outline:"none" }} />
+            </div>
+            <div style={{ flex:1 }}>
+              <div style={{ fontSize:10, fontWeight:700, color:"rgba(240,236,227,0.4)", marginBottom:4 }}>Klassen-Code (optional)</div>
+              <input value={klassenCode} onChange={e=>{ setKlassenCode(e.target.value.toUpperCase()); setVonURL(false); }} placeholder="leer = wird automatisch generiert"
+                style={{ width:"100%", padding:"9px 10px", border:"1.5px solid rgba(240,236,227,0.15)", borderRadius:7, fontSize:12, boxSizing:"border-box", background:"rgba(240,236,227,0.05)", color:"#f0ece3", outline:"none" }} />
+            </div>
+          </div>
+          {klassenCode && (() => {
+            const fId = selectedFirma?.id || klassenFirmaId;
+            const sessionUrl = `https://buchungswerk.org/?session=${klassenCode}${fId?`&firma=${fId}`:""}&klasse=${schwierigkeit}`;
+            return (
+              <div style={{ background:"rgba(15,52,96,0.15)", border:"1px solid rgba(0,120,212,0.22)", borderRadius:8, padding:"12px" }}>
+                {/* Code + QR */}
+                <div style={{ display:"flex", gap:12, marginBottom:10, alignItems:"flex-start" }}>
+                  <div style={{ textAlign:"center", minWidth:80 }}>
+                    <div style={{ fontSize:28, fontWeight:900, color:"#f0ece3", fontFamily:"'Fira Code',monospace", letterSpacing:".1em" }}>{klassenCode}</div>
+                    <div style={{ fontSize:9, color:"rgba(240,236,227,0.3)", marginTop:1 }}>Wiederverbindungs-Code</div>
+                  </div>
+                  <img src={`https://api.qrserver.com/v1/create-qr-code/?size=80x80&color=f0ece3&bgcolor=141008&data=${encodeURIComponent(sessionUrl)}`} alt="QR" width={64} height={64} style={{ borderRadius:6, border:"1px solid rgba(240,236,227,0.1)", flexShrink:0 }}/>
+                  <div style={{ flex:1, display:"flex", flexDirection:"column", gap:5 }}>
+                    <div style={{ fontSize:9, color:"rgba(240,236,227,0.3)", fontFamily:"'Fira Code',monospace", wordBreak:"break-all", lineHeight:1.4 }}>{sessionUrl.replace("https://","")}</div>
+                    <button onClick={() => navigator.clipboard?.writeText(sessionUrl)} style={{ padding:"5px 10px", background:"rgba(232,96,10,0.12)", border:"1px solid rgba(232,96,10,0.25)", borderRadius:6, color:"#e8600a", cursor:"pointer", fontSize:10, fontWeight:700 }}>Link kopieren</button>
+                  </div>
+                </div>
+                {/* Schüler-Reconnect-Hinweis */}
+                <div style={{ fontSize:10, color:"rgba(240,236,227,0.4)", background:"rgba(240,236,227,0.04)", borderRadius:6, padding:"7px 10px", marginBottom:8, lineHeight:1.5 }}>
+                  Schüler verwenden Code <strong style={{ color:"#93c5fd", fontFamily:"monospace" }}>{klassenCode}</strong> + ihren eingegebenen Namen zum Wiederverbinden.
+                </div>
+                {/* Live Rangliste */}
+                {rangliste.length > 0 && (
+                  <div style={{ marginBottom:8 }}>
+                    <div style={{ fontSize:10, fontWeight:700, color:"rgba(240,236,227,0.3)", textTransform:"uppercase", letterSpacing:".06em", marginBottom:4 }}>Live-Rangliste</div>
+                    {rangliste.slice(0,5).map((r,i) => (
+                      <div key={i} style={{ display:"flex", gap:6, fontSize:11, padding:"3px 0", borderBottom:"1px solid rgba(240,236,227,0.05)", color:"#f0ece3" }}>
+                        <span style={{ fontWeight:700, minWidth:16, color:"#e8600a" }}>{i+1}.</span>
+                        <span style={{ flex:1 }}>{r.spieler}</span>
+                        <span style={{ color: r.zeit?"#4ade80":"#e8600a", fontWeight:700 }}>{r.punkte}/{r.max_punkte} P</span>
+                        <span style={{ color:"rgba(240,236,227,0.3)", fontFamily:"monospace", fontSize:10 }}>{r.zeit ? fmtTime(r.zeit) : "läuft…"}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {/* LK-Aktionen im QR-Block */}
+                <div style={{ display:"flex", gap:7, marginTop:4 }}>
+                  <button onClick={() => startSpiel(selectedFirma || UNTERNEHMEN[0])}
+                    style={{ flex:2, padding:"10px 12px", background:"#e8600a", color:"#fff", border:"none", borderRadius:8, fontWeight:800, fontSize:12, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}>
+                    <Eye size={13} strokeWidth={1.5}/>Vorschau starten
+                  </button>
+                  <button onClick={() => setDashboardOffen(true)}
+                    style={{ flex:1, padding:"10px 10px", background:"rgba(240,236,227,0.07)", color:"rgba(240,236,227,0.75)", border:"1px solid rgba(240,236,227,0.15)", borderRadius:8, fontWeight:700, fontSize:11, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:5 }}>
+                    <Users size={12} strokeWidth={1.5}/>Dashboard
+                  </button>
+                </div>
+              </div>
+            );
+          })()}
+        </div>
 
-  // ── Firma wählen ───────────────────────────────────────────────────────────
-  if (phase === "firma") return (
-    <div style={{ maxWidth:520, margin:"0 auto", padding:"24px 16px" }}>
-      <button onClick={() => setPhase("setup")} style={{ background:"none", border:"none", color:"rgba(240,236,227,0.45)", cursor:"pointer", fontSize:13, marginBottom:16 }}>← Zurück</button>
-      <div style={{ fontSize:22, fontWeight:800, color:"#f0ece3", marginBottom:16, display:"flex", alignItems:"center", gap:8 }}><Building2 size={20} strokeWidth={1.5} style={{color:"#e8600a"}}/>Firma wählen</div>
-      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
-        {UNTERNEHMEN.slice(0, 12).map(u => (
-          <button key={u.id} onClick={() => startSpiel(u)}
-            style={{ padding:"14px", border:"1px solid rgba(240,236,227,0.12)", borderRadius:12, background:"rgba(240,236,227,0.05)", cursor:"pointer", textAlign:"left",
-              transition:"all 0.15s" }}
-            onMouseOver={e=>e.currentTarget.style.borderColor="#e8600a"}
-            onMouseOut={e=>e.currentTarget.style.borderColor="rgba(240,236,227,0.12)"}>
-            <div style={{ fontWeight:700, fontSize:13, color:"#f0ece3", marginBottom:2 }}>{u.name}</div>
-            <div style={{ fontSize:11, color:"rgba(240,236,227,0.4)" }}>{u.branche}</div>
+        {/* Kampagne-Steuerung */}
+        {modus === "projekt" && klassenCode && !vonURL && (
+          <div style={{ marginBottom:10 }}>
+            <div style={{ fontSize:10, fontWeight:700, color:"rgba(240,236,227,0.4)", marginBottom:6, textTransform:"uppercase", letterSpacing:".07em" }}>Kampagne-Steuerung</div>
+            <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+              {[[0,"Ankündigung aufheben"],[1,"Ende in 1 Runde"],[3,"Ende in 3 Runden"],[5,"Ende in 5 Runden"]].map(([n, label]) => (
+                <button key={n} onClick={async () => {
+                  setEndAnnouncement(n);
+                  await apiFetch(`/session/kontrolle/${klassenCode}`, "POST", { end_in: n });
+                }}
+                  style={{ padding:"7px 11px", borderRadius:7, border:`1.5px solid ${endAnnouncement===n?"#e8600a":"rgba(240,236,227,0.15)"}`, background:endAnnouncement===n?"rgba(232,96,10,0.12)":"rgba(240,236,227,0.04)", color:endAnnouncement===n?"#e8600a":"rgba(240,236,227,0.55)", fontWeight:700, fontSize:11, cursor:"pointer" }}>
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Start-Button – generiert Code + öffnet QR-Menü */}
+        <div style={{ marginTop:4 }}>
+          <button
+            onClick={() => { if (selectedFirma) genCode(); }}
+            disabled={!selectedFirma}
+            style={{ width:"100%", padding:"14px", background:selectedFirma?"#e8600a":"rgba(240,236,227,0.08)", color:selectedFirma?"#fff":"rgba(240,236,227,0.3)", border:"none", borderRadius:12, fontWeight:800, fontSize:15, cursor:selectedFirma?"pointer":"not-allowed", transition:"all 0.15s", display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
+            <QrCode size={18} strokeWidth={1.5}/>
+            {selectedFirma ? "Simulation starten →" : "← Zuerst Firma wählen (Schritt 3)"}
           </button>
-        ))}
+        </div>
       </div>
     </div>
-  );
+    );
+  }
+
+  // Kampagne-Ende-Banner (Schüler sehen es im Spiel)
+  const endeBanner = endeAnkuendigung?.end_in > 0 && vonURL ? (
+    <div style={{ background:"rgba(232,96,10,0.13)", border:"1px solid rgba(232,96,10,0.45)", borderRadius:10, padding:"10px 14px", marginBottom:10, display:"flex", alignItems:"center", gap:8 }}>
+      <Megaphone size={14} strokeWidth={1.5} style={{ color:"#e8600a", flexShrink:0 }}/>
+      <span style={{ fontSize:12, fontWeight:700, color:"#e8600a" }}>
+        Deine Lehrkraft hat das Ende angekündigt – noch {endeAnkuendigung.end_in} Runde{endeAnkuendigung.end_in !== 1 ? "n" : ""} verbleibend.
+      </span>
+    </div>
+  ) : null;
+
+  // Hilfsfunktion: Abschluss-POST + Spielstand-Checkpoint
+  const KL_LERNBEREICH = { "7": "Buchführung Kl. 7", "8": "Buchführung Kl. 8", "9": "Buchführung Kl. 9", "10": "Buchführung Kl. 10" };
+
+  const mkAbschluss = (kl) => async ({ punkte: p, maxPunkte: mp, verlauf: v, zeit, poolGroesse }) => {
+    setPunkte(p); setMaxPunkte(mp); setVerlauf(v); setElapsed(zeit * 1000);
+    if (klassenCode) {
+      const name = spielerName || "Anonym";
+      await apiFetch("/spielrangliste", "POST", { session_code: klassenCode, spieler: name, punkte: p, max_punkte: mp, zeit, klasse: kl });
+      await apiFetch(`/session/stand/${klassenCode}/${encodeURIComponent(name)}`, "POST", { punkte: p, max_punkte: mp, aufgabe_idx: 0 });
+      const rl = await apiFetch(`/rangliste/${klassenCode}`);
+      setRangliste(rl || []);
+    }
+    // Streak + Level aufzeichnen (nur wenn Name angegeben)
+    if (spielerName.trim()) {
+      const sd = await recordCompletion(klassenCode || null);
+      if (sd) setStreakData(sd);
+      // Level: korrekte/gesamt aus verlauf zählen
+      if (v && v.length > 0) {
+        const lernbereich   = KL_LERNBEREICH[kl] || `Buchführung Kl. ${kl}`;
+        const korrektCount  = v.filter(x => x.korrekt).length;
+        const gesamtCount   = v.length;
+        const gesamtAufgaben = poolGroesse || gesamtCount * 3; // Fallback: 3× Session-Größe
+        const ld = await recordLevel(lernbereich, korrektCount, gesamtCount, gesamtAufgaben);
+        if (ld) setLevelData({ ...ld, lernbereich });
+      }
+    }
+    setPhase("abschluss");
+  };
+
+  const onFortschritt = (p, mp) => { fortschrittRef.current = { punkte: p, maxPunkte: mp }; };
 
   // ── Banking Simulator Klasse 7 ─────────────────────────────────────────────
   if (phase === "bank7" && firma) return (
-    <BankingSimulator7
+    <>{endeBanner}<BankingSimulator7
       firma={firma}
       lehrerConfig={lehrerConfig}
-      onAbschluss={async ({ punkte: p, maxPunkte: mp, verlauf: v, zeit }) => {
-        setPunkte(p);
-        setMaxPunkte(mp);
-        setVerlauf(v);
-        setElapsed(zeit * 1000);
-        if (modus === "klasse" && klassenCode) {
-          await apiFetch("/spielrangliste", "POST", { session_code: klassenCode, spieler: spielerName || "Anonym", punkte: p, max_punkte: mp, zeit, klasse: "7" });
-          const rl = await apiFetch(`/rangliste/${klassenCode}`);
-          setRangliste(rl || []);
-        }
-        setPhase("abschluss");
-      }}
-    />
+      modus={modus}
+      stundenMin={stundenMin}
+      onAbschluss={mkAbschluss("7")}
+      onFortschritt={onFortschritt}
+    /></>
   );
 
   // ── Banking Simulator Klasse 8 ─────────────────────────────────────────────
   if (phase === "bank8" && firma) return (
-    <BankingSimulator7
+    <>{endeBanner}<BankingSimulator7
       klasse="8"
       firma={firma}
       lehrerConfig={lehrerConfig}
-      onAbschluss={async ({ punkte: p, maxPunkte: mp, verlauf: v, zeit }) => {
-        setPunkte(p);
-        setMaxPunkte(mp);
-        setVerlauf(v);
-        setElapsed(zeit * 1000);
-        if (modus === "klasse" && klassenCode) {
-          await apiFetch("/spielrangliste", "POST", { session_code: klassenCode, spieler: spielerName || "Anonym", punkte: p, max_punkte: mp, zeit, klasse: "8" });
-          const rl = await apiFetch(`/rangliste/${klassenCode}`);
-          setRangliste(rl || []);
-        }
-        setPhase("abschluss");
-      }}
-    />
+      modus={modus}
+      stundenMin={stundenMin}
+      onAbschluss={mkAbschluss("8")}
+      onFortschritt={onFortschritt}
+    /></>
   );
 
   // ── Banking Simulator Klasse 9 – Börsenspiel ───────────────────────────────
   if (phase === "bank9" && firma) return (
-    <BankingSimulator7
+    <>{endeBanner}<BankingSimulator7
       klasse="9"
       firma={firma}
       lehrerConfig={lehrerConfig}
-      onAbschluss={async ({ punkte: p, maxPunkte: mp, verlauf: v, zeit }) => {
-        setPunkte(p);
-        setMaxPunkte(mp);
-        setVerlauf(v);
-        setElapsed(zeit * 1000);
-        if (modus === "klasse" && klassenCode) {
-          await apiFetch("/spielrangliste", "POST", { session_code: klassenCode, spieler: spielerName || "Anonym", punkte: p, max_punkte: mp, zeit, klasse: "9" });
-          const rl = await apiFetch(`/rangliste/${klassenCode}`);
-          setRangliste(rl || []);
-        }
-        setPhase("abschluss");
-      }}
-    />
+      modus={modus}
+      stundenMin={stundenMin}
+      onAbschluss={mkAbschluss("9")}
+      onFortschritt={onFortschritt}
+    /></>
   );
 
   // ── Banking Simulator Klasse 10 – MSA-Vorbereitung ────────────────────────
   if (phase === "bank10" && firma) return (
-    <BankingSimulator7
+    <>{endeBanner}<BankingSimulator7
       klasse="10"
       firma={firma}
       lehrerConfig={lehrerConfig}
-      onAbschluss={async ({ punkte: p, maxPunkte: mp, verlauf: v, zeit }) => {
-        setPunkte(p);
-        setMaxPunkte(mp);
-        setVerlauf(v);
-        setElapsed(zeit * 1000);
-        if (modus === "klasse" && klassenCode) {
-          await apiFetch("/spielrangliste", "POST", { session_code: klassenCode, spieler: spielerName || "Anonym", punkte: p, max_punkte: mp, zeit, klasse: "10" });
-          const rl = await apiFetch(`/rangliste/${klassenCode}`);
-          setRangliste(rl || []);
-        }
-        setPhase("abschluss");
-      }}
-    />
+      modus={modus}
+      stundenMin={stundenMin}
+      onAbschluss={mkAbschluss("10")}
+      onFortschritt={onFortschritt}
+    /></>
   );
 
   // ── Spiel ──────────────────────────────────────────────────────────────────
@@ -11636,6 +13060,11 @@ function SimulationModus({ onZurueck }) {
           <div style={{ fontSize:13, color:"rgba(240,236,227,0.5)", display:"flex", alignItems:"center", gap:6, justifyContent:"center" }}><Timer size={13} strokeWidth={1.5}/>{fmtTime(Math.round(elapsed/1000))} | {firma?.name}</div>
         </div>
 
+        {/* Streak-Celebration */}
+        {streakData && <div style={{ marginBottom:12 }}><StreakCelebration streak={streakData} /></div>}
+        {/* Level-Update */}
+        {levelData && <div style={{ marginBottom:16 }}><LevelUpdate {...levelData} /></div>}
+
         {/* Verlauf */}
         <div style={{ marginBottom:20 }}>
           <div style={{ fontSize:13, fontWeight:700, color:"#374151", marginBottom:8 }}>Auswertung</div>
@@ -11667,9 +13096,11 @@ function SimulationModus({ onZurueck }) {
           <button onClick={() => { setPhase("setup"); }} style={{ flex:1, padding:"12px", background:"rgba(240,236,227,0.06)", color:"rgba(240,236,227,0.7)", border:"1px solid rgba(240,236,227,0.12)", borderRadius:10, fontWeight:700, fontSize:13, cursor:"pointer" }}>
             Nochmal
           </button>
-          <button onClick={onZurueck} style={{ flex:1, padding:"12px", background:"#e8600a", color:"#fff", border:"none", borderRadius:10, fontWeight:700, fontSize:13, cursor:"pointer" }}>
-            Zurück zum Start
-          </button>
+          {!vonURL && (
+            <button onClick={onZurueck} style={{ flex:1, padding:"12px", background:"#e8600a", color:"#fff", border:"none", borderRadius:10, fontWeight:700, fontSize:13, cursor:"pointer" }}>
+              Zurück zum Start
+            </button>
+          )}
         </div>
         <button onClick={() => {
           const note = maxPunkte ? Math.round(punkte/maxPunkte*100) : 0;
@@ -11693,7 +13124,7 @@ function SimulationModus({ onZurueck }) {
               <div>
                 <div style="font-size:11px;font-weight:700;color:#e8600a;letter-spacing:.1em;text-transform:uppercase;margin-bottom:4px">BuchungsWerk – Simulation Klasse ${schwierigkeit}</div>
                 <h1>${firma?.name || "Simulation"}</h1>
-                <div style="color:#64748b;font-size:13px">Ergebnisauswertung · Modus: ${modus === "klasse" ? "Klassenmodus ("+klassenCode+")" : "Solo"}</div>
+                <div style="color:#64748b;font-size:13px">Ergebnisauswertung · ${modus === "stunde" ? "Übungsstunde "+stundenMin+" Min" : "Kampagne"}${klassenCode ? " · Session "+klassenCode : ""}</div>
               </div>
               <div style="text-align:right">
                 <div style="font-size:32px;font-weight:900;color:#0f172a">${punkte} / ${maxPunkte}</div>
@@ -12490,9 +13921,15 @@ export default function BuchungsWerk({ gastModus = false }) {
   const [streak, setStreak] = useState(ladeStreak);
   const [masteryOffen, setMasteryOffen] = useState(false);
   const [disclaimerOffen, setDisclaimerOffen] = useState(() => {
+    if (gastModus) return false; // Schüler sehen keinen Lehrer-Disclaimer
     try { return !localStorage.getItem("bw_disclaimer_ok"); } catch { return true; }
   });
-  const reset = () => { setSchritt(1); setConfig(null); setFirma(null); };
+  const [isVonURL, setIsVonURL] = useState(false);
+  const simResetFnRef = useRef(null);
+  const [klasseZimmerOffen, setKlasseZimmerOffen] = useState(false);
+  const [klasseZimmerAufgaben, setKlasseZimmerAufgaben] = useState([]);
+  const aufgabenForQuizRef = useRef([]);
+  const reset = () => { setSchritt(1); setConfig(null); setFirma(null); setIsVonURL(false); };
 
   const materialLaden = ({ config: c, firma: f }) => {
     setConfig(c);
@@ -12509,6 +13946,7 @@ export default function BuchungsWerk({ gastModus = false }) {
     <SettingsContext.Provider value={settings}>
     <div style={S.page}>
       {masteryOffen && <MasteryModal onSchliessen={() => setMasteryOffen(false)} />}
+      {klasseZimmerOffen && <TeacherDashboard aufgaben={klasseZimmerAufgaben} user={(() => { try { return JSON.parse(localStorage.getItem("bw_user")); } catch { return null; } })()} onClose={() => setKlasseZimmerOffen(false)} />}
       {disclaimerOffen && <DisclaimerModal onSchliessen={() => { try { localStorage.setItem("bw_disclaimer_ok","1"); } catch {} setDisclaimerOffen(false); }} />}
       {einstellungenOffen && <EinstellungenModal settings={settings} setSettings={setSettings} onSchliessen={() => setEinstellungenOffen(false)} />}
       {belegEditorOffen  && <BelegEditorModal  onSchliessen={() => setBelegEditorOffen(false)} />}
@@ -12523,7 +13961,7 @@ export default function BuchungsWerk({ gastModus = false }) {
             <div>Buchungs<span style={S.logoAccent}>Werk</span></div>
             <div style={{ fontSize: 9, fontWeight: 600, color: "#475569", letterSpacing: ".12em", textTransform: "uppercase", marginTop: 2 }}>BwR Bayern</div>
           </div>
-          {streak.count > 0 && (
+          {!gastModus && !isVonURL && streak.count > 0 && (
             <div title={`${streak.count} Tag${streak.count===1?"":"e"} in Folge aktiv · Rekord: ${streak.longest} Tage`}
               style={{ display:"flex", flexDirection:"column", alignItems:"center", background:"#1e293b",
                 border:`1.5px solid ${streak.count>=7?"#e8600a":"#334155"}`, borderRadius:8,
@@ -12537,19 +13975,37 @@ export default function BuchungsWerk({ gastModus = false }) {
           )}
         </div>
 
-        {/* Mitte: Stepper (Lehrer) oder Schüler-Aktionen */}
-        {gastModus ? (
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginLeft: 8 }}>
-            <button onClick={reset}
-              style={{ display:"flex", alignItems:"center", gap:6, padding:"7px 12px", background:"rgba(240,236,227,0.06)", border:"1px solid rgba(240,236,227,0.12)", borderRadius:8, color:"rgba(240,236,227,0.65)", fontSize:12, fontWeight:600, cursor:"pointer" }}>
-              ← Zurück
+        {/* Mitte: Kontext-abhängige Top-Bar */}
+        {schritt === 4 && isVonURL ? (
+          /* Schüler-Session-Bar */
+          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+            <Factory size={13} strokeWidth={1.5} style={{ color:"#e8600a" }}/>
+            <span style={{ fontSize:11, fontWeight:700, color:"rgba(240,236,227,0.45)", letterSpacing:".07em", textTransform:"uppercase" }}>Simulation · Schüler</span>
+          </div>
+        ) : schritt === 4 ? (
+          /* Lehrer Simulation-Bar */
+          <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+            <Factory size={13} strokeWidth={1.5} style={{ color:"#e8600a" }}/>
+            <span style={{ fontSize:11, fontWeight:700, color:"rgba(240,236,227,0.45)", letterSpacing:".07em", textTransform:"uppercase" }}>Simulation</span>
+            <button onClick={() => simResetFnRef.current?.()}
+              style={{ marginLeft:6, padding:"5px 11px", background:"rgba(232,96,10,0.1)", border:"1px solid rgba(232,96,10,0.25)", borderRadius:7, color:"#e8600a", fontSize:11, fontWeight:700, cursor:"pointer" }}>
+              ← Zur Session
             </button>
+            <button onClick={reset}
+              style={{ padding:"5px 11px", background:"rgba(240,236,227,0.04)", border:"1px solid rgba(240,236,227,0.1)", borderRadius:7, color:"rgba(240,236,227,0.35)", fontSize:11, fontWeight:600, cursor:"pointer" }}>
+              Verlassen ✕
+            </button>
+          </div>
+        ) : gastModus ? (
+          /* Gast-Bar (normaler Übungsmodus, kein QR-Scan) */
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginLeft: 8 }}>
             <button onClick={() => setKontenplanOffen(true)}
               style={{ display:"flex", alignItems:"center", gap:6, padding:"7px 12px", background:"rgba(232,96,10,0.1)", border:"1px solid rgba(232,96,10,0.25)", borderRadius:8, color:"#e8600a", fontSize:12, fontWeight:700, cursor:"pointer" }}>
               <BookMarked size={14} strokeWidth={1.5}/>Kontenplan
             </button>
           </div>
         ) : (
+          /* Lehrer-Stepper (normale Aufgaben-Erstellung) */
           <div style={{ flex: 1, display: "flex", justifyContent: "center", alignItems: "center" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 0 }}>
               {[["Thema","1"], ["Unternehmen","2"], ["Aufgaben","3"], ["Export","4"]].map(([label, icon], i) => {
@@ -12587,10 +14043,10 @@ export default function BuchungsWerk({ gastModus = false }) {
 
       <div style={S.container}>
         {!gastModus && <SupportButton />}
-        {schritt === 1 && <SchrittTyp onWeiter={cfg => { setConfig(cfg); if (skipFirma) { setSkipFirma(false); setSchritt(3); setStreak(aktualisiereStreak()); } else setSchritt(2); }} onBelegEditor={() => setBelegEditorOffen(true)} onEigeneBelege={() => setEigeneBelegeOffen(true)} onSimulation={() => setSchritt(4)} initialConfig={skipFirma ? config : null} />}
-        {schritt === 2 && <SchrittFirma config={config} onWeiter={f => { setFirma(f); setSchritt(3); setStreak(aktualisiereStreak()); }} onZurueck={() => setSchritt(1)} />}
-        {schritt === 3 && <ErrorBoundary><SchrittAufgaben config={config} firma={firma} onNeu={reset} onMaterialLaden={materialLaden} onThemen={zuThemen} onFirma={zuFirma} /></ErrorBoundary>}
-        {schritt === 4 && <SimulationModus onZurueck={reset} />}
+        {schritt === 1 && <SchrittTyp onWeiter={cfg => { setConfig(cfg); if (skipFirma) { setSkipFirma(false); setSchritt(3); if (!gastModus) setStreak(aktualisiereStreak()); } else setSchritt(2); }} onBelegEditor={() => setBelegEditorOffen(true)} onEigeneBelege={() => setEigeneBelegeOffen(true)} onSimulation={() => setSchritt(4)} initialConfig={skipFirma ? config : null} />}
+        {schritt === 2 && <SchrittFirma config={config} onWeiter={f => { setFirma(f); setSchritt(3); if (!gastModus) setStreak(aktualisiereStreak()); }} onZurueck={() => setSchritt(1)} />}
+        {schritt === 3 && <ErrorBoundary><SchrittAufgaben config={config} firma={firma} onNeu={reset} onMaterialLaden={materialLaden} onThemen={zuThemen} onFirma={zuFirma} aufgabenRef={aufgabenForQuizRef} /></ErrorBoundary>}
+        {schritt === 4 && <ErrorBoundary><SimulationModus onZurueck={reset} onVonURLDetected={() => setIsVonURL(true)} onRegisterReset={fn => { simResetFnRef.current = fn; }} /></ErrorBoundary>}
       </div>
 
       {/* Bottom-Bar – nur für eingeloggte Lehrer */}
@@ -12600,6 +14056,7 @@ export default function BuchungsWerk({ gastModus = false }) {
           { icon: BookOpen,      label:"Materialien",  action: () => setMaterialienStartOffen(true) },
           { icon: GraduationCap, label:"AP-Übung",     action: () => setApUebungOffen(true) },
           { icon: ReceiptEuro,   label:"Beleg-Editor", action: () => setBelegEditorOffen(true) },
+          { icon: Users,         label:"Klassenzimmer",action: () => { setKlasseZimmerAufgaben(aufgabenForQuizRef.current || []); setKlasseZimmerOffen(true); } },
           { icon: BookMarked,    label:"Kontenplan",   action: () => setKontenplanOffen(true) },
           { icon: Settings,      label:"Einstell.",    action: () => setEinstellungenOffen(true) },
         ].map(({ icon, label, action }) => (

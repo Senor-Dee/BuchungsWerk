@@ -737,7 +737,7 @@ function CtaSection({ onRegister }) {
 }
 
 // ── Footer ─────────────────────────────────────────────────────────────────────
-function Footer() {
+function Footer({ onLegal }) {
   return (
     <footer style={{ borderTop:"1px solid rgba(240,236,227,0.08)", padding:"28px 24px",
       display:"flex", justifyContent:"space-between", alignItems:"center",
@@ -747,12 +747,118 @@ function Footer() {
         BUCHUNGS<span style={{ color:"rgba(232,96,10,0.6)" }}>WERK</span>
       </div>
       <div style={{ fontSize:"11px", color:"rgba(240,236,227,0.25)", display:"flex", gap:20, flexWrap:"wrap" }}>
-        {["Impressum","Datenschutz","Kontakt"].map(l => (
-          <span key={l} style={{ cursor:"pointer" }} className="lp-nav-link">{l}</span>
+        {[["Impressum","impressum"],["Datenschutz","datenschutz"],["Kontakt","kontakt"]].map(([l,k]) => (
+          <span key={k} onClick={() => onLegal(k)} style={{ cursor:"pointer" }} className="lp-nav-link">{l}</span>
         ))}
       </div>
       <div style={{ fontSize:"11px", color:"rgba(240,236,227,0.2)" }}>© 2026 Anton Gebert · AGPL-3.0</div>
     </footer>
+  );
+}
+
+// ── Legal Modal ─────────────────────────────────────────────────────────────────
+const LEGAL_CONTENT = {
+  impressum: {
+    title: "Impressum",
+    html: `
+<h3>Angaben gemäß § 5 TMG</h3>
+<p><strong>Anton Gebert</strong><br/>
+[STRASSE UND HAUSNUMMER]<br/>
+[PLZ ORT]</p>
+
+<h3>Kontakt</h3>
+<p>E-Mail: <a href="mailto:info@buchungswerk.org">info@buchungswerk.org</a></p>
+
+<h3>Berufsbezeichnung und berufsrechtliche Regelungen</h3>
+<p>Berufsbezeichnung: Lehrer (verliehen in der Bundesrepublik Deutschland)<br/>
+Zuständige Kammer/Behörde: Bayerisches Staatsministerium für Unterricht und Kultus</p>
+
+<h3>EU-Streitschlichtung</h3>
+<p>Die Europäische Kommission stellt eine Plattform zur Online-Streitbeilegung (OS) bereit:
+<a href="https://ec.europa.eu/consumers/odr/" target="_blank" rel="noopener noreferrer">https://ec.europa.eu/consumers/odr/</a>.<br/>
+Unsere E-Mail-Adresse finden Sie oben im Impressum.</p>
+
+<h3>Verbraucherstreitbeilegung / Universalschlichtungsstelle</h3>
+<p>Wir sind nicht bereit oder verpflichtet, an Streitbeilegungsverfahren vor einer Verbraucherschlichtungsstelle teilzunehmen.</p>
+
+<h3>Haftung für Inhalte</h3>
+<p>Als Diensteanbieter sind wir gemäß § 7 Abs. 1 TMG für eigene Inhalte auf diesen Seiten nach den allgemeinen Gesetzen verantwortlich. Die auf dieser Plattform bereitgestellten Aufgaben und Inhalte dienen ausschließlich Bildungszwecken und erheben keinen Anspruch auf Vollständigkeit oder Aktualität des Lehrplans.</p>
+    `
+  },
+  datenschutz: {
+    title: "Datenschutzerklärung",
+    html: `
+<h3>1. Datenschutz auf einen Blick</h3>
+<p>Die folgenden Hinweise geben einen einfachen Überblick darüber, was mit Ihren personenbezogenen Daten passiert, wenn Sie diese Website besuchen.</p>
+
+<h3>2. Verantwortliche Stelle</h3>
+<p><strong>Anton Gebert</strong><br/>
+E-Mail: <a href="mailto:info@buchungswerk.org">info@buchungswerk.org</a></p>
+
+<h3>3. Erhebung und Speicherung personenbezogener Daten</h3>
+<p><strong>Registrierung:</strong> Bei der Registrierung werden E-Mail-Adresse, Vorname, Nachname und Schule/Klasse gespeichert. Diese Daten werden ausschließlich zur Bereitstellung des Dienstes verwendet.</p>
+<p><strong>Nutzungsdaten:</strong> Quiz-Ergebnisse und Lernfortschritte werden gespeichert, um personalisierte Auswertungen zu ermöglichen.</p>
+<p><strong>Server:</strong> Die Anwendung wird auf einem eigenen Server in Deutschland betrieben. Es werden keine Daten an Dritte weitergegeben.</p>
+
+<h3>4. Cookies</h3>
+<p>Diese Website verwendet ausschließlich technisch notwendige Cookies (Session-Token für die Anmeldung). Es werden keine Tracking- oder Werbe-Cookies eingesetzt.</p>
+
+<h3>5. Keine Weitergabe an Dritte</h3>
+<p>Ihre personenbezogenen Daten werden nicht an Dritte weitergegeben, verkauft oder für Werbezwecke genutzt.</p>
+
+<h3>6. Ihre Rechte (Art. 15–22 DSGVO)</h3>
+<p>Sie haben jederzeit das Recht auf Auskunft, Berichtigung, Löschung, Einschränkung der Verarbeitung und Datenübertragbarkeit. Wenden Sie sich dazu an: <a href="mailto:info@buchungswerk.org">info@buchungswerk.org</a></p>
+
+<h3>7. Beschwerderecht</h3>
+<p>Sie haben das Recht, sich bei der zuständigen Datenschutzbehörde zu beschweren. In Bayern: Bayerisches Landesamt für Datenschutzaufsicht (BayLDA), Promenade 27, 91522 Ansbach.</p>
+    `
+  },
+  kontakt: {
+    title: "Kontakt",
+    html: `
+<h3>Kontakt aufnehmen</h3>
+<p>Bei Fragen, Anregungen oder Feedback zu BuchungsWerk:</p>
+<p>
+  <strong>E-Mail:</strong> <a href="mailto:info@buchungswerk.org">info@buchungswerk.org</a>
+</p>
+<p style="margin-top:16px; color:rgba(240,236,227,0.5); font-size:13px;">
+  BuchungsWerk ist ein nicht-kommerzielles Bildungsprojekt für bayerische BwR-Lehrkräfte.<br/>
+  Quellcode: <a href="https://github.com" target="_blank" rel="noopener noreferrer" style="color:rgba(232,96,10,0.8)">AGPL-3.0 Open Source</a>
+</p>
+    `
+  }
+};
+
+function LegalModal({ which, onClose }) {
+  const content = LEGAL_CONTENT[which];
+  if (!content) return null;
+  return (
+    <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.75)",
+      backdropFilter:"blur(8px)", zIndex:9000, display:"flex", alignItems:"center",
+      justifyContent:"center", padding:"20px" }}>
+      <div onClick={e => e.stopPropagation()} style={{
+        background:"rgba(20,14,8,0.97)", border:"1px solid rgba(232,96,10,0.2)",
+        borderRadius:16, padding:"32px 36px", maxWidth:680, width:"100%",
+        maxHeight:"80vh", overflowY:"auto", position:"relative",
+        animation:"lp-modal-in 220ms ease",
+        boxShadow:"0 24px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(232,96,10,0.1)" }}>
+        <button onClick={onClose} style={{
+          position:"absolute", top:16, right:16, background:"rgba(240,236,227,0.06)",
+          border:"1px solid rgba(240,236,227,0.1)", borderRadius:8, width:32, height:32,
+          cursor:"pointer", color:"rgba(240,236,227,0.6)", fontSize:18, display:"flex",
+          alignItems:"center", justifyContent:"center" }}>×</button>
+        <h2 style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:28, letterSpacing:"0.05em",
+          color:"#f0ece3", marginBottom:24 }}>{content.title}</h2>
+        <div style={{ color:"rgba(240,236,227,0.75)", fontSize:14, lineHeight:1.7 }}
+          dangerouslySetInnerHTML={{ __html: content.html }} />
+        <style>{`
+          .legal-body h3{color:#f0ece3;font-size:15px;font-weight:700;margin:20px 0 6px;letter-spacing:.02em}
+          .legal-body p{margin-bottom:10px}
+          .legal-body a{color:rgba(232,96,10,0.9);text-decoration:none}
+          .legal-body a:hover{text-decoration:underline}
+        `}</style>
+      </div>
+    </div>
   );
 }
 
@@ -1237,6 +1343,7 @@ function AuthModal({ mode, onSwitch, onClose, onSuccess }) {
 // ══════════════════════════════════════════════════════════════════════════════
 export default function Landing({ onLogin }) {
   const [authModal, setAuthModal] = useState(null);
+  const [legalModal, setLegalModal] = useState(null);
   useEffect(() => {
     if (window.location.hash === "#login")    setAuthModal("login");
     if (window.location.hash === "#register") setAuthModal("register");
@@ -1254,12 +1361,13 @@ export default function Landing({ onLogin }) {
       <FeaturesSection />
       <HowItWorksSection />
       <CtaSection onRegister={() => setAuthModal("register")}/>
-      <Footer />
+      <Footer onLegal={setLegalModal}/>
       {authModal && (
         <AuthModal mode={authModal} onSwitch={m => setAuthModal(m)}
           onClose={() => setAuthModal(null)}
           onSuccess={user => { setAuthModal(null); onLogin(user); }}/>
       )}
+      {legalModal && <LegalModal which={legalModal} onClose={() => setLegalModal(null)}/>}
     </div>
   );
 }
