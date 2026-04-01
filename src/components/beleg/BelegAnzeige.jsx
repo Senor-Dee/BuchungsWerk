@@ -5,6 +5,7 @@
 import React from "react";
 import { Mail } from "lucide-react";
 import { r2, fmt, fmtIBAN } from "../../utils.js";
+import { S } from "../../styles.js";
 
 // ══════════════════════════════════════════════════════════════════════════════
 // BELEG-KOMPONENTEN
