@@ -97,8 +97,8 @@ export default function BuchungsWerk({ gastModus = false }) {
       {/* CSS Animations */}
       <style>{`
         @keyframes bw-picker-up {
-          from { opacity:0; transform:translateX(-50%) translateY(18px) scale(0.96); }
-          to   { opacity:1; transform:translateX(-50%) translateY(0) scale(1); }
+          from { opacity:0; transform:translateY(18px) scale(0.96); }
+          to   { opacity:1; transform:translateY(0) scale(1); }
         }
         @keyframes bw-backdrop {
           from { opacity:0; }
@@ -125,32 +125,30 @@ export default function BuchungsWerk({ gastModus = false }) {
             background:"rgba(0,0,0,0.35)", backdropFilter:"blur(3px)", WebkitBackdropFilter:"blur(3px)",
             animation:"bw-backdrop 0.2s ease" }}
             onClick={() => setBibliothekPickerOffen(false)} />
-          <div style={{ position:"fixed", bottom:72, left:"50%", zIndex:151,
-            animation:"bw-picker-up 0.32s cubic-bezier(0.34,1.56,0.64,1)" }}>
-            <div style={{ transform:"translateX(-50%)",
-              background:"rgba(12,8,2,0.98)", backdropFilter:"blur(28px)", WebkitBackdropFilter:"blur(28px)",
-              border:"1px solid rgba(240,236,227,0.13)", borderTop:"2px solid #e8600a",
-              borderRadius:16, padding:"10px",
-              display:"flex", gap:8, boxShadow:"0 -12px 48px rgba(0,0,0,0.75), 0 0 0 1px rgba(232,96,10,0.08)" }}>
-              {[
-                { icon: BookOpen,   label:"Materialien",   sub:"Geteilte Aufgabensets laden",    action: () => { setBibliothekPickerOffen(false); setMaterialienStartOffen(true); } },
-                { icon: FolderOpen, label:"Eigene Belege", sub:"Selbst erstellte Belege öffnen", action: () => { setBibliothekPickerOffen(false); setEigeneBelegeOffen(true); } },
-              ].map(({ icon: Icon, label, sub, action }) => (
-                <button key={label} onClick={action} className="bw-picker-btn"
-                  style={{ display:"flex", alignItems:"center", gap:12, padding:"12px 18px", borderRadius:12,
-                    background:"rgba(240,236,227,0.04)", border:"1px solid rgba(240,236,227,0.09)",
-                    cursor:"pointer", color:"#f0ece3", minWidth:190 }}>
-                  <div style={{ width:36, height:36, borderRadius:10, background:"rgba(232,96,10,0.12)",
-                    border:"1px solid rgba(232,96,10,0.2)", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
-                    <Icon size={18} strokeWidth={1.5} style={{ color:"#e8600a" }} />
-                  </div>
-                  <div style={{ textAlign:"left" }}>
-                    <div style={{ fontSize:13, fontWeight:700, letterSpacing:"-.01em" }}>{label}</div>
-                    <div style={{ fontSize:10, color:"rgba(240,236,227,0.35)", marginTop:2, fontWeight:500 }}>{sub}</div>
-                  </div>
-                </button>
-              ))}
-            </div>
+          <div style={{ position:"fixed", bottom:72, left:8, right:8, zIndex:151,
+            animation:"bw-picker-up 0.32s cubic-bezier(0.34,1.56,0.64,1)",
+            background:"rgba(12,8,2,0.98)", backdropFilter:"blur(28px)", WebkitBackdropFilter:"blur(28px)",
+            border:"1px solid rgba(240,236,227,0.13)", borderTop:"2px solid #e8600a",
+            borderRadius:16, padding:"10px",
+            display:"flex", gap:8, boxShadow:"0 -12px 48px rgba(0,0,0,0.75), 0 0 0 1px rgba(232,96,10,0.08)" }}>
+            {[
+              { icon: BookOpen,   label:"Materialien",   sub:"Geteilte Aufgabensets laden",    action: () => { setBibliothekPickerOffen(false); setMaterialienStartOffen(true); } },
+              { icon: FolderOpen, label:"Eigene Belege", sub:"Selbst erstellte Belege öffnen", action: () => { setBibliothekPickerOffen(false); setEigeneBelegeOffen(true); } },
+            ].map(({ icon: Icon, label, sub, action }) => (
+              <button key={label} onClick={action} className="bw-picker-btn"
+                style={{ flex:1, display:"flex", alignItems:"center", gap:12, padding:"12px 18px", borderRadius:12,
+                  background:"rgba(240,236,227,0.04)", border:"1px solid rgba(240,236,227,0.09)",
+                  cursor:"pointer", color:"#f0ece3" }}>
+                <div style={{ width:36, height:36, borderRadius:10, background:"rgba(232,96,10,0.12)",
+                  border:"1px solid rgba(232,96,10,0.2)", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+                  <Icon size={18} strokeWidth={1.5} style={{ color:"#e8600a" }} />
+                </div>
+                <div style={{ textAlign:"left" }}>
+                  <div style={{ fontSize:13, fontWeight:700, letterSpacing:"-.01em" }}>{label}</div>
+                  <div style={{ fontSize:10, color:"rgba(240,236,227,0.35)", marginTop:2, fontWeight:500 }}>{sub}</div>
+                </div>
+              </button>
+            ))}
           </div>
         </>
       )}

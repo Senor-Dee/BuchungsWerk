@@ -7,7 +7,7 @@ function getToken() {
   try { return localStorage.getItem("bw_token"); } catch { return null; }
 }
 
-export async function apiFetch(path, method = "GET", body = null, timeoutMs = 10000) {
+export async function apiFetch(path, method = "GET", body = null, timeoutMs = 10000, throwOnError = false) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   const token = getToken();
@@ -24,7 +24,9 @@ export async function apiFetch(path, method = "GET", body = null, timeoutMs = 10
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return method === "DELETE" ? null : res.json();
   } catch (e) {
-    console.warn("BuchungsWerk API:", e.name === "AbortError" ? `Timeout nach ${timeoutMs}ms (${path})` : e.message);
+    const msg = e.name === "AbortError" ? `Timeout nach ${timeoutMs}ms (${path})` : e.message;
+    console.warn("BuchungsWerk API:", msg);
+    if (throwOnError) throw new Error(msg);
     return null;
   } finally {
     clearTimeout(timer);

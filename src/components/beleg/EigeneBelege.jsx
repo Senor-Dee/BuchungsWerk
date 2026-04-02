@@ -57,7 +57,7 @@ function EigeneBelege({ onSchliessen }) {
     catch { return []; }
   });
   const [selected, setSelected]         = useState(null);
-  const [genStatus, setGenStatus]       = useState(null);
+  const [genStatus, setGenStatus]       = useState(null); // null | "loading" | "ok" | "error:<msg>"
   // FIX 2: Historie statt einzelnem Result – Folgeaufgaben werden ANGEHÄNGT
   const [historie, setHistorie]         = useState([]);
   const [klasse, setKlasse]             = useState("9");
@@ -233,8 +233,7 @@ ZUSAMMENGESETZTER BUCHUNGSSATZ – PFLICHT-REGELN FÜR DAS JSON:
 - NIEMALS nur eine Zeile für einen zusammengesetzten Vorgang ausgeben!
 - Die punkte_gesamt-Zahl muss der Summe aller punkte-Felder (+ nebenrechnung_punkte) entsprechen.`;
     try {
-      const json = await apiFetch("/ki/buchung", "POST", { prompt, max_tokens: 1000 });
-      if (!json) throw new Error("Keine Antwort vom KI-Proxy");
+      const json = await apiFetch("/ki/buchung", "POST", { prompt, max_tokens: 1000 }, 45000, true);
       const text = json.content?.find(c => c.type === "text")?.text || "";
       const parsed = JSON.parse(text.replace(/```json|```/g, "").trim());
       const eintrag = { ...parsed, _label: varianteTitel || "Aufgabe", _ts: Date.now() };
@@ -246,7 +245,7 @@ ZUSAMMENGESETZTER BUCHUNGSSATZ – PFLICHT-REGELN FÜR DAS JSON:
       });
       setGenStatus("ok");
       ladeVorschlaege(belegText, parsed);
-    } catch { setGenStatus("error"); }
+    } catch(e) { setGenStatus("error:" + (e?.message || "unbekannt")); }
   };
 
   const ladeVorschlaege = async (belegText, ergebnis) => {
@@ -260,7 +259,7 @@ Schlage 3 weitere didaktisch sinnvolle Aufgabenvarianten oder Folgethemen vor.
 Antworte NUR mit JSON (kein Markdown):
 { "vorschlaege": [ { "titel": "Kurzer Titel", "beschreibung": "1 Satz was geübt wird", "variante": "Präziser Hinweis für Aufgabengenerierung (1-2 Sätze)" } ] }`;
     try {
-      const json = await apiFetch("/ki/buchung", "POST", { prompt, max_tokens: 600 });
+      const json = await apiFetch("/ki/buchung", "POST", { prompt, max_tokens: 600 }, 45000);
       if (!json) throw new Error("Keine Antwort vom KI-Proxy");
       const text = json.content?.find(c => c.type === "text")?.text || "";
       const parsed = JSON.parse(text.replace(/```json|```/g, "").trim());
@@ -505,9 +504,15 @@ Antworte NUR mit JSON (kein Markdown):
                     </button>
                   </div>
 
-                  {genStatus==="error" && (
-                    <div style={{ padding:12, background:"#fee2e2", borderRadius:8, color:"#dc2626", fontSize:12, fontWeight:600 }}>⚠ Fehler. Bitte nochmal versuchen.</div>
-                  )}
+                  {genStatus?.startsWith("error") && (() => {
+                    const msg = genStatus.slice(6);
+                    const hint = msg.includes("503") ? "KI nicht konfiguriert (API-Key fehlt auf Server)"
+                               : msg.includes("502") ? "Anthropic-API-Fehler (Key ungültig oder Rate-Limit)"
+                               : msg.includes("401") || msg.includes("403") ? "Nicht autorisiert – bitte neu einloggen"
+                               : msg.includes("Timeout") ? "Timeout – Server zu langsam, bitte nochmal versuchen"
+                               : `Fehler: ${msg}`;
+                    return <div style={{ padding:12, background:"#fee2e2", borderRadius:8, color:"#dc2626", fontSize:12, fontWeight:600 }}>⚠ {hint}</div>;
+                  })()}
 
                   {/* Alle Aufgaben in der Historie */}
                   {historie.length > 0 && (

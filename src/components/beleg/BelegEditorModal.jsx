@@ -128,7 +128,7 @@ const BE_CSS = `
   .be-typ-tab { padding: 10px 14px; font-size: 12px; font-weight: 600; color: #64748b; cursor: pointer; border: none; background: none; border-bottom: 3px solid transparent; transition: all .15s; white-space: nowrap; font-family: inherit; }
   .be-typ-tab:hover { color: #0f172a; }
   .be-typ-tab.active { color: #0f172a; border-bottom-color: #e8600a; }
-  .be-body { display: grid; grid-template-columns: 360px 1fr; gap: 16px; padding: 16px 20px; flex: 1; overflow: hidden; align-items: start; }
+  .be-body { display: grid; grid-template-columns: 360px 1fr; gap: 16px; padding: 16px 20px; flex: 1; overflow: hidden; align-items: stretch; }
   .be-panel { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden; }
   .be-panel-head { background: #f8fafc; border-bottom: 1px solid #e2e8f0; padding: 10px 16px; font-size: 10px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: #94a3b8; }
   .be-panel-body { padding: 16px; overflow-y: auto; max-height: calc(100vh - 240px); }
@@ -871,43 +871,119 @@ function BelegEditorModal({ onSchliessen }) {
   const [beKiError,   setBeKiError]   = useState(false);
 
   const generiereBeKi = async () => {
-    setBeKiLaden(true); setBeKiErgebnis(null); setBeKiError(false);
+    setBeKiLaden(true); setBeKiErgebnis(null); setBeKiError(null);
     const beData = { eingangsrechnung:dataER, ausgangsrechnung:dataAR, kontoauszug:dataKA, ueberweisung:dataUB, email:dataEM, quittung:dataQU }[typ];
     const belegText = belegZuText({ typ, data: beData });
     const duSie = parseInt(beKiKlasse) <= 9 ? "du/dein/dir (Schüler werden geduzt)" : "Sie/Ihr/Ihnen (Klasse 10 → Siezen)";
-    const prompt = `Du bist bwr-sensei – der spezialisierte BwR-Assistent für bayerische Realschulen (LehrplanPLUS Bayern, ISB-Handreichung, ISB-Kontenplan IKR).
-
-AUFGABE: Erstelle aus dem folgenden Beleg eine vollständige Buchungsaufgabe für Klasse ${beKiKlasse}.
-
-PFLICHTREGELN:
-- Konten: AUSSCHLIESSLICH ISB-Kontenplan (IKR) – keine SKR03/SKR04-Konten!
-- Buchungssatz-Format: "[Nr] [KÜRZEL] [Betrag] an [Nr] [KÜRZEL] [Betrag]" (ISB-Standard)
-- Sprache: ${duSie}
-- Bewertung: 1 Punkt = 1 vollständiger Block (Kontonr. + Kürzel + Betrag korrekt)
-- NR-Punkt: nebenrechnung_punkte=1 wenn Brutto→Netto gerechnet werden muss (nur Kl. 8+), sonst 0
-- Aufgabentext: Modellunternehmen aus dem Beleg einbetten, lehrplan-konform formulieren
-- Erklaerung: Lernbereich-Bezug nennen (z.B. "LB2 Kl.8: Einkaufskalkulation, Nachlassbuchung")
+    const prompt = `Du bist bwr-sensei – BwR-Fachlehrer an einer bayerischen Realschule (Klasse ${beKiKlasse}, ISB LehrplanPLUS Bayern).
+Erstelle auf Basis des folgenden Belegs eine korrekte Buchungsaufgabe. Sprache: ${duSie}
 
 BELEG: ${belegText}
 
-Antworte NUR mit JSON – kein Markdown-Block, kein erklärender Text davor oder danach:
+══════════════════════════════════════════════
+ISB-KONTENPLAN BAYERN – NUR DIESE KONTEN VERWENDEN!
+══════════════════════════════════════════════
+AKTIVKONTEN:
+0500 GR | Grundstücke · 0700 MA | Maschinen und Anlagen · 0840 FP | Fuhrpark
+0860 BM | Büromaschinen · 0870 BGA | Büromöbel und Geschäftsausstattung · 0890 GWG | Geringwertige Wirtschaftsgüter
+2000 R | Rohstoffe · 2010 F | Fremdbauteile · 2020 H | Hilfsstoffe · 2030 B | Betriebsstoffe
+2400 FO | Forderungen aus Lieferungen und Leistungen · 2470 ZWFO | Zweifelhafte Forderungen
+2600 VORST | Vorsteuer · 2800 BK | Bank (Kontokorrentkonto) · 2880 KA | Kasse · 2900 ARA | Aktive Rechnungsabgrenzung
+
+PASSIVKONTEN:
+3000 EK | Eigenkapital · 3001 P | Privatkonto · 3670 EWB | Einzelwertberichtigung
+3680 PWB | Pauschalwertberichtigung · 3900 RST | Rückstellungen
+4200 KBKV | Kurzfristige Bankverbindlichkeiten · 4250 LBKV | Langfristige Bankverbindlichkeiten
+4400 VE | Verbindlichkeiten aus Lieferungen und Leistungen · 4800 UST | Umsatzsteuer · 4900 PRA | Passive Rechnungsabgrenzung
+
+ERTRAGSKONTEN:
+5000 UEFE | Umsatzerlöse für eigene Erzeugnisse · 5430 ASBE | Andere sonstige betriebliche Erträge
+5495 EFO | Erträge aus abgeschriebenen Forderungen · 5710 ZE | Zinserträge
+
+AUFWANDSKONTEN:
+6000 AWR | Aufwendungen für Rohstoffe · 6001 BZKR | Bezugskosten für Rohstoffe
+6010 AWF | Aufwendungen für Fremdbauteile · 6020 AWH | Aufwendungen für Hilfsstoffe
+6030 AWB | Aufwendungen für Betriebsstoffe · 6140 AFR | Ausgangsfrachten
+6200 LG | Löhne und Gehälter · 6400 AGASV | Arbeitgeberanteil zur Sozialversicherung
+6520 ABSA | Abschreibungen auf Sachanlagen · 6700 AWMP | Mieten, Pachten
+6750 KGV | Kosten des Geldverkehrs · 6800 BMK | Büromaterial und Kleingüter
+6870 WER | Werbung · 6900 VBEI | Versicherungsbeiträge
+6950 ABFO | Abschreibungen auf Forderungen · 7510 ZAW | Zinsaufwendungen
+
+══════════════════════════════════════════════
+BUCHUNGSSTRUKTUR-REGELN (ISB LehrplanPLUS Bayern)
+══════════════════════════════════════════════
+AUSGANGSRECHNUNG (Verkauf auf Ziel):
+  → ZUSAMMENGESETZTER Buchungssatz (alle Zeilen gruppe=1):
+    Zeile 1: 2400 FO an 5000 UEFE Nettobetrag (punkte:1)
+    Zeile 2: 2400 FO an 4800 UST  USt-Betrag   (punkte:1)
+  → Bei Sofortrabatt: Nettobetrag NACH Rabatt, kein Rabattkonto!
+
+EINGANGSRECHNUNG (Kauf auf Ziel):
+  → ZUSAMMENGESETZTER Buchungssatz (alle Zeilen gruppe=1):
+    Zeile 1: 6000 AWR (o.ä.) an 4400 VE Nettobetrag (punkte:1)
+    Zeile 2: 2600 VORST       an 4400 VE USt-Betrag  (punkte:1)
+  → Bei Bezugskosten: 6001 BZKR als eigene Zeile (gruppe=1)
+  → Bei GWG (≤800 € netto): 0890 GWG statt AWR
+  → Bei Sofortrabatt: Nettobetrag nach Abzug
+
+RECHNUNGSAUSGLEICH ÜBERWEISUNG:
+  Ausgangsrechnung beglichen: 2800 BK an 2400 FO (Bruttobetrag)
+  Eingangsrechnung bezahlt:   4400 VE an 2800 BK (Bruttobetrag)
+  Mit Skonto (Kl. 8+): zusätzlich 6750 KGV (Käufer) bzw. 5430 ASBE (Verkäufer)
+
+ANLAGEVERMÖGEN (Kauf auf Ziel):
+  0700 MA (o.ä.) + 2600 VORST an 4400 VE
+
+ABSCHREIBUNG: 6520 ABSA an 0700 MA (o.ä.) – kein USt-Vorgang!
+
+══════════════════════════════════════════════
+KONTOANGABE nach Klassenstufe:
+══════════════════════════════════════════════
+Klasse 7:    NUR Kürzel (soll_nr="" haben_nr="")
+Klasse 8–10: Nummer + Kürzel (z.B. "2400", "5000", "4800")
+
+══════════════════════════════════════════════
+AUFGABENTEXT-REGEL (WICHTIG!):
+══════════════════════════════════════════════
+Da der Beleg direkt sichtbar ist, KEINE Belegdaten im Aufgabentext wiederholen!
+NICHT nennen: USt-Satz, Skontofrist, Zahlungsziel, Beträge, Rechnungsnummer.
+RICHTIG: "Buche die Eingangsrechnung in die Bücher der [Firma] ein."
+FALSCH: "...19% USt, Zahlungsziel 30 Tage, Skonto 2% bei Zahlung in 14 Tagen..."
+
+══════════════════════════════════════════════
+PUNKTEVERGABE (ISB Handreichung BwR 2025)
+══════════════════════════════════════════════
+- 1 Punkt pro Konto-Betrag-Block (Teilbuchung im zusammengesetzten Satz)
+- NR-Punkt (nebenrechnung_punkte=1): nur wenn Brutto→Netto selbst berechnet werden muss (Kl.8+)
+- Reine USt-Berechnung = KEIN eigener NR-Punkt
+
+Antworte NUR mit reinem JSON – kein Markdown, kein Text davor oder danach:
 {
-  "aufgabe": "Aufgabentext für Schüler (1–2 Sätze, Modellunternehmen einbetten)",
+  "aufgabe": "Kurzer Aufgabentext (max. 1 Satz, KEINE Belegdaten wiederholen!)",
   "buchungssatz": [
-    { "gruppe": 1, "soll_nr": "XXXX", "soll_name": "Kontoname (KÜRZEL)", "haben_nr": "XXXX", "haben_name": "Kontoname (KÜRZEL)", "betrag": 0.00, "punkte": 1, "erklaerung": "Buchungsgrund + Kontonr.-Herleitung" }
+    { "gruppe": 1, "soll_nr": "XXXX", "soll_name": "Kontoname (KÜRZEL)", "haben_nr": "XXXX", "haben_name": "Kontoname (KÜRZEL)", "betrag": 0.00, "punkte": 1, "erklaerung": "Buchungsgrund" }
   ],
-  "nebenrechnung": "Rechenweg (z.B. Brutto→Netto) falls nötig, sonst leer lassen",
+  "nebenrechnung": "Rechenweg Brutto→Netto falls nötig, sonst leer",
   "nebenrechnung_punkte": 0,
-  "punkte_gesamt": 1,
-  "erklaerung": "Didaktischer Hinweis: Lernbereich, typische Fehler, Differenzierung"
+  "punkte_gesamt": 2,
+  "erklaerung": "LB-Bezug (z.B. LB2 Kl.8: Wareneinkauf auf Ziel), typische Schülerfehler"
 }`;
     try {
-      const json = await apiFetch("/ki/buchung", "POST", { prompt, max_tokens: 800 });
-      if (!json) throw new Error("Keine Antwort");
+      const json = await apiFetch("/ki/buchung", "POST", { prompt, max_tokens: 1400 }, 45000, true);
       const text = json.content?.find(c => c.type === "text")?.text || "";
       const parsed = JSON.parse(text.replace(/```json|```/g, "").trim());
       setBeKiErgebnis(parsed);
-    } catch { setBeKiError(true); }
+    } catch(e) {
+      const msg = e?.message || "";
+      setBeKiError(
+        msg.includes("503") ? "KI nicht konfiguriert – API-Key fehlt auf Server" :
+        msg.includes("502") ? "Anthropic-Fehler – Key ungültig oder Rate-Limit" :
+        msg.includes("401") || msg.includes("403") ? "Nicht autorisiert – bitte neu einloggen" :
+        msg.includes("Timeout") ? "Timeout – bitte nochmal versuchen" :
+        `Fehler: ${msg || "unbekannt"}`
+      );
+    }
     setBeKiLaden(false);
   };
 
@@ -983,46 +1059,49 @@ Antworte NUR mit JSON – kein Markdown-Block, kein erklärender Text davor oder
             </div>
           </div>
           {/* Vorschau + KI */}
-          <div className="be-panel" style={{ display:"flex", flexDirection:"column", overflow:"hidden" }}>
-            <div className="be-panel-head">👁 Live-Vorschau · {typLabel}</div>
-            <div className="be-preview-wrap" ref={previewRef} style={{ flex:1, overflowY:"auto" }}>
-              {typ === "eingangsrechnung" && <BeVorschauRechnung data={dataER} typ="eingangsrechnung" />}
-              {typ === "ausgangsrechnung" && <BeVorschauRechnung data={dataAR} typ="ausgangsrechnung" />}
-              {typ === "kontoauszug"      && <BeVorschauKontoauszug data={dataKA} />}
-              {typ === "ueberweisung"     && <BeVorschauUeberweisung data={dataUB} />}
-              {typ === "email"            && <BeVorschauEmail data={dataEM} />}
-              {typ === "quittung"         && <BeVorschauQuittung data={dataQU} />}
-            </div>
-            {/* ── KI-Aufgabe ── */}
-            <div style={{ padding:"12px 16px", borderTop:"1px solid #e2e8f0", background:"#f8fafc", flexShrink:0 }}>
-              <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom: beKiErgebnis ? 10 : 0 }}>
-                <span style={{ fontWeight:700, fontSize:13, color:"#0f172a", flex:1 }}>🤖 KI-Aufgabe generieren</span>
-                {["7","8","9","10"].map(k => (
-                  <button key={k} onClick={() => setBeKiKlasse(k)}
-                    style={{ padding:"3px 10px", borderRadius:20, border:"1.5px solid", borderColor:beKiKlasse===k?"#0f172a":"#e2e8f0", background:beKiKlasse===k?"#0f172a":"#fff", color:beKiKlasse===k?"#fff":"#475569", fontWeight:700, cursor:"pointer", fontSize:12 }}>
-                    Kl.{k}
-                  </button>
-                ))}
-                <button onClick={generiereBeKi} disabled={beKiLaden}
-                  style={{ padding:"6px 14px", background:beKiLaden?"#94a3b8":"#e8600a", color:"#0f172a", border:"none", borderRadius:8, fontWeight:800, fontSize:12, cursor:beKiLaden?"not-allowed":"pointer" }}>
-                  {beKiLaden ? "Generiere…" : beKiErgebnis ? "Neue Aufgabe" : "Generieren"}
-                </button>
+          <div className="be-panel" style={{ display:"flex", flexDirection:"column" }}>
+            <div className="be-panel-head" style={{ flexShrink:0 }}>👁 Live-Vorschau · {typLabel}</div>
+            {/* Einziger Scroll-Container für Vorschau + KI */}
+            <div ref={previewRef} style={{ flex:1, overflowY:"auto", minHeight:0 }}>
+              <div className="be-preview-wrap" style={{ overflowY:"visible", maxHeight:"none" }}>
+                {typ === "eingangsrechnung" && <BeVorschauRechnung data={dataER} typ="eingangsrechnung" />}
+                {typ === "ausgangsrechnung" && <BeVorschauRechnung data={dataAR} typ="ausgangsrechnung" />}
+                {typ === "kontoauszug"      && <BeVorschauKontoauszug data={dataKA} />}
+                {typ === "ueberweisung"     && <BeVorschauUeberweisung data={dataUB} />}
+                {typ === "email"            && <BeVorschauEmail data={dataEM} />}
+                {typ === "quittung"         && <BeVorschauQuittung data={dataQU} />}
               </div>
-              {beKiError && <div style={{ fontSize:12, color:"#dc2626", padding:"6px 10px", background:"#fee2e2", borderRadius:6 }}>⚠ Fehler – bitte nochmal versuchen.</div>}
-              {beKiErgebnis && (
-                <div style={{ background:"#fff", border:"1px solid #e2e8f0", borderRadius:10, padding:"10px 12px", fontSize:12 }}>
-                  <div style={{ fontWeight:700, color:"#0f172a", marginBottom:5 }}>{beKiErgebnis.punkte_gesamt ?? "?"} P · {beKiErgebnis.aufgabe}</div>
-                  {(beKiErgebnis.buchungssatz || []).map((z, i) => (
-                    <div key={i} style={{ fontFamily:"monospace", fontSize:11, color:"#0f172a", padding:"2px 0" }}>
-                      <span style={{ color:"#1d4ed8", fontWeight:700 }}>{z.soll_nr} {z.soll_name}</span>
-                      <span style={{ color:"#64748b", margin:"0 6px" }}>an</span>
-                      <span style={{ color:"#dc2626", fontWeight:700 }}>{z.haben_nr} {z.haben_name}</span>
-                      <span style={{ color:"#059669", marginLeft:6 }}>{typeof z.betrag==="number"?z.betrag.toLocaleString("de-DE",{minimumFractionDigits:2}):z.betrag} €</span>
-                    </div>
+              {/* ── KI-Aufgabe ── */}
+              <div style={{ padding:"12px 16px", borderTop:"1px solid #e2e8f0", background:"#f8fafc" }}>
+                <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom: beKiErgebnis ? 10 : 0 }}>
+                  <span style={{ fontWeight:700, fontSize:13, color:"#0f172a", flex:1 }}>🤖 KI-Aufgabe generieren</span>
+                  {["7","8","9","10"].map(k => (
+                    <button key={k} onClick={() => setBeKiKlasse(k)}
+                      style={{ padding:"3px 10px", borderRadius:20, border:"1.5px solid", borderColor:beKiKlasse===k?"#0f172a":"#e2e8f0", background:beKiKlasse===k?"#0f172a":"#fff", color:beKiKlasse===k?"#fff":"#475569", fontWeight:700, cursor:"pointer", fontSize:12 }}>
+                      Kl.{k}
+                    </button>
                   ))}
-                  {beKiErgebnis.erklaerung && <div style={{ marginTop:6, fontSize:11, color:"#92400e", background:"#fffbeb", borderRadius:5, padding:"4px 8px" }}>💡 {beKiErgebnis.erklaerung}</div>}
+                  <button onClick={generiereBeKi} disabled={beKiLaden}
+                    style={{ padding:"6px 14px", background:beKiLaden?"#94a3b8":"#e8600a", color:"#0f172a", border:"none", borderRadius:8, fontWeight:800, fontSize:12, cursor:beKiLaden?"not-allowed":"pointer" }}>
+                    {beKiLaden ? "Generiere…" : beKiErgebnis ? "Neue Aufgabe" : "Generieren"}
+                  </button>
                 </div>
-              )}
+                {beKiError && <div style={{ fontSize:12, color:"#dc2626", padding:"6px 10px", background:"#fee2e2", borderRadius:6 }}>⚠ {beKiError}</div>}
+                {beKiErgebnis && (
+                  <div style={{ background:"#fff", border:"1px solid #e2e8f0", borderRadius:10, padding:"10px 12px", fontSize:12 }}>
+                    <div style={{ fontWeight:700, color:"#0f172a", marginBottom:5 }}>{beKiErgebnis.punkte_gesamt ?? "?"} P · {beKiErgebnis.aufgabe}</div>
+                    {(beKiErgebnis.buchungssatz || []).map((z, i) => (
+                      <div key={i} style={{ fontFamily:"monospace", fontSize:11, color:"#0f172a", padding:"2px 0" }}>
+                        <span style={{ color:"#1d4ed8", fontWeight:700 }}>{z.soll_nr} {z.soll_name}</span>
+                        <span style={{ color:"#64748b", margin:"0 6px" }}>an</span>
+                        <span style={{ color:"#dc2626", fontWeight:700 }}>{z.haben_nr} {z.haben_name}</span>
+                        <span style={{ color:"#059669", marginLeft:6 }}>{typeof z.betrag==="number"?z.betrag.toLocaleString("de-DE",{minimumFractionDigits:2}):z.betrag} €</span>
+                      </div>
+                    ))}
+                    {beKiErgebnis.erklaerung && <div style={{ marginTop:6, fontSize:11, color:"#92400e", background:"#fffbeb", borderRadius:5, padding:"4px 8px" }}>💡 {beKiErgebnis.erklaerung}</div>}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
