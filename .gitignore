@@ -36,6 +36,8 @@ npm-debug.log*
 .claude/
 TEMP/
 Analysis/
+BuchungsWerk_Roadmap_2026.docx
+DESIGN_PREVIEW.html
 
 # Temporäre Office-Dateien
 ~$*.docx
