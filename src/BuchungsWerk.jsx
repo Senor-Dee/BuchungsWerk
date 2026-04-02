@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 Anton Gebert <info@buchungswerk.org> - BuchungsWerk
 
-import React, { useState, useRef } from "react";
-import { Factory, TrendingUp, BookOpen, GraduationCap, BookMarked, Settings,
+import React, { useState, useRef, useEffect } from "react";
+import { Factory, BookOpen, GraduationCap, BookMarked,
          Users, FolderOpen,
          Zap, Star, Trophy, Flame, Sprout } from "lucide-react";
 import { useStreak } from "./hooks/useStreak.js";
@@ -68,7 +68,18 @@ export default function BuchungsWerk({ gastModus = false }) {
   const zuFirma  = () => setSchritt(2);
 
   const isSimulation = schritt === 4;
-  const isLehrer = !gastModus && !isSimulation;
+
+  // Custom Events: UserBadge (main.jsx) kann Mastery + Einstellungen öffnen
+  useEffect(() => {
+    const openMastery   = () => setMasteryOffen(true);
+    const openSettings  = () => setEinstellungenOffen(true);
+    window.addEventListener("bw:mastery",   openMastery);
+    window.addEventListener("bw:settings",  openSettings);
+    return () => {
+      window.removeEventListener("bw:mastery",  openMastery);
+      window.removeEventListener("bw:settings", openSettings);
+    };
+  }, []);
 
   return (
     <SettingsContext.Provider value={settings}>
@@ -83,31 +94,63 @@ export default function BuchungsWerk({ gastModus = false }) {
       {materialienStartOffen && <MaterialienModal onSchliessen={() => setMaterialienStartOffen(false)} onLaden={materialLaden} />}
       {apUebungOffen && <APUebungModal onSchliessen={() => setApUebungOffen(false)} />}
 
-      {/* Bibliothek-Picker (Popover über der Bottom-Bar) */}
+      {/* CSS Animations */}
+      <style>{`
+        @keyframes bw-picker-up {
+          from { opacity:0; transform:translateX(-50%) translateY(18px) scale(0.96); }
+          to   { opacity:1; transform:translateX(-50%) translateY(0) scale(1); }
+        }
+        @keyframes bw-backdrop {
+          from { opacity:0; }
+          to   { opacity:1; }
+        }
+        .bw-nav-btn {
+          transition: color 0.15s, transform 0.2s cubic-bezier(0.34,1.56,0.64,1) !important;
+        }
+        .bw-nav-btn:hover { transform: translateY(-3px) !important; }
+        .bw-picker-btn {
+          transition: background 0.15s, border-color 0.15s, transform 0.18s cubic-bezier(0.34,1.56,0.64,1) !important;
+        }
+        .bw-picker-btn:hover {
+          background: rgba(232,96,10,0.13) !important;
+          border-color: rgba(232,96,10,0.4) !important;
+          transform: translateY(-2px) !important;
+        }
+      `}</style>
+
+      {/* Bibliothek-Picker — animiertes Bottom-Sheet */}
       {bibliothekPickerOffen && (
         <>
-          <div style={{ position:"fixed", inset:0, zIndex:150 }} onClick={() => setBibliothekPickerOffen(false)} />
-          <div style={{ position:"fixed", bottom:64, left:"50%", transform:"translateX(-50%)", zIndex:151,
-            background:"rgba(14,10,4,0.97)", backdropFilter:"blur(24px)", WebkitBackdropFilter:"blur(24px)",
-            border:"1px solid rgba(240,236,227,0.14)", borderRadius:14, padding:"8px",
-            display:"flex", gap:6, boxShadow:"0 -8px 40px rgba(0,0,0,0.7)" }}>
-            {[
-              { icon: BookOpen,   label:"Materialien",   sub:"Geteilte Aufgabensets laden",   action: () => { setBibliothekPickerOffen(false); setMaterialienStartOffen(true); } },
-              { icon: FolderOpen, label:"Eigene Belege", sub:"Selbst erstellte Belege öffnen", action: () => { setBibliothekPickerOffen(false); setEigeneBelegeOffen(true); } },
-            ].map(({ icon: Icon, label, sub, action }) => (
-              <button key={label} onClick={action}
-                style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 16px", borderRadius:10,
-                  background:"rgba(240,236,227,0.05)", border:"1px solid rgba(240,236,227,0.1)",
-                  cursor:"pointer", color:"#f0ece3", minWidth:180, transition:"all 0.15s" }}
-                onMouseEnter={e => { e.currentTarget.style.background="rgba(232,96,10,0.12)"; e.currentTarget.style.borderColor="rgba(232,96,10,0.35)"; }}
-                onMouseLeave={e => { e.currentTarget.style.background="rgba(240,236,227,0.05)"; e.currentTarget.style.borderColor="rgba(240,236,227,0.1)"; }}>
-                <Icon size={20} strokeWidth={1.5} style={{ color:"#e8600a", flexShrink:0 }} />
-                <div style={{ textAlign:"left" }}>
-                  <div style={{ fontSize:13, fontWeight:700 }}>{label}</div>
-                  <div style={{ fontSize:10, color:"rgba(240,236,227,0.4)", marginTop:1 }}>{sub}</div>
-                </div>
-              </button>
-            ))}
+          <div style={{ position:"fixed", inset:0, zIndex:150,
+            background:"rgba(0,0,0,0.35)", backdropFilter:"blur(3px)", WebkitBackdropFilter:"blur(3px)",
+            animation:"bw-backdrop 0.2s ease" }}
+            onClick={() => setBibliothekPickerOffen(false)} />
+          <div style={{ position:"fixed", bottom:72, left:"50%", zIndex:151,
+            animation:"bw-picker-up 0.32s cubic-bezier(0.34,1.56,0.64,1)" }}>
+            <div style={{ transform:"translateX(-50%)",
+              background:"rgba(12,8,2,0.98)", backdropFilter:"blur(28px)", WebkitBackdropFilter:"blur(28px)",
+              border:"1px solid rgba(240,236,227,0.13)", borderTop:"2px solid #e8600a",
+              borderRadius:16, padding:"10px",
+              display:"flex", gap:8, boxShadow:"0 -12px 48px rgba(0,0,0,0.75), 0 0 0 1px rgba(232,96,10,0.08)" }}>
+              {[
+                { icon: BookOpen,   label:"Materialien",   sub:"Geteilte Aufgabensets laden",    action: () => { setBibliothekPickerOffen(false); setMaterialienStartOffen(true); } },
+                { icon: FolderOpen, label:"Eigene Belege", sub:"Selbst erstellte Belege öffnen", action: () => { setBibliothekPickerOffen(false); setEigeneBelegeOffen(true); } },
+              ].map(({ icon: Icon, label, sub, action }) => (
+                <button key={label} onClick={action} className="bw-picker-btn"
+                  style={{ display:"flex", alignItems:"center", gap:12, padding:"12px 18px", borderRadius:12,
+                    background:"rgba(240,236,227,0.04)", border:"1px solid rgba(240,236,227,0.09)",
+                    cursor:"pointer", color:"#f0ece3", minWidth:190 }}>
+                  <div style={{ width:36, height:36, borderRadius:10, background:"rgba(232,96,10,0.12)",
+                    border:"1px solid rgba(232,96,10,0.2)", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+                    <Icon size={18} strokeWidth={1.5} style={{ color:"#e8600a" }} />
+                  </div>
+                  <div style={{ textAlign:"left" }}>
+                    <div style={{ fontSize:13, fontWeight:700, letterSpacing:"-.01em" }}>{label}</div>
+                    <div style={{ fontSize:10, color:"rgba(240,236,227,0.35)", marginTop:2, fontWeight:500 }}>{sub}</div>
+                  </div>
+                </button>
+              ))}
+            </div>
           </div>
         </>
       )}
@@ -197,22 +240,8 @@ export default function BuchungsWerk({ gastModus = false }) {
           </div>
         )}
 
-        {/* Rechts: Fortschritt-Button (nur Lehrer, nicht Simulation) */}
-        {isLehrer && (
-          <div style={{ display:"flex", alignItems:"center", flexShrink:0 }}>
-            <button onClick={() => setMasteryOffen(true)}
-              title="Lernfortschritt anzeigen"
-              style={{ display:"flex", alignItems:"center", gap:5, padding:"6px 11px",
-                background:"transparent", border:"1px solid rgba(240,236,227,0.14)",
-                borderRadius:8, cursor:"pointer", color:"rgba(240,236,227,0.55)",
-                fontSize:10, fontWeight:700, letterSpacing:".06em", textTransform:"uppercase",
-                transition:"all 0.15s" }}
-              onMouseEnter={e => { e.currentTarget.style.color="#e8600a"; e.currentTarget.style.borderColor="rgba(232,96,10,0.4)"; e.currentTarget.style.background="rgba(232,96,10,0.08)"; }}
-              onMouseLeave={e => { e.currentTarget.style.color="rgba(240,236,227,0.55)"; e.currentTarget.style.borderColor="rgba(240,236,227,0.14)"; e.currentTarget.style.background="transparent"; }}>
-              <TrendingUp size={14} strokeWidth={1.5}/>Fortschritt
-            </button>
-          </div>
-        )}
+        {/* Rechts: Spacer damit der Stepper visuell zentriert bleibt (UserBadge aus main.jsx liegt darüber) */}
+        <div style={{ flexShrink:0, minWidth:130 }} />
       </div>
 
       {/* ── CONTENT ─────────────────────────────────────────────────────────── */}
@@ -232,14 +261,13 @@ export default function BuchungsWerk({ gastModus = false }) {
             { icon: GraduationCap, label:"AP-Übung",      action: () => setApUebungOffen(true) },
             { icon: Users,         label:"Klassenzimmer", action: () => { setKlasseZimmerAufgaben(aufgabenForQuizRef.current || []); setKlasseZimmerOffen(true); } },
             { icon: BookMarked,    label:"Kontenplan",    action: () => setKontenplanOffen(true) },
-            { icon: Settings,      label:"Einstell.",     action: () => setEinstellungenOffen(true) },
           ].map(({ icon, label, action, active }) => (
-            <button key={label} onClick={action}
-              style={{ background:"transparent", border:"none", cursor:"pointer", display:"flex", flexDirection:"column", alignItems:"center", gap:2, padding:"6px 10px", borderRadius:8, color: active?"#e8600a":"#475569", transition:"color 0.15s" }}
+            <button key={label} onClick={action} className="bw-nav-btn"
+              style={{ background:"transparent", border:"none", cursor:"pointer", display:"flex", flexDirection:"column", alignItems:"center", gap:3, padding:"6px 14px", borderRadius:10, color: active?"#e8600a":"#475569" }}
               onMouseEnter={e => { if (!active) e.currentTarget.style.color="#e8600a"; }}
               onMouseLeave={e => { if (!active) e.currentTarget.style.color="#475569"; }}>
-              {React.createElement(icon, { size: 20, strokeWidth: 1.5 })}
-              <span style={{ fontSize:9, fontWeight:600, letterSpacing:".04em", textTransform:"uppercase", whiteSpace:"nowrap" }}>{label}</span>
+              {React.createElement(icon, { size: 21, strokeWidth: 1.5 })}
+              <span style={{ fontSize:9, fontWeight:700, letterSpacing:".05em", textTransform:"uppercase", whiteSpace:"nowrap" }}>{label}</span>
             </button>
           ))}
         </div>

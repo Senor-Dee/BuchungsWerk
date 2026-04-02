@@ -11,6 +11,7 @@ import {
   LogOut, User, Lock, Shield, Trash2, ChevronRight,
   CheckCircle, AlertCircle, X, Eye, EyeOff, Settings,
   Crown, School, Mail, Send, Search, ChevronDown,
+  TrendingUp, SlidersHorizontal,
 } from "lucide-react";
 
 // ── Shared helpers ─────────────────────────────────────────────────────────────
@@ -910,16 +911,23 @@ function UserBadge({ user, onLogout, onUserUpdate }) {
         </button>
 
         {open && (
+          <>
+          <style>{`
+            @keyframes bw-dropdown {
+              from { opacity:0; transform:translateY(-8px) scale(0.96); }
+              to   { opacity:1; transform:translateY(0) scale(1); }
+            }
+          `}</style>
           <div style={{
             position: "absolute", top: "54px", right: 0,
-            background: "rgba(18,12,5,0.97)",
-            backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)",
+            background: "rgba(12,8,2,0.98)",
+            backdropFilter: "blur(24px)", WebkitBackdropFilter: "blur(24px)",
             border: "1px solid rgba(240,236,227,0.12)",
             borderTop: "2px solid #e8600a",
-            borderRadius: "12px", padding: "8px",
-            boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
-            minWidth: "200px",
-            animation: "lp-modal-in 0.15s ease",
+            borderRadius: "14px", padding: "8px",
+            boxShadow: "0 12px 40px rgba(0,0,0,0.65), 0 0 0 1px rgba(232,96,10,0.06)",
+            minWidth: "210px",
+            animation: "bw-dropdown 0.22s cubic-bezier(0.16,1,0.3,1) forwards",
           }}>
             {/* User info */}
             <div style={{ padding: "6px 12px 10px", borderBottom: "1px solid rgba(240,236,227,0.08)", marginBottom: "6px" }}>
@@ -937,6 +945,10 @@ function UserBadge({ user, onLogout, onUserUpdate }) {
               )}
             </div>
 
+            {menuItem(<TrendingUp size={14} strokeWidth={1.5}/>, "Fortschritt", () => window.dispatchEvent(new CustomEvent("bw:mastery")))}
+            {menuItem(<SlidersHorizontal size={14} strokeWidth={1.5}/>, "Einstellungen", () => window.dispatchEvent(new CustomEvent("bw:settings")))}
+
+            <div style={{ borderTop: "1px solid rgba(240,236,227,0.07)", marginTop: "6px", paddingTop: "6px" }}/>
             {menuItem(<Settings size={14} strokeWidth={1.5}/>, "Profil bearbeiten", () => { setProfileTab("profil"); setShowProfile(true); })}
             {menuItem(<Lock size={14} strokeWidth={1.5}/>, "Passwort ändern", () => { setProfileTab("passwort"); setShowProfile(true); })}
             {user?.is_admin && menuItem(<Crown size={14} strokeWidth={1.5}/>, "Registrierungen (Admin)", () => setShowAdmin(true))}
@@ -944,6 +956,7 @@ function UserBadge({ user, onLogout, onUserUpdate }) {
             <div style={{ borderTop: "1px solid rgba(240,236,227,0.07)", marginTop: "6px", paddingTop: "6px" }}/>
             {menuItem(<LogOut size={14} strokeWidth={1.5}/>, "Abmelden", onLogout, true)}
           </div>
+          </>
         )}
       </div>
 

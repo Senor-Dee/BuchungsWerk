@@ -238,18 +238,15 @@ export function SchrittTyp({ onWeiter, onBelegEditor, onEigeneBelege, onSimulati
       {/* ── MAIN CONTENT ── */}
       <div style={{ maxWidth: "860px", margin: "0 auto", padding: "20px 16px" }}>
 
-      {/* Beleg-Werkzeuge */}
-      <div style={{ display: "flex", gap: "10px", marginBottom: "20px" }}>
-        {[
-          { key: "editor",  Icon: ReceiptEuro, label: "Beleg-Editor",  sub: "Beleg erstellen",   onClick: onBelegEditor   },
-          { key: "eigene",  Icon: FolderOpen,  label: "Eigene Belege", sub: "Aufgabe aus Beleg", onClick: onEigeneBelege  },
-        ].map(({ key, Icon, label, sub, onClick }) => {
-          const hov = hoveredTool === key;
+      {/* Beleg-Werkzeug */}
+      <div style={{ marginBottom: "20px" }}>
+        {(() => {
+          const hov = hoveredTool === "editor";
           return (
-            <button key={key} onClick={onClick}
-              onMouseEnter={() => setHoveredTool(key)}
+            <button onClick={onBelegEditor}
+              onMouseEnter={() => setHoveredTool("editor")}
               onMouseLeave={() => setHoveredTool(null)}
-              style={{ flex: 1, padding: "14px 16px", borderRadius: "14px",
+              style={{ width: "100%", maxWidth: "420px", padding: "14px 16px", borderRadius: "14px",
                 backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)",
                 border: `2px solid ${hov ? "rgba(240,236,227,0.32)" : "rgba(240,236,227,0.15)"}`,
                 background: hov ? "rgba(40,30,15,0.8)" : "rgba(30,22,10,0.6)",
@@ -258,14 +255,14 @@ export function SchrittTyp({ onWeiter, onBelegEditor, onEigeneBelege, onSimulati
                 boxShadow: hov ? "0 2px 12px rgba(0,0,0,0.3)" : "none",
                 transform: hov ? "translateY(-1px)" : "none",
                 transition: "all 0.18s" }}>
-              <Icon size={22} strokeWidth={1.5} style={{ color: hov ? "#f0ece3" : "rgba(240,236,227,0.6)", flexShrink: 0 }} />
+              <ReceiptEuro size={22} strokeWidth={1.5} style={{ color: hov ? "#f0ece3" : "rgba(240,236,227,0.6)", flexShrink: 0 }} />
               <div style={{ textAlign: "left" }}>
-                <div style={S.bold}>{label}</div>
-                <div style={{ fontSize: "11px", color: "rgba(240,236,227,0.45)", fontWeight: 500 }}>{sub}</div>
+                <div style={S.bold}>Beleg-Editor</div>
+                <div style={{ fontSize: "11px", color: "rgba(240,236,227,0.45)", fontWeight: 500 }}>Beleg erstellen</div>
               </div>
             </button>
           );
-        })}
+        })()}
       </div>
 
       {/* Prüfungsart — nur bei Prüfung */}
