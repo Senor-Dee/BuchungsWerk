@@ -1,89 +1,30 @@
-﻿// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 Anton Gebert <info@buchungswerk.org> - BuchungsWerk
 
-import React, { useState, useRef, useCallback, useEffect, useMemo } from "react";
-import { PenLine, ClipboardList, Factory, FileText, Zap, Timer, Search,
-         TrendingUp, BookOpen, GraduationCap, BookMarked, Settings,
-         CheckSquare, Files, Bot, Download, Upload, Landmark, ArrowLeftRight,
-         Mail, AtSign, Receipt, ReceiptEuro, FilePen, Printer, User, Settings2, Eye, HelpCircle, FolderOpen,
-         Hash, BarChart2, Package, Megaphone, Tag, Users, Briefcase,
-         Building2, AlertTriangle, Calendar, TrendingDown, Calculator,
-         Lock, Library, Layers, Wrench, Component, Fuel,
-         Sun, Trees, Scissors, Dumbbell,
-         Save, Monitor, Laptop, Smile, Frown, Sprout, Star, Trophy, Flame,
-         RefreshCw, MessageSquare, XCircle, Award, Paperclip, QrCode } from "lucide-react";
+import React, { useState, useRef } from "react";
+import { Factory, TrendingUp, BookOpen, GraduationCap, BookMarked, Settings,
+         ReceiptEuro, Users,
+         Zap, Star, Trophy, Flame, Sprout } from "lucide-react";
 import { useStreak } from "./hooks/useStreak.js";
-import { StreakBadge, StreakCelebration } from "./components/StreakBadge.jsx";
 import { useLevel } from "./hooks/useLevel.js";
-import { LevelUpdate } from "./components/LevelCard.jsx";
-
-import { ICON_MAP, IconFor } from "./components/IconFor.jsx";
-import DraggableHaken from "./components/DraggableHaken.jsx";
-import MaterialienModal from "./components/export/MaterialienModal.jsx";
-import KopfzeilenEditor, { DEFAULT_KOPFZEILE } from "./components/export/KopfzeilenEditor.jsx";
-import H5PModal from "./components/quiz/H5PModal.jsx";
-import APUebungModal from "./components/modals/APUebungModal.jsx";
-import EigeneBelege from "./components/beleg/EigeneBelege.jsx";
-import { apiFetch, API_URL } from "./api.js";
-import TeacherDashboard from "./pages/TeacherDashboard.jsx";
-import { r2, fmt, pick, rnd, fmtIBAN, duSie, duSieGross, anrede,
-         BUCHUNGS_JAHR, rgnr, augnr, fakeDatum, berechnePunkte,
-         WERKSTOFF_TYPEN, LB_INFO, NOTEN_ANKER, notenTabelle } from "./utils.js";
 import { S } from "./styles.js";
-import { DEFAULT_SETTINGS, SettingsContext, useSettings,
-         ladeSettings, speichereSettings,
-         ladeStreak, aktualisiereStreak, streakEmoji,
-         ladeMastery, trackMastery, masteryLevel } from "./settings.js";
-import { LIEFERANTEN, KUNDEN, UNTERNEHMEN, KOMPLEX_STEP_DEFS,
-         mkEingangsRE, mkAusgangsRE, mkUeberweisung, mkKontoauszug, mkEmail } from "./data/stammdaten.js";
-import { AUFGABEN_POOL } from "./data/aufgabenPool.js";
-import { KONTEN, getKonto, getKürzel, getVollname,
-         _KUERZEL_SET, _KUERZEL_REGEX, _KUERZEL_TO_NR,
-         KONTEN_KLASSEN, KONTEN_TYP_FARBEN } from "./data/kontenplan.js";
-import { exportBuchungssatzHTML, exportNrHTML, exportKomplexHTML,
-         exportFirmaHTML, buildKopfzeilenHTML, generateExportHTML,
-         makeBelegDocx, buildDocxBlob, generatePrintHTML } from "./utils/exportFunctions.js";
-import { shuffleArr, fmtBtr, fmtNum, pick3Distractors, bestimmeFragetyp,
-         serialisiereBeleg, macheDragKonten, macheFillBlanks, macheSingleChoice,
-         macheTrueFalse, macheDragKalk, generiereMatchingFragen,
-         generiereAlleQuizFragen, generateQuizHTML } from "./utils/quizGenerator.js";
-import { generiereAPSatz, gesamtpunkte,
-         AP_WAHLTEIL_6, AP_WAHLTEIL_7, AP_WAHLTEIL_8 } from "./data/apAufgaben.js";
+import { SettingsContext, ladeSettings, ladeStreak, aktualisiereStreak } from "./settings.js";
 import ErrorBoundary from "./components/ErrorBoundary.jsx";
 import SupportButton from "./components/SupportButton.jsx";
 import DisclaimerModal from "./components/modals/DisclaimerModal.jsx";
-import LehrerDashboard from "./components/simulation/LehrerDashboard.jsx";
-import { FirmaLogoSVG, BelegAnzeige, belegToGeschaeftsfall } from "./components/beleg/BelegAnzeige.jsx";
-import { KontenplanModal, KürzelSpan, renderMitTooltips } from "./components/kontenplan/KontenplanModal.jsx";
 import MasteryModal from "./components/modals/MasteryModal.jsx";
 import EinstellungenModal from "./components/modals/EinstellungenModal.jsx";
 import BelegEditorModal from "./components/beleg/BelegEditorModal.jsx";
-import { BANK_IBAN, BANK_START, BANK_AUFGABEN, DESK_MAP,
-         BANK8_AUFGABEN, KALENDER8_EINTRAEGE, KALENDER_EINTRAEGE,
-         BOERSEN_AKTIEN, BOERSEN_EREIGNISSE,
-         BANK9_AUFGABEN, KALENDER9_EINTRAEGE,
-         BANK10_AUFGABEN, KALENDER10_EINTRAEGE,
-         SIM_SCHWIERIGKEITEN, simStartKonten, simKto, simEreignisse } from "./data/simulatorDaten.js";
+import EigeneBelege from "./components/beleg/EigeneBelege.jsx";
+import { KontenplanModal } from "./components/kontenplan/KontenplanModal.jsx";
+import MaterialienModal from "./components/export/MaterialienModal.jsx";
+import APUebungModal from "./components/modals/APUebungModal.jsx";
+import TeacherDashboard from "./pages/TeacherDashboard.jsx";
 import { SchrittTyp } from "./components/wizard/SchrittTyp.jsx";
 import { SchrittFirma } from "./components/wizard/SchrittFirma.jsx";
-import BankingSimulator7 from "./components/simulation/BankingSimulator7.jsx";
+import SchrittAufgaben from "./components/wizard/SchrittAufgaben.jsx";
 import SimulationModus from "./components/simulation/SimulationModus.jsx";
 
-
-
-import { LinienDiagramm, BalkenDiagramm, SchaubildAnzeige, GeschaeftsfallKarte } from "./components/common/Schaubilder.jsx";
-
-import { BuchungsSatz, TKonten, NebenrechnungBox, SchemaTabelle,
-         AngebotsVergleichAufgabe, AngebotsVergleichLoesung, BELEG_LABEL } from "./components/aufgaben/Buchungskomponenten.jsx";
-import { TheorieKarte, KomplexKarte, BelegGFSlider, AufgabeKarte } from "./components/aufgaben/AufgabeKarte.jsx";
-import PunktePanel from "./components/aufgaben/PunktePanel.jsx";
-import ExportModal from "./components/export/ExportModal.jsx";
-
-// ══════════════════════════════════════════════════════════════════════════════
-// SCHRITT 3 — Aufgaben-Vorschau
-// ══════════════════════════════════════════════════════════════════════════════
-import SchrittAufgaben from "./components/wizard/SchrittAufgaben.jsx";
-// ── MasteryModal ──────────────────────────────────────────────────────────────
 export default function BuchungsWerk({ gastModus = false }) {
   const [schritt, setSchritt] = useState(() =>
     new URLSearchParams(window.location.search).get("session") ? 4 : 1
@@ -100,7 +41,7 @@ export default function BuchungsWerk({ gastModus = false }) {
   const [streak, setStreak] = useState(ladeStreak);
   const [masteryOffen, setMasteryOffen] = useState(false);
   const [disclaimerOffen, setDisclaimerOffen] = useState(() => {
-    if (gastModus) return false; // Schüler sehen keinen Lehrer-Disclaimer
+    if (gastModus) return false;
     try { return !localStorage.getItem("bw_disclaimer_ok"); } catch { return true; }
   });
   const [isVonURL, setIsVonURL] = useState(false);
@@ -110,6 +51,7 @@ export default function BuchungsWerk({ gastModus = false }) {
   const aufgabenForQuizRef = useRef([]);
   const [configVersion, setConfigVersion] = useState(0);
   const [initialAufgaben, setInitialAufgaben] = useState(null);
+
   const reset = () => { setSchritt(1); setConfig(null); setFirma(null); setInitialAufgaben(null); setIsVonURL(false); };
 
   const materialLaden = ({ config: c, firma: f, aufgaben: a }) => {
@@ -124,7 +66,6 @@ export default function BuchungsWerk({ gastModus = false }) {
   const zuThemen = () => { setSkipFirma(true); setSchritt(1); };
   const zuFirma  = () => setSchritt(2);
 
-
   return (
     <SettingsContext.Provider value={settings}>
     <div style={S.page}>
@@ -137,6 +78,7 @@ export default function BuchungsWerk({ gastModus = false }) {
       {kontenplanOffen   && <KontenplanModal   onSchliessen={() => setKontenplanOffen(false)} />}
       {materialienStartOffen && <MaterialienModal onSchliessen={() => setMaterialienStartOffen(false)} onLaden={materialLaden} />}
       {apUebungOffen && <APUebungModal onSchliessen={() => setApUebungOffen(false)} />}
+
       <div style={S.topbar}>
         {/* Logo – links */}
         <div style={{ display:"flex", alignItems:"center", gap:10 }}>
@@ -180,7 +122,7 @@ export default function BuchungsWerk({ gastModus = false }) {
             </button>
           </div>
         ) : gastModus ? (
-          /* Gast-Bar (normaler Übungsmodus, kein QR-Scan) */
+          /* Gast-Bar */
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginLeft: 8 }}>
             <button onClick={() => setKontenplanOffen(true)}
               style={{ display:"flex", alignItems:"center", gap:6, padding:"7px 12px", background:"rgba(232,96,10,0.1)", border:"1px solid rgba(232,96,10,0.25)", borderRadius:8, color:"#e8600a", fontSize:12, fontWeight:700, cursor:"pointer" }}>
@@ -188,7 +130,7 @@ export default function BuchungsWerk({ gastModus = false }) {
             </button>
           </div>
         ) : (
-          /* Lehrer-Stepper (normale Aufgaben-Erstellung) */
+          /* Lehrer-Stepper */
           <div style={{ flex: 1, display: "flex", justifyContent: "center", alignItems: "center" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 0 }}>
               {[["Thema","1"], ["Unternehmen","2"], ["Aufgaben","3"], ["Export","4"]].map(([label, icon], i) => {
