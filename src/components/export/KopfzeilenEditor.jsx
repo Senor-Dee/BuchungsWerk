@@ -6,6 +6,9 @@ import React, { useEffect } from "react";
 import { S } from "../../styles.js";
 import { useSettings } from "../../settings.js";
 
+// ── Helper ────────────────────────────────────────────────────────────────────
+function gesamtPunkteStr(config) { return config?.maxPunkte ? config.maxPunkte + "" : "?"; }
+
 // ── KopfzeilenEditor ──────────────────────────────────────────────────────────
 const DEFAULT_KOPFZEILE = {
   schulName: "", // wird aus settings.stammschule vorausgefüllt
