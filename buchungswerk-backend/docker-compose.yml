@@ -8,6 +8,8 @@ services:
       - ./data:/data
     restart: unless-stopped
     env_file:
+      - path: /etc/buchungswerk/secrets
+        required: false
       - path: .env
         required: false
     environment:
