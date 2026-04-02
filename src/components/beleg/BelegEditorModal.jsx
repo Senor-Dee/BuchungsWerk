@@ -7,6 +7,7 @@ import { PenLine, Zap, Download, Upload, Mail, Landmark, ArrowLeftRight, Receipt
 import { apiFetch } from "../../api.js";
 import { UNTERNEHMEN } from "../../data/stammdaten.js";
 import { r2 } from "../../utils.js";
+import { belegToBuchungssatz, buchungssatzToText } from "../../utils/buchungsEngine.js";
 
 // APP ROOT
 // ══════════════════════════════════════════════════════════════════════════════
@@ -873,107 +874,107 @@ function BelegEditorModal({ onSchliessen }) {
   const generiereBeKi = async () => {
     setBeKiLaden(true); setBeKiErgebnis(null); setBeKiError(null);
     const beData = { eingangsrechnung:dataER, ausgangsrechnung:dataAR, kontoauszug:dataKA, ueberweisung:dataUB, email:dataEM, quittung:dataQU }[typ];
+    const klasse = parseInt(beKiKlasse);
     const belegText = belegZuText({ typ, data: beData });
-    const duSie = parseInt(beKiKlasse) <= 9 ? "du/dein/dir (Schüler werden geduzt)" : "Sie/Ihr/Ihnen (Klasse 10 → Siezen)";
-    const prompt = `Du bist bwr-sensei – BwR-Fachlehrer an einer bayerischen Realschule (Klasse ${beKiKlasse}, ISB LehrplanPLUS Bayern).
+    const duSie = klasse <= 9 ? "du/dein/dir (Schüler werden geduzt)" : "Sie/Ihr/Ihnen (Klasse 10 → Siezen)";
+
+    try {
+      // ── Schritt 1: Engine berechnet Buchungssatz lokal (0 Tokens, offline) ──
+      let engineBuchungssatz = null;
+      let engineWarnings = [];
+      let engineError = null;
+      try {
+        const result = belegToBuchungssatz({ typ, data: beData }, klasse);
+        engineBuchungssatz = result.buchungssatz;
+        engineWarnings     = result.warnings || [];
+      } catch (engErr) {
+        engineError = engErr.message;
+        // Fallback: KI generiert auch den Buchungssatz (voller Prompt)
+        console.warn("BuchungsEngine Fallback:", engErr.message);
+      }
+
+      // ── Schritt 2: KI generiert NUR Aufgabentext (~150 Tokens statt ~3.000) ──
+      const buchungsHinweis = engineBuchungssatz
+        ? `\nBuchungssatz (bereits berechnet): ${buchungssatzToText(engineBuchungssatz)}`
+        : '';
+
+      const prompt = engineBuchungssatz
+        // REDUZIERTER Prompt (keine Kontenplan-Wiederholung!)
+        ? `Du bist bwr-sensei – BwR-Fachlehrer Bayern (Klasse ${klasse}, ISB LehrplanPLUS).
+Erstelle NUR den Aufgabentext für diesen Beleg. Den Buchungssatz hat die Engine bereits berechnet.
+Sprache: ${duSie}
+
+BELEG: ${belegText}${buchungsHinweis}
+
+AUFGABENTEXT-REGEL: Da der Beleg sichtbar ist, KEINE Belegdaten wiederholen!
+RICHTIG: "Buche die Eingangsrechnung in die Bücher der [Firma] ein."
+FALSCH: "...19% USt, Zahlungsziel 30 Tage, Beträge..."
+
+NR-Punkt (nebenrechnung_punkte=1): nur wenn Brutto→Netto selbst berechnet werden muss (Kl.8+).
+
+Antworte NUR mit reinem JSON:
+{
+  "aufgabe": "1 Satz Aufgabentext (ohne Belegdaten!)",
+  "nebenrechnung": "Rechenweg Brutto→Netto falls nötig, sonst leer",
+  "nebenrechnung_punkte": 0,
+  "erklaerung": "LB-Bezug (z.B. LB2 Kl.8: Wareneinkauf auf Ziel), typische Schülerfehler"
+}`
+        // VOLLER Prompt als Fallback wenn Engine fehlgeschlagen
+        : `Du bist bwr-sensei – BwR-Fachlehrer an einer bayerischen Realschule (Klasse ${klasse}, ISB LehrplanPLUS Bayern).
 Erstelle auf Basis des folgenden Belegs eine korrekte Buchungsaufgabe. Sprache: ${duSie}
 
 BELEG: ${belegText}
 
-══════════════════════════════════════════════
-ISB-KONTENPLAN BAYERN – NUR DIESE KONTEN VERWENDEN!
-══════════════════════════════════════════════
-AKTIVKONTEN:
-0500 GR | Grundstücke · 0700 MA | Maschinen und Anlagen · 0840 FP | Fuhrpark
-0860 BM | Büromaschinen · 0870 BGA | Büromöbel und Geschäftsausstattung · 0890 GWG | Geringwertige Wirtschaftsgüter
-2000 R | Rohstoffe · 2010 F | Fremdbauteile · 2020 H | Hilfsstoffe · 2030 B | Betriebsstoffe
-2400 FO | Forderungen aus Lieferungen und Leistungen · 2470 ZWFO | Zweifelhafte Forderungen
-2600 VORST | Vorsteuer · 2800 BK | Bank (Kontokorrentkonto) · 2880 KA | Kasse · 2900 ARA | Aktive Rechnungsabgrenzung
+ISB-KONTENPLAN AKTIVKONTEN:
+2600 VORST | Vorsteuer · 2800 BK | Bank · 2880 KA | Kasse · 2400 FO | Forderungen
+0890 GWG | Geringwertige Wirtschaftsgüter · 2000 R | Rohstoffe · 2010 F | Fremdbauteile
+ISB-KONTENPLAN PASSIVKONTEN:
+4400 VE | Verbindlichkeiten aus L+L · 4800 UST | Umsatzsteuer
+ISB-KONTENPLAN ERTRAGSKONTEN:
+5000 UEFE | Umsatzerlöse · 5400 EMP | Erlöse/Mahngebühren · 5780 DDE | Dividendenerträge
+ISB-KONTENPLAN AUFWANDSKONTEN:
+6000 AWR | Aufwend. Rohstoffe · 6001 BZKR | Bezugskosten · 6750 KGV | Geldverkehrskosten (Skonto!) · 6820 KOM | Kontogebühren
 
-PASSIVKONTEN:
-3000 EK | Eigenkapital · 3001 P | Privatkonto · 3670 EWB | Einzelwertberichtigung
-3680 PWB | Pauschalwertberichtigung · 3900 RST | Rückstellungen
-4200 KBKV | Kurzfristige Bankverbindlichkeiten · 4250 LBKV | Langfristige Bankverbindlichkeiten
-4400 VE | Verbindlichkeiten aus Lieferungen und Leistungen · 4800 UST | Umsatzsteuer · 4900 PRA | Passive Rechnungsabgrenzung
+BUCHUNGSREGEL EINGANGSRECHNUNG (gruppe=1): 6000 AWR netto an 4400 VE + 2600 VORST ust an 4400 VE
+BUCHUNGSREGEL AUSGANGSRECHNUNG: gruppe=1: 2400 FO netto an 5000 UEFE; gruppe=2: 2400 FO ust an 4800 UST
+AUFGABENTEXT: KEINE Belegdaten wiederholen! Nur: "Buche die [Belegtyp] in die Bücher der [Firma] ein."
+Klasse 7: soll_nr="" haben_nr="" · Klasse 8+: Kontonummern angeben
 
-ERTRAGSKONTEN:
-5000 UEFE | Umsatzerlöse für eigene Erzeugnisse · 5430 ASBE | Andere sonstige betriebliche Erträge
-5495 EFO | Erträge aus abgeschriebenen Forderungen · 5710 ZE | Zinserträge
-
-AUFWANDSKONTEN:
-6000 AWR | Aufwendungen für Rohstoffe · 6001 BZKR | Bezugskosten für Rohstoffe
-6010 AWF | Aufwendungen für Fremdbauteile · 6020 AWH | Aufwendungen für Hilfsstoffe
-6030 AWB | Aufwendungen für Betriebsstoffe · 6140 AFR | Ausgangsfrachten
-6200 LG | Löhne und Gehälter · 6400 AGASV | Arbeitgeberanteil zur Sozialversicherung
-6520 ABSA | Abschreibungen auf Sachanlagen · 6700 AWMP | Mieten, Pachten
-6750 KGV | Kosten des Geldverkehrs · 6800 BMK | Büromaterial und Kleingüter
-6870 WER | Werbung · 6900 VBEI | Versicherungsbeiträge
-6950 ABFO | Abschreibungen auf Forderungen · 7510 ZAW | Zinsaufwendungen
-
-══════════════════════════════════════════════
-BUCHUNGSSTRUKTUR-REGELN (ISB LehrplanPLUS Bayern)
-══════════════════════════════════════════════
-AUSGANGSRECHNUNG (Verkauf auf Ziel):
-  → ZUSAMMENGESETZTER Buchungssatz (alle Zeilen gruppe=1):
-    Zeile 1: 2400 FO an 5000 UEFE Nettobetrag (punkte:1)
-    Zeile 2: 2400 FO an 4800 UST  USt-Betrag   (punkte:1)
-  → Bei Sofortrabatt: Nettobetrag NACH Rabatt, kein Rabattkonto!
-
-EINGANGSRECHNUNG (Kauf auf Ziel):
-  → ZUSAMMENGESETZTER Buchungssatz (alle Zeilen gruppe=1):
-    Zeile 1: 6000 AWR (o.ä.) an 4400 VE Nettobetrag (punkte:1)
-    Zeile 2: 2600 VORST       an 4400 VE USt-Betrag  (punkte:1)
-  → Bei Bezugskosten: 6001 BZKR als eigene Zeile (gruppe=1)
-  → Bei GWG (≤800 € netto): 0890 GWG statt AWR
-  → Bei Sofortrabatt: Nettobetrag nach Abzug
-
-RECHNUNGSAUSGLEICH ÜBERWEISUNG:
-  Ausgangsrechnung beglichen: 2800 BK an 2400 FO (Bruttobetrag)
-  Eingangsrechnung bezahlt:   4400 VE an 2800 BK (Bruttobetrag)
-  Mit Skonto (Kl. 8+): zusätzlich 6750 KGV (Käufer) bzw. 5430 ASBE (Verkäufer)
-
-ANLAGEVERMÖGEN (Kauf auf Ziel):
-  0700 MA (o.ä.) + 2600 VORST an 4400 VE
-
-ABSCHREIBUNG: 6520 ABSA an 0700 MA (o.ä.) – kein USt-Vorgang!
-
-══════════════════════════════════════════════
-KONTOANGABE nach Klassenstufe:
-══════════════════════════════════════════════
-Klasse 7:    NUR Kürzel (soll_nr="" haben_nr="")
-Klasse 8–10: Nummer + Kürzel (z.B. "2400", "5000", "4800")
-
-══════════════════════════════════════════════
-AUFGABENTEXT-REGEL (WICHTIG!):
-══════════════════════════════════════════════
-Da der Beleg direkt sichtbar ist, KEINE Belegdaten im Aufgabentext wiederholen!
-NICHT nennen: USt-Satz, Skontofrist, Zahlungsziel, Beträge, Rechnungsnummer.
-RICHTIG: "Buche die Eingangsrechnung in die Bücher der [Firma] ein."
-FALSCH: "...19% USt, Zahlungsziel 30 Tage, Skonto 2% bei Zahlung in 14 Tagen..."
-
-══════════════════════════════════════════════
-PUNKTEVERGABE (ISB Handreichung BwR 2025)
-══════════════════════════════════════════════
-- 1 Punkt pro Konto-Betrag-Block (Teilbuchung im zusammengesetzten Satz)
-- NR-Punkt (nebenrechnung_punkte=1): nur wenn Brutto→Netto selbst berechnet werden muss (Kl.8+)
-- Reine USt-Berechnung = KEIN eigener NR-Punkt
-
-Antworte NUR mit reinem JSON – kein Markdown, kein Text davor oder danach:
+Antworte NUR mit reinem JSON:
 {
-  "aufgabe": "Kurzer Aufgabentext (max. 1 Satz, KEINE Belegdaten wiederholen!)",
-  "buchungssatz": [
-    { "gruppe": 1, "soll_nr": "XXXX", "soll_name": "Kontoname (KÜRZEL)", "haben_nr": "XXXX", "haben_name": "Kontoname (KÜRZEL)", "betrag": 0.00, "punkte": 1, "erklaerung": "Buchungsgrund" }
-  ],
-  "nebenrechnung": "Rechenweg Brutto→Netto falls nötig, sonst leer",
+  "aufgabe": "1 Satz",
+  "buchungssatz": [{"gruppe":1,"soll_nr":"XXXX","soll_name":"KÜRZEL","haben_nr":"XXXX","haben_name":"KÜRZEL","betrag":0.00,"punkte":1,"erklaerung":"Grund"}],
+  "nebenrechnung": "",
   "nebenrechnung_punkte": 0,
   "punkte_gesamt": 2,
-  "erklaerung": "LB-Bezug (z.B. LB2 Kl.8: Wareneinkauf auf Ziel), typische Schülerfehler"
+  "erklaerung": "LB-Bezug"
 }`;
-    try {
-      const json = await apiFetch("/ki/buchung", "POST", { prompt, max_tokens: 1400 }, 45000, true);
+
+      const maxTokens = engineBuchungssatz ? 400 : 1400;
+      const json = await apiFetch("/ki/buchung", "POST", { prompt, max_tokens: maxTokens }, 45000, true);
       const text = json.content?.find(c => c.type === "text")?.text || "";
       const parsed = JSON.parse(text.replace(/```json|```/g, "").trim());
-      setBeKiErgebnis(parsed);
+
+      // ── Schritt 3: Engine-Buchungssatz + KI-Aufgabentext zusammenführen ──
+      const finalBuchungssatz = engineBuchungssatz ?? parsed.buchungssatz;
+      const punkteGesamt = (finalBuchungssatz?.reduce((s, z) => s + (z.punkte || 1), 0) || 0)
+                         + (parsed.nebenrechnung_punkte || 0);
+
+      setBeKiErgebnis({
+        ...parsed,
+        buchungssatz: finalBuchungssatz,
+        punkte_gesamt: punkteGesamt,
+        _engineUsed: !!engineBuchungssatz,
+        _engineWarnings: engineWarnings,
+      });
+
+      if (engineWarnings.length > 0) {
+        console.info("BuchungsEngine Warnungen:", engineWarnings);
+      }
+      if (engineError) {
+        console.warn("BuchungsEngine Fehler (Fallback KI):", engineError);
+      }
+
     } catch(e) {
       const msg = e?.message || "";
       setBeKiError(
@@ -1090,14 +1091,32 @@ Antworte NUR mit reinem JSON – kein Markdown, kein Text davor oder danach:
                 {beKiErgebnis && (
                   <div style={{ background:"#fff", border:"1px solid #e2e8f0", borderRadius:10, padding:"10px 12px", fontSize:12 }}>
                     <div style={{ fontWeight:700, color:"#0f172a", marginBottom:5 }}>{beKiErgebnis.punkte_gesamt ?? "?"} P · {beKiErgebnis.aufgabe}</div>
-                    {(beKiErgebnis.buchungssatz || []).map((z, i) => (
-                      <div key={i} style={{ fontFamily:"monospace", fontSize:11, color:"#0f172a", padding:"2px 0" }}>
-                        <span style={{ color:"#1d4ed8", fontWeight:700 }}>{z.soll_nr} {z.soll_name}</span>
-                        <span style={{ color:"#64748b", margin:"0 6px" }}>an</span>
-                        <span style={{ color:"#dc2626", fontWeight:700 }}>{z.haben_nr} {z.haben_name}</span>
-                        <span style={{ color:"#059669", marginLeft:6 }}>{typeof z.betrag==="number"?z.betrag.toLocaleString("de-DE",{minimumFractionDigits:2}):z.betrag} €</span>
-                      </div>
-                    ))}
+                    {(() => {
+                      // ISB-Format: zusammengesetzte Buchungssätze nach gruppe gruppieren
+                      // Erste Zeile: Soll Betrag  an  Haben Gesamtbetrag
+                      // Folgezeilen:   Soll Betrag  (kein "an Haben")
+                      const bs = beKiErgebnis.buchungssatz || [];
+                      const gruppenMap = {};
+                      bs.forEach(z => { const g = z.gruppe ?? 1; (gruppenMap[g] = gruppenMap[g]||[]).push(z); });
+                      return Object.values(gruppenMap).map((gr, gi) => {
+                        const gesamt = gr.reduce((s, z) => s + (typeof z.betrag==="number" ? z.betrag : 0), 0);
+                        return (
+                          <div key={gi} style={{ marginBottom: gi < Object.keys(gruppenMap).length-1 ? 6 : 0 }}>
+                            {gr.map((z, zi) => (
+                              <div key={zi} style={{ fontFamily:"monospace", fontSize:11, color:"#0f172a", padding:"1px 0", display:"flex", alignItems:"baseline", gap:4 }}>
+                                <span style={{ color:"#1d4ed8", fontWeight:700 }}>{z.soll_nr} {z.soll_name}</span>
+                                <span style={{ color:"#059669" }}>{typeof z.betrag==="number"?z.betrag.toLocaleString("de-DE",{minimumFractionDigits:2}):z.betrag} €</span>
+                                {zi === 0 && <>
+                                  <span style={{ color:"#64748b", margin:"0 4px" }}>an</span>
+                                  <span style={{ color:"#dc2626", fontWeight:700 }}>{z.haben_nr} {z.haben_name}</span>
+                                  <span style={{ color:"#059669" }}>{(gr.length>1?gesamt:(typeof z.betrag==="number"?z.betrag:0)).toLocaleString("de-DE",{minimumFractionDigits:2})} €</span>
+                                </>}
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      });
+                    })()}
                     {beKiErgebnis.erklaerung && <div style={{ marginTop:6, fontSize:11, color:"#92400e", background:"#fffbeb", borderRadius:5, padding:"4px 8px" }}>💡 {beKiErgebnis.erklaerung}</div>}
                   </div>
                 )}

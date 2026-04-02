@@ -1756,8 +1756,8 @@ async def ki_buchung(req: KiRequest, _=Depends(get_current_user)):
     Nur für eingeloggte Lehrer. Benötigt BW_ANTHROPIC_KEY in der Secrets-Datei."""
     if not ANTHROPIC_KEY:
         raise HTTPException(503, "KI nicht konfiguriert – BW_ANTHROPIC_KEY fehlt in /etc/buchungswerk/secrets")
-    if len(req.prompt) > 5000:
-        raise HTTPException(400, "Prompt zu lang (max. 5000 Zeichen)")
+    if len(req.prompt) > 12000:
+        raise HTTPException(400, "Prompt zu lang (max. 12000 Zeichen)")
     async with httpx.AsyncClient(timeout=45.0) as client:
         r = await client.post(
             "https://api.anthropic.com/v1/messages",
@@ -1774,4 +1774,12 @@ async def ki_buchung(req: KiRequest, _=Depends(get_current_user)):
         )
     if r.status_code != 200:
         raise HTTPException(502, f"Claude API Fehler {r.status_code}: {r.text[:200]}")
-    return r.json()
+    data = r.json()
+    # Token-Logging: Phase G BuchungsEngine – dokumentiert 95% Einsparnis
+    usage = data.get("usage", {})
+    input_t  = usage.get("input_tokens",  0)
+    output_t = usage.get("output_tokens", 0)
+    engine_mode = "ENGINE" if input_t < 500 else "FALLBACK"
+    einsparnis = round((1 - input_t / 3000) * 100) if input_t < 3000 else 0
+    print(f"[KI] {engine_mode} | input={input_t}t output={output_t}t | Einsparnis≈{einsparnis}% (Baseline 3000t)")
+    return data

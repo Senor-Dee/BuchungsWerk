@@ -5,6 +5,7 @@
 import React, { useState } from "react";
 import { CheckSquare, ClipboardList, Star, Zap } from "lucide-react";
 import { apiFetch } from "../../api.js";
+import { belegToBuchungssatz, buchungssatzToText } from "../../utils/buchungsEngine.js";
 import DraggableHaken from "../DraggableHaken.jsx";
 import { KürzelSpan } from "../kontenplan/KontenplanModal.jsx";
 import { BeVorschauRechnung, BeVorschauKontoauszug, BeVorschauUeberweisung, BeVorschauEmail, BeVorschauQuittung } from "../beleg/BelegEditorModal.jsx";
@@ -78,9 +79,44 @@ function EigeneBelege({ onSchliessen }) {
     setGenStatus("loading");
     setVorschlaege(null);
     setVorschlaegeStatus(null);
+
+    // ── Schritt 1: Lokale BuchungsEngine (0 Tokens, offline, <50ms) ──────────
+    let engineBuchungssatz = null;
+    try {
+      const { buchungssatz } = belegToBuchungssatz({ typ: selected.typ, data: selected.data }, Number(klasse));
+      engineBuchungssatz = buchungssatz;
+    } catch { /* Fallback: vollständiger KI-Prompt */ }
+
     const belegText = belegZuText(selected);
     const varianteZusatz = varianteHinweis ? `\n\nVariante / Fokus: ${varianteHinweis}` : "";
-    const prompt = `Du bist BwR-Fachlehrer an einer bayerischen Realschule (Klasse ${klasse}, ISB LehrplanPLUS Bayern).
+
+    // ── Schritt 2: KI-Prompt (kurz wenn Engine erfolgreich, sonst vollständig) ─
+    let maxTokens;
+    let prompt;
+    if (engineBuchungssatz) {
+      // Engine hat Buchungssatz berechnet → KI nur für Aufgabentext (~400 Tokens)
+      const bsText = buchungssatzToText(engineBuchungssatz);
+      maxTokens = 400;
+      prompt = `Du bist BwR-Fachlehrer an einer bayerischen Realschule (Klasse ${klasse}, ISB LehrplanPLUS Bayern).
+Erstelle auf Basis des folgenden Belegs einen Aufgabentext für Schüler.
+Der Buchungssatz wurde bereits berechnet: ${bsText}
+
+BELEG: ${belegText}${varianteZusatz}
+
+Kontoangabe: Klasse ≤7 → nur Kürzel (soll_nr = ""), Klasse 8–10 → Nummer + Kürzel.
+Anrede: Klasse ≤9 → Du-Form, Klasse 10 → Sie-Form.
+
+Antworte NUR mit JSON (kein Markdown):
+{
+  "aufgabe": "Aufgabenstellung für Schüler (1–3 Sätze)",
+  "nebenrechnung": "Rechenweg mit Schrittangabe, sonst leer",
+  "nebenrechnung_punkte": 0,
+  "erklaerung": "Didaktischer Kommentar für den Lehrer (2–3 Sätze)"
+}`;
+    } else {
+      // Fallback: vollständiger Prompt mit Kontenplan (~1000 Tokens)
+      maxTokens = 1000;
+      prompt = `Du bist BwR-Fachlehrer an einer bayerischen Realschule (Klasse ${klasse}, ISB LehrplanPLUS Bayern).
 Erstelle auf Basis des folgenden Belegs eine korrekte Buchungsaufgabe.
 
 BELEG: ${belegText}${varianteZusatz}
@@ -232,11 +268,19 @@ ZUSAMMENGESETZTER BUCHUNGSSATZ – PFLICHT-REGELN FÜR DAS JSON:
     { "gruppe":1, "soll_nr":"2600", "soll_name":"Vorsteuer (VORST)", "haben_nr":"4400", "haben_name":"Verbindlichkeiten aus L+L (VE)", "betrag":190.00, "punkte":1, "erklaerung":"Vorsteuer aus Eingangsrechnung" }
 - NIEMALS nur eine Zeile für einen zusammengesetzten Vorgang ausgeben!
 - Die punkte_gesamt-Zahl muss der Summe aller punkte-Felder (+ nebenrechnung_punkte) entsprechen.`;
+    } // end else (fallback prompt)
+
     try {
-      const json = await apiFetch("/ki/buchung", "POST", { prompt, max_tokens: 1000 }, 45000, true);
+      const json = await apiFetch("/ki/buchung", "POST", { prompt, max_tokens: maxTokens }, 45000, true);
       const text = json.content?.find(c => c.type === "text")?.text || "";
       const parsed = JSON.parse(text.replace(/```json|```/g, "").trim());
-      const eintrag = { ...parsed, _label: varianteTitel || "Aufgabe", _ts: Date.now() };
+
+      // ── Schritt 3: Buchungssatz zusammensetzen (Engine hat Vorrang) ──────────
+      const finalBuchungssatz = engineBuchungssatz ?? parsed.buchungssatz;
+      const bsPunkte = (finalBuchungssatz || []).reduce((s, z) => s + (z.punkte || 1), 0);
+      const punkte_gesamt = bsPunkte + (parsed.nebenrechnung_punkte || 0);
+
+      const eintrag = { ...parsed, buchungssatz: finalBuchungssatz, punkte_gesamt, _label: varianteTitel || "Aufgabe", _ts: Date.now() };
       setHistorie(prev => {
         const neu = [...prev, eintrag];
         // Für Export in SchrittAufgaben bereitstellen
