@@ -2194,11 +2194,13 @@ export default function BuchungsWerk({ gastModus = false }) {
   const [klasseZimmerOffen, setKlasseZimmerOffen] = useState(false);
   const [klasseZimmerAufgaben, setKlasseZimmerAufgaben] = useState([]);
   const aufgabenForQuizRef = useRef([]);
+  const [configVersion, setConfigVersion] = useState(0);
   const reset = () => { setSchritt(1); setConfig(null); setFirma(null); setIsVonURL(false); };
 
   const materialLaden = ({ config: c, firma: f }) => {
     setConfig(c);
     setFirma(f);
+    setConfigVersion(v => v + 1);
     setSchritt(3);
   };
 
@@ -2310,7 +2312,7 @@ export default function BuchungsWerk({ gastModus = false }) {
         {!gastModus && <SupportButton />}
         {schritt === 1 && <SchrittTyp onWeiter={cfg => { setConfig(cfg); if (skipFirma) { setSkipFirma(false); setSchritt(3); if (!gastModus) setStreak(aktualisiereStreak()); } else setSchritt(2); }} onBelegEditor={() => setBelegEditorOffen(true)} onEigeneBelege={() => setEigeneBelegeOffen(true)} onSimulation={() => setSchritt(4)} initialConfig={skipFirma ? config : null} />}
         {schritt === 2 && <SchrittFirma config={config} onWeiter={f => { setFirma(f); setSchritt(3); if (!gastModus) setStreak(aktualisiereStreak()); }} onZurueck={() => setSchritt(1)} />}
-        {schritt === 3 && <ErrorBoundary><SchrittAufgaben config={config} firma={firma} onNeu={reset} onMaterialLaden={materialLaden} onThemen={zuThemen} onFirma={zuFirma} aufgabenRef={aufgabenForQuizRef} /></ErrorBoundary>}
+        {schritt === 3 && <ErrorBoundary><SchrittAufgaben key={configVersion} config={config} firma={firma} onNeu={reset} onMaterialLaden={materialLaden} onThemen={zuThemen} onFirma={zuFirma} aufgabenRef={aufgabenForQuizRef} /></ErrorBoundary>}
         {schritt === 4 && <ErrorBoundary><SimulationModus onZurueck={reset} onVonURLDetected={() => setIsVonURL(true)} onRegisterReset={fn => { simResetFnRef.current = fn; }} /></ErrorBoundary>}
       </div>
 
