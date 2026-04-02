@@ -3,7 +3,7 @@
 // Extrahiert aus BuchungsWerk.jsx – Phase C6 Refactoring
 // ══════════════════════════════════════════════════════════════════════════════
 import React, { useState, useEffect, useRef, useMemo } from "react";
-import { Zap, Download, Eye, Monitor, QrCode } from "lucide-react";
+import { Zap, Download, Eye, Monitor, QrCode, GraduationCap } from "lucide-react";
 import { S } from "../../styles.js";
 import { apiFetch, API_URL } from "../../api.js";
 import { generiereAlleQuizFragen, generateQuizHTML } from "../../utils/quizGenerator.js";

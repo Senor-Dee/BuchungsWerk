@@ -3,7 +3,7 @@
 // Extrahiert aus BuchungsWerk.jsx – Phase C4 Refactoring
 // ══════════════════════════════════════════════════════════════════════════════
 import React, { useState, useRef } from "react";
-import { PenLine, Zap, Download, Upload, Mail } from "lucide-react";
+import { PenLine, Zap, Download, Upload, Mail, Landmark, ArrowLeftRight, Receipt } from "lucide-react";
 import { apiFetch } from "../../api.js";
 import { UNTERNEHMEN } from "../../data/stammdaten.js";
 
