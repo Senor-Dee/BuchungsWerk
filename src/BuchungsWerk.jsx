@@ -1869,7 +1869,7 @@ function ExportModal({ aufgaben, config, firma, kiHistorie, onSchliessen }) {
 // ══════════════════════════════════════════════════════════════════════════════
 const fmt_datum = iso => new Date(iso + "T00:00:00").toLocaleDateString("de-DE", { day: "2-digit", month: "long", year: "numeric" });
 
-function SchrittAufgaben({ config, firma, onNeu, onMaterialLaden, onThemen, onFirma, aufgabenRef }) {
+function SchrittAufgaben({ config, firma, initialAufgaben, onNeu, onMaterialLaden, onThemen, onFirma, aufgabenRef }) {
   const settings = useSettings();
   const [showLoesungen, setShowLoesungen] = useState(!!settings.loesungenStandardAn);
   const [globalMode, setGlobalMode] = useState(settings.belegModus || "beleg"); // "beleg" | "text"
@@ -1897,6 +1897,7 @@ function SchrittAufgaben({ config, firma, onNeu, onMaterialLaden, onThemen, onFi
   }, [config.selectedThemen]);
 
   const [aufgaben, setAufgaben] = useState(() => {
+    if (initialAufgaben) return initialAufgaben;
     if (pool.length === 0) return [];
     const result = [];
     let punkteSum = 0;
@@ -2195,11 +2196,13 @@ export default function BuchungsWerk({ gastModus = false }) {
   const [klasseZimmerAufgaben, setKlasseZimmerAufgaben] = useState([]);
   const aufgabenForQuizRef = useRef([]);
   const [configVersion, setConfigVersion] = useState(0);
-  const reset = () => { setSchritt(1); setConfig(null); setFirma(null); setIsVonURL(false); };
+  const [initialAufgaben, setInitialAufgaben] = useState(null);
+  const reset = () => { setSchritt(1); setConfig(null); setFirma(null); setInitialAufgaben(null); setIsVonURL(false); };
 
-  const materialLaden = ({ config: c, firma: f }) => {
+  const materialLaden = ({ config: c, firma: f, aufgaben: a }) => {
     setConfig(c);
     setFirma(f);
+    setInitialAufgaben(a || null);
     setConfigVersion(v => v + 1);
     setSchritt(3);
   };
@@ -2312,7 +2315,7 @@ export default function BuchungsWerk({ gastModus = false }) {
         {!gastModus && <SupportButton />}
         {schritt === 1 && <SchrittTyp onWeiter={cfg => { setConfig(cfg); if (skipFirma) { setSkipFirma(false); setSchritt(3); if (!gastModus) setStreak(aktualisiereStreak()); } else setSchritt(2); }} onBelegEditor={() => setBelegEditorOffen(true)} onEigeneBelege={() => setEigeneBelegeOffen(true)} onSimulation={() => setSchritt(4)} initialConfig={skipFirma ? config : null} />}
         {schritt === 2 && <SchrittFirma config={config} onWeiter={f => { setFirma(f); setSchritt(3); if (!gastModus) setStreak(aktualisiereStreak()); }} onZurueck={() => setSchritt(1)} />}
-        {schritt === 3 && <ErrorBoundary><SchrittAufgaben key={configVersion} config={config} firma={firma} onNeu={reset} onMaterialLaden={materialLaden} onThemen={zuThemen} onFirma={zuFirma} aufgabenRef={aufgabenForQuizRef} /></ErrorBoundary>}
+        {schritt === 3 && <ErrorBoundary><SchrittAufgaben key={configVersion} config={config} firma={firma} initialAufgaben={initialAufgaben} onNeu={reset} onMaterialLaden={materialLaden} onThemen={zuThemen} onFirma={zuFirma} aufgabenRef={aufgabenForQuizRef} /></ErrorBoundary>}
         {schritt === 4 && <ErrorBoundary><SimulationModus onZurueck={reset} onVonURLDetected={() => setIsVonURL(true)} onRegisterReset={fn => { simResetFnRef.current = fn; }} /></ErrorBoundary>}
       </div>
 
