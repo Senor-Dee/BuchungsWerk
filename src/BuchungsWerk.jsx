@@ -3,7 +3,7 @@
 
 import React, { useState, useRef } from "react";
 import { Factory, TrendingUp, BookOpen, GraduationCap, BookMarked, Settings,
-         ReceiptEuro, Users,
+         Users, FolderOpen,
          Zap, Star, Trophy, Flame, Sprout } from "lucide-react";
 import { useStreak } from "./hooks/useStreak.js";
 import { useLevel } from "./hooks/useLevel.js";
@@ -40,6 +40,7 @@ export default function BuchungsWerk({ gastModus = false }) {
   const [settings, setSettings] = useState(ladeSettings);
   const [streak, setStreak] = useState(ladeStreak);
   const [masteryOffen, setMasteryOffen] = useState(false);
+  const [bibliothekPickerOffen, setBibliothekPickerOffen] = useState(false);
   const [disclaimerOffen, setDisclaimerOffen] = useState(() => {
     if (gastModus) return false;
     try { return !localStorage.getItem("bw_disclaimer_ok"); } catch { return true; }
@@ -66,6 +67,9 @@ export default function BuchungsWerk({ gastModus = false }) {
   const zuThemen = () => { setSkipFirma(true); setSchritt(1); };
   const zuFirma  = () => setSchritt(2);
 
+  const isSimulation = schritt === 4;
+  const isLehrer = !gastModus && !isSimulation;
+
   return (
     <SettingsContext.Provider value={settings}>
     <div style={S.page}>
@@ -79,9 +83,40 @@ export default function BuchungsWerk({ gastModus = false }) {
       {materialienStartOffen && <MaterialienModal onSchliessen={() => setMaterialienStartOffen(false)} onLaden={materialLaden} />}
       {apUebungOffen && <APUebungModal onSchliessen={() => setApUebungOffen(false)} />}
 
-      <div style={S.topbar}>
-        {/* Logo – links */}
-        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+      {/* Bibliothek-Picker (Popover über der Bottom-Bar) */}
+      {bibliothekPickerOffen && (
+        <>
+          <div style={{ position:"fixed", inset:0, zIndex:150 }} onClick={() => setBibliothekPickerOffen(false)} />
+          <div style={{ position:"fixed", bottom:64, left:"50%", transform:"translateX(-50%)", zIndex:151,
+            background:"rgba(14,10,4,0.97)", backdropFilter:"blur(24px)", WebkitBackdropFilter:"blur(24px)",
+            border:"1px solid rgba(240,236,227,0.14)", borderRadius:14, padding:"8px",
+            display:"flex", gap:6, boxShadow:"0 -8px 40px rgba(0,0,0,0.7)" }}>
+            {[
+              { icon: BookOpen,   label:"Materialien",   sub:"Geteilte Aufgabensets laden",   action: () => { setBibliothekPickerOffen(false); setMaterialienStartOffen(true); } },
+              { icon: FolderOpen, label:"Eigene Belege", sub:"Selbst erstellte Belege öffnen", action: () => { setBibliothekPickerOffen(false); setEigeneBelegeOffen(true); } },
+            ].map(({ icon: Icon, label, sub, action }) => (
+              <button key={label} onClick={action}
+                style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 16px", borderRadius:10,
+                  background:"rgba(240,236,227,0.05)", border:"1px solid rgba(240,236,227,0.1)",
+                  cursor:"pointer", color:"#f0ece3", minWidth:180, transition:"all 0.15s" }}
+                onMouseEnter={e => { e.currentTarget.style.background="rgba(232,96,10,0.12)"; e.currentTarget.style.borderColor="rgba(232,96,10,0.35)"; }}
+                onMouseLeave={e => { e.currentTarget.style.background="rgba(240,236,227,0.05)"; e.currentTarget.style.borderColor="rgba(240,236,227,0.1)"; }}>
+                <Icon size={20} strokeWidth={1.5} style={{ color:"#e8600a", flexShrink:0 }} />
+                <div style={{ textAlign:"left" }}>
+                  <div style={{ fontSize:13, fontWeight:700 }}>{label}</div>
+                  <div style={{ fontSize:10, color:"rgba(240,236,227,0.4)", marginTop:1 }}>{sub}</div>
+                </div>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+
+      {/* ── TOP-BAR ─────────────────────────────────────────────────────────── */}
+      <div style={{ ...S.topbar, justifyContent:"space-between" }}>
+
+        {/* Links: Logo + Streak */}
+        <div style={{ display:"flex", alignItems:"center", gap:10, flexShrink:0 }}>
           <div style={S.logo} onClick={reset}>
             <div>Buchungs<span style={S.logoAccent}>Werk</span></div>
             <div style={{ fontSize: 9, fontWeight: 600, color: "#475569", letterSpacing: ".12em", textTransform: "uppercase", marginTop: 2 }}>BwR Bayern</div>
@@ -100,15 +135,13 @@ export default function BuchungsWerk({ gastModus = false }) {
           )}
         </div>
 
-        {/* Mitte: Kontext-abhängige Top-Bar */}
-        {schritt === 4 && isVonURL ? (
-          /* Schüler-Session-Bar */
+        {/* Mitte: Kontext-abhängige Bar */}
+        {isSimulation && isVonURL ? (
           <div style={{ display:"flex", alignItems:"center", gap:8 }}>
             <Factory size={13} strokeWidth={1.5} style={{ color:"#e8600a" }}/>
             <span style={{ fontSize:11, fontWeight:700, color:"rgba(240,236,227,0.45)", letterSpacing:".07em", textTransform:"uppercase" }}>Simulation · Schüler</span>
           </div>
-        ) : schritt === 4 ? (
-          /* Lehrer Simulation-Bar */
+        ) : isSimulation ? (
           <div style={{ display:"flex", alignItems:"center", gap:6 }}>
             <Factory size={13} strokeWidth={1.5} style={{ color:"#e8600a" }}/>
             <span style={{ fontSize:11, fontWeight:700, color:"rgba(240,236,227,0.45)", letterSpacing:".07em", textTransform:"uppercase" }}>Simulation</span>
@@ -122,7 +155,6 @@ export default function BuchungsWerk({ gastModus = false }) {
             </button>
           </div>
         ) : gastModus ? (
-          /* Gast-Bar */
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginLeft: 8 }}>
             <button onClick={() => setKontenplanOffen(true)}
               style={{ display:"flex", alignItems:"center", gap:6, padding:"7px 12px", background:"rgba(232,96,10,0.1)", border:"1px solid rgba(232,96,10,0.25)", borderRadius:8, color:"#e8600a", fontSize:12, fontWeight:700, cursor:"pointer" }}>
@@ -131,30 +163,30 @@ export default function BuchungsWerk({ gastModus = false }) {
           </div>
         ) : (
           /* Lehrer-Stepper */
-          <div style={{ flex: 1, display: "flex", justifyContent: "center", alignItems: "center" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 0 }}>
-              {[["Thema","1"], ["Unternehmen","2"], ["Aufgaben","3"], ["Export","4"]].map(([label, icon], i) => {
+          <div style={{ flex:1, display:"flex", justifyContent:"center", alignItems:"center", overflow:"hidden", padding:"0 12px" }}>
+            <div style={{ display:"flex", alignItems:"center", gap:0 }}>
+              {[["Thema","1"],["Unternehmen","2"],["Aufgaben","3"],["Export","4"]].map(([label], i) => {
                 const s = i + 1;
                 const done = schritt > s;
                 const active = schritt === s;
                 return (
                   <React.Fragment key={s}>
                     {i > 0 && (
-                      <div style={{ width: 36, height: 2, background: done ? "rgba(240,236,227,0.25)" : "rgba(240,236,227,0.08)", flexShrink: 0 }} />
+                      <div style={{ width:32, height:2, background: done?"rgba(240,236,227,0.25)":"rgba(240,236,227,0.08)", flexShrink:0 }} />
                     )}
-                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+                    <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:3 }}>
                       <div style={{
-                        width: 26, height: 26, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center",
-                        fontSize: done ? 12 : 11, fontWeight: 800,
-                        background: done ? "rgba(240,236,227,0.18)" : active ? "linear-gradient(180deg,#f07320,#e8600a)" : "rgba(240,236,227,0.06)",
-                        color: done ? "rgba(240,236,227,0.6)" : active ? "#fff" : "rgba(240,236,227,0.3)",
-                        border: active ? "1px solid rgba(255,170,60,0.3)" : done ? "none" : "1px solid rgba(240,236,227,0.12)",
-                        boxShadow: active ? "0 0 14px rgba(232,96,10,0.5), 0 2px 0 rgba(0,0,0,0.4)" : "none",
-                        transition: "all 0.2s"
+                        width:26, height:26, borderRadius:"50%", display:"flex", alignItems:"center", justifyContent:"center",
+                        fontSize: done?12:11, fontWeight:800,
+                        background: done?"rgba(240,236,227,0.18)": active?"linear-gradient(180deg,#f07320,#e8600a)":"rgba(240,236,227,0.06)",
+                        color: done?"rgba(240,236,227,0.6)": active?"#fff":"rgba(240,236,227,0.3)",
+                        border: active?"1px solid rgba(255,170,60,0.3)": done?"none":"1px solid rgba(240,236,227,0.12)",
+                        boxShadow: active?"0 0 14px rgba(232,96,10,0.5), 0 2px 0 rgba(0,0,0,0.4)":"none",
+                        transition:"all 0.2s"
                       }}>
-                        {done ? "✓" : s}
+                        {done?"✓":s}
                       </div>
-                      <span style={{ fontSize: 8, fontWeight: active ? 700 : 500, color: active ? "#e8600a" : done ? "rgba(240,236,227,0.45)" : "rgba(240,236,227,0.25)", letterSpacing: ".05em", textTransform: "uppercase", whiteSpace: "nowrap" }}>
+                      <span style={{ fontSize:8, fontWeight:active?700:500, color:active?"#e8600a":done?"rgba(240,236,227,0.45)":"rgba(240,236,227,0.25)", letterSpacing:".05em", textTransform:"uppercase", whiteSpace:"nowrap" }}>
                         {label}
                       </span>
                     </div>
@@ -164,8 +196,26 @@ export default function BuchungsWerk({ gastModus = false }) {
             </div>
           </div>
         )}
+
+        {/* Rechts: Fortschritt-Button (nur Lehrer, nicht Simulation) */}
+        {isLehrer && (
+          <div style={{ display:"flex", alignItems:"center", flexShrink:0 }}>
+            <button onClick={() => setMasteryOffen(true)}
+              title="Lernfortschritt anzeigen"
+              style={{ display:"flex", alignItems:"center", gap:5, padding:"6px 11px",
+                background:"transparent", border:"1px solid rgba(240,236,227,0.14)",
+                borderRadius:8, cursor:"pointer", color:"rgba(240,236,227,0.55)",
+                fontSize:10, fontWeight:700, letterSpacing:".06em", textTransform:"uppercase",
+                transition:"all 0.15s" }}
+              onMouseEnter={e => { e.currentTarget.style.color="#e8600a"; e.currentTarget.style.borderColor="rgba(232,96,10,0.4)"; e.currentTarget.style.background="rgba(232,96,10,0.08)"; }}
+              onMouseLeave={e => { e.currentTarget.style.color="rgba(240,236,227,0.55)"; e.currentTarget.style.borderColor="rgba(240,236,227,0.14)"; e.currentTarget.style.background="transparent"; }}>
+              <TrendingUp size={14} strokeWidth={1.5}/>Fortschritt
+            </button>
+          </div>
+        )}
       </div>
 
+      {/* ── CONTENT ─────────────────────────────────────────────────────────── */}
       <div style={S.container}>
         {!gastModus && <SupportButton />}
         {schritt === 1 && <SchrittTyp onWeiter={cfg => { setConfig(cfg); if (skipFirma) { setSkipFirma(false); setSchritt(3); if (!gastModus) setStreak(aktualisiereStreak()); } else setSchritt(2); }} onBelegEditor={() => setBelegEditorOffen(true)} onEigeneBelege={() => setEigeneBelegeOffen(true)} onSimulation={() => setSchritt(4)} initialConfig={skipFirma ? config : null} />}
@@ -174,26 +224,26 @@ export default function BuchungsWerk({ gastModus = false }) {
         {schritt === 4 && <ErrorBoundary><SimulationModus onZurueck={reset} onVonURLDetected={() => setIsVonURL(true)} onRegisterReset={fn => { simResetFnRef.current = fn; }} /></ErrorBoundary>}
       </div>
 
-      {/* Bottom-Bar – nur für eingeloggte Lehrer */}
-      {!gastModus && <div style={{ borderTop:"1px solid rgba(240,236,227,0.1)", background:"rgba(14,10,4,0.9)", backdropFilter:"blur(20px)", WebkitBackdropFilter:"blur(20px)", padding:"0 8px", height:56, display:"flex", alignItems:"center", justifyContent:"space-around", position:"sticky", bottom:0, zIndex:100, flexShrink:0 }}>
-        {[
-          { icon: TrendingUp,    label:"Fortschritt",  action: () => setMasteryOffen(true) },
-          { icon: BookOpen,      label:"Materialien",  action: () => setMaterialienStartOffen(true) },
-          { icon: GraduationCap, label:"AP-Übung",     action: () => setApUebungOffen(true) },
-          { icon: ReceiptEuro,   label:"Beleg-Editor", action: () => setBelegEditorOffen(true) },
-          { icon: Users,         label:"Klassenzimmer",action: () => { setKlasseZimmerAufgaben(aufgabenForQuizRef.current || []); setKlasseZimmerOffen(true); } },
-          { icon: BookMarked,    label:"Kontenplan",   action: () => setKontenplanOffen(true) },
-          { icon: Settings,      label:"Einstell.",    action: () => setEinstellungenOffen(true) },
-        ].map(({ icon, label, action }) => (
-          <button key={label} onClick={action}
-            style={{ background:"transparent", border:"none", cursor:"pointer", display:"flex", flexDirection:"column", alignItems:"center", gap:2, padding:"6px 10px", borderRadius:8, color:"#475569", transition:"color 0.15s" }}
-            onMouseEnter={e => e.currentTarget.style.color="#e8600a"}
-            onMouseLeave={e => e.currentTarget.style.color="#475569"}>
-            {React.createElement(icon, { size: 20, strokeWidth: 1.5 })}
-            <span style={{ fontSize:9, fontWeight:600, letterSpacing:".04em", textTransform:"uppercase", whiteSpace:"nowrap" }}>{label}</span>
-          </button>
-        ))}
-      </div>}
+      {/* ── BOTTOM-BAR (nur für eingeloggte Lehrer) ─────────────────────────── */}
+      {!gastModus && (
+        <div style={{ borderTop:"1px solid rgba(240,236,227,0.1)", background:"rgba(14,10,4,0.9)", backdropFilter:"blur(20px)", WebkitBackdropFilter:"blur(20px)", padding:"0 8px", height:56, display:"flex", alignItems:"center", justifyContent:"space-around", position:"sticky", bottom:0, zIndex:100, flexShrink:0 }}>
+          {[
+            { icon: BookOpen,      label:"Bibliothek",    action: () => setBibliothekPickerOffen(v => !v), active: bibliothekPickerOffen },
+            { icon: GraduationCap, label:"AP-Übung",      action: () => setApUebungOffen(true) },
+            { icon: Users,         label:"Klassenzimmer", action: () => { setKlasseZimmerAufgaben(aufgabenForQuizRef.current || []); setKlasseZimmerOffen(true); } },
+            { icon: BookMarked,    label:"Kontenplan",    action: () => setKontenplanOffen(true) },
+            { icon: Settings,      label:"Einstell.",     action: () => setEinstellungenOffen(true) },
+          ].map(({ icon, label, action, active }) => (
+            <button key={label} onClick={action}
+              style={{ background:"transparent", border:"none", cursor:"pointer", display:"flex", flexDirection:"column", alignItems:"center", gap:2, padding:"6px 10px", borderRadius:8, color: active?"#e8600a":"#475569", transition:"color 0.15s" }}
+              onMouseEnter={e => { if (!active) e.currentTarget.style.color="#e8600a"; }}
+              onMouseLeave={e => { if (!active) e.currentTarget.style.color="#475569"; }}>
+              {React.createElement(icon, { size: 20, strokeWidth: 1.5 })}
+              <span style={{ fontSize:9, fontWeight:600, letterSpacing:".04em", textTransform:"uppercase", whiteSpace:"nowrap" }}>{label}</span>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
     </SettingsContext.Provider>
   );

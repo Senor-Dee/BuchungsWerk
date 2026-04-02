@@ -874,21 +874,32 @@ function BelegEditorModal({ onSchliessen }) {
     setBeKiLaden(true); setBeKiErgebnis(null); setBeKiError(false);
     const beData = { eingangsrechnung:dataER, ausgangsrechnung:dataAR, kontoauszug:dataKA, ueberweisung:dataUB, email:dataEM, quittung:dataQU }[typ];
     const belegText = belegZuText({ typ, data: beData });
-    const prompt = `Du bist BwR-Fachlehrer an einer bayerischen Realschule (Klasse ${beKiKlasse}, ISB LehrplanPLUS Bayern).
-Erstelle auf Basis des folgenden Belegs eine korrekte Buchungsaufgabe mit Lösung.
+    const duSie = parseInt(beKiKlasse) <= 9 ? "du/dein/dir (Schüler werden geduzt)" : "Sie/Ihr/Ihnen (Klasse 10 → Siezen)";
+    const prompt = `Du bist bwr-sensei – der spezialisierte BwR-Assistent für bayerische Realschulen (LehrplanPLUS Bayern, ISB-Handreichung, ISB-Kontenplan IKR).
+
+AUFGABE: Erstelle aus dem folgenden Beleg eine vollständige Buchungsaufgabe für Klasse ${beKiKlasse}.
+
+PFLICHTREGELN:
+- Konten: AUSSCHLIESSLICH ISB-Kontenplan (IKR) – keine SKR03/SKR04-Konten!
+- Buchungssatz-Format: "[Nr] [KÜRZEL] [Betrag] an [Nr] [KÜRZEL] [Betrag]" (ISB-Standard)
+- Sprache: ${duSie}
+- Bewertung: 1 Punkt = 1 vollständiger Block (Kontonr. + Kürzel + Betrag korrekt)
+- NR-Punkt: nebenrechnung_punkte=1 wenn Brutto→Netto gerechnet werden muss (nur Kl. 8+), sonst 0
+- Aufgabentext: Modellunternehmen aus dem Beleg einbetten, lehrplan-konform formulieren
+- Erklaerung: Lernbereich-Bezug nennen (z.B. "LB2 Kl.8: Einkaufskalkulation, Nachlassbuchung")
 
 BELEG: ${belegText}
 
-Antworte NUR mit JSON (kein Markdown):
+Antworte NUR mit JSON – kein Markdown-Block, kein erklärender Text davor oder danach:
 {
-  "aufgabe": "Aufgabentext für Schüler (1–2 Sätze, du-Form wenn Klasse ≤9)",
+  "aufgabe": "Aufgabentext für Schüler (1–2 Sätze, Modellunternehmen einbetten)",
   "buchungssatz": [
-    { "gruppe": 1, "soll_nr": "XXXX", "soll_name": "Kontoname (KÜRZEL)", "haben_nr": "XXXX", "haben_name": "Kontoname (KÜRZEL)", "betrag": 0.00, "punkte": 1, "erklaerung": "kurze Begründung" }
+    { "gruppe": 1, "soll_nr": "XXXX", "soll_name": "Kontoname (KÜRZEL)", "haben_nr": "XXXX", "haben_name": "Kontoname (KÜRZEL)", "betrag": 0.00, "punkte": 1, "erklaerung": "Buchungsgrund + Kontonr.-Herleitung" }
   ],
-  "nebenrechnung": "Rechenweg falls nötig, sonst leer",
+  "nebenrechnung": "Rechenweg (z.B. Brutto→Netto) falls nötig, sonst leer lassen",
   "nebenrechnung_punkte": 0,
   "punkte_gesamt": 1,
-  "erklaerung": "Didaktischer Hinweis für den Lehrer"
+  "erklaerung": "Didaktischer Hinweis: Lernbereich, typische Fehler, Differenzierung"
 }`;
     try {
       const json = await apiFetch("/ki/buchung", "POST", { prompt, max_tokens: 800 });

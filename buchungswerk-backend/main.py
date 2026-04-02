@@ -25,6 +25,7 @@ FROM_EMAIL      = os.environ.get("BW_FROM_EMAIL", "BuchungsWerk <noreply@buchung
 APP_URL         = os.environ.get("BW_APP_URL", "https://buchungswerk.org")
 DB_PATH         = os.environ.get("BW_DB", "buchungswerk.db")
 REQUIRE_VERIFY  = os.environ.get("BW_REQUIRE_VERIFY", "true").lower() == "true" and bool(RESEND_KEY)
+ANTHROPIC_KEY   = os.environ.get("BW_ANTHROPIC_KEY", "")
 
 # ── App ────────────────────────────────────────────────────────────────────────
 app = FastAPI(title="BuchungsWerk API", version="2.0.0")
@@ -1743,3 +1744,34 @@ def classroom_lernbereich_trends(
         }
         for r in lb_rows
     }
+
+# ── KI-Endpunkt (Claude API Proxy) ────────────────────────────────────────────
+class KiRequest(BaseModel):
+    prompt: str
+    max_tokens: int = 600
+
+@app.post("/ki/buchung")
+async def ki_buchung(req: KiRequest, _=Depends(get_current_user)):
+    """Leitet einen Prompt an die Anthropic Claude API weiter.
+    Nur für eingeloggte Lehrer. Benötigt BW_ANTHROPIC_KEY in der Secrets-Datei."""
+    if not ANTHROPIC_KEY:
+        raise HTTPException(503, "KI nicht konfiguriert – BW_ANTHROPIC_KEY fehlt in /etc/buchungswerk/secrets")
+    if len(req.prompt) > 5000:
+        raise HTTPException(400, "Prompt zu lang (max. 5000 Zeichen)")
+    async with httpx.AsyncClient(timeout=45.0) as client:
+        r = await client.post(
+            "https://api.anthropic.com/v1/messages",
+            headers={
+                "x-api-key":          ANTHROPIC_KEY,
+                "anthropic-version":  "2023-06-01",
+                "content-type":       "application/json",
+            },
+            json={
+                "model":      "claude-haiku-4-5-20251001",
+                "max_tokens": min(req.max_tokens, 1500),
+                "messages":   [{"role": "user", "content": req.prompt}],
+            },
+        )
+    if r.status_code != 200:
+        raise HTTPException(502, f"Claude API Fehler {r.status_code}: {r.text[:200]}")
+    return r.json()

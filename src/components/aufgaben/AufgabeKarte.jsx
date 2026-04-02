@@ -291,7 +291,7 @@ export function KomplexKarte({ aufgabe, nr, showLoesung, globalMode, klasse = 10
                       setKiLaden(true);
                       try {
                         const orig = anrede(klasse, schritt.aufgabe || "");
-                        const res = await apiFetch("/ki/buchung", "POST", { prompt: `Formuliere die folgende BwR-Aufgabenstellung für Klasse ${klasse} neu – gleicher Inhalt, andere Wortwahl. Nur den neuen Text, ohne Erklärung.\n\nOriginal: ${orig}`, max_tokens: 200 });
+                        const res = await apiFetch("/ki/buchung", "POST", { prompt: `Du bist bwr-sensei – BwR-Assistent für bayerische Realschulen (LehrplanPLUS Bayern).\nFormuliere diese Aufgabenstellung für Klasse ${klasse} vollständig um.\nPFLICHT: Verwende ANDERE Signalwörter, einen anderen Satzeinstieg und eine andere Satzkonstruktion als das Original. NICHT erlaubt: gleiche Wortreihenfolge mit minimalen Änderungen.\nBehalte: alle Zahlen, Beträge und den fachlichen Inhalt exakt.\nSprache: ${parseInt(klasse) <= 9 ? "du/dein/dir" : "Sie/Ihr/Ihnen"}.\nAntworte NUR mit dem neuen Aufgabentext – keine Erklärung, keine Anführungszeichen.\n\nOriginal: ${orig}`, max_tokens: 200 });
                         const t = (res?.content?.find?.(c => c.type==="text")?.text || "").trim();
                         if (t) setEditText(t);
                       } catch(e) { alert("KI-Fehler: " + e.message); }
@@ -571,7 +571,7 @@ export function AufgabeKarte({ aufgabe, nr, showLoesung, globalMode, klasse = 10
   async function kiNeuformulierung() {
     setKiLaden(true);
     try {
-      const prompt = `Du bist BwR-Lehrer an einer bayerischen Realschule (Klasse ${klasse}). Formuliere die folgende Aufgabenstellung für Schüler neu – gleicher Inhalt, andere Wortwahl. Antworte NUR mit dem neuen Aufgabentext, ohne Erklärung oder Anführungszeichen.\n\nOriginal: ${originalText}`;
+      const prompt = `Du bist bwr-sensei – BwR-Assistent für bayerische Realschulen (LehrplanPLUS Bayern).\nFormuliere diese Aufgabenstellung für Klasse ${klasse} vollständig um.\nPFLICHT: Verwende ANDERE Signalwörter, einen anderen Satzeinstieg und eine andere Satzkonstruktion als das Original. NICHT erlaubt: gleiche Wortreihenfolge mit minimalen Änderungen.\nBehalte: alle Zahlen, Beträge und den fachlichen Inhalt exakt.\nSprache: ${parseInt(klasse) <= 9 ? "du/dein/dir" : "Sie/Ihr/Ihnen"}.\nAntworte NUR mit dem neuen Aufgabentext – keine Erklärung, keine Anführungszeichen.\n\nOriginal: ${originalText}`;
       const res = await apiFetch("/ki/buchung", "POST", { prompt, max_tokens: 300 });
       // Anthropic API gibt { content: [{ type: "text", text: "..." }] } zurück
       const newText = (
@@ -655,9 +655,7 @@ export function AufgabeKarte({ aufgabe, nr, showLoesung, globalMode, klasse = 10
                 setGfKiLaden(true);
                 try {
                   const origText = geschaeftsfallText || "";
-                  const prompt = `Du bist BwR-Lehrer an einer bayerischen Realschule. Formuliere den folgenden Geschäftsfall für Schüler neu – gleicher Inhalt, andere Wortwahl. Antworte NUR mit dem neuen Text, ohne Erklärung.
-
-Original: ${origText}`;
+                  const prompt = `Du bist bwr-sensei – BwR-Assistent für bayerische Realschulen (LehrplanPLUS Bayern).\nFormuliere diesen Geschäftsfall für Klasse ${klasse} vollständig um.\nPFLICHT: Verwende ANDERE Signalwörter, einen anderen Satzeinstieg und eine andere Satzkonstruktion als das Original. NICHT erlaubt: gleiche Wortreihenfolge mit minimalen Änderungen.\nBehalte: alle Zahlen, Beträge, Firmennamen und den fachlichen Inhalt exakt.\nSprache: ${parseInt(klasse) <= 9 ? "du/dein/dir" : "Sie/Ihr/Ihnen"}.\nAntworte NUR mit dem neuen Geschäftsfall-Text – keine Erklärung, keine Anführungszeichen.\n\nOriginal: ${origText}`;
                   const res = await apiFetch("/ki/buchung", "POST", { prompt, max_tokens: 200 });
                   const newText = (res?.content?.find?.(c => c.type === "text")?.text || res?.content?.[0]?.text || "").trim();
                   if (newText) {
