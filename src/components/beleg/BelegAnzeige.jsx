@@ -3,7 +3,7 @@
 // Extrahiert aus BuchungsWerk.jsx – Phase B5 Refactoring
 // ══════════════════════════════════════════════════════════════════════════════
 import React from "react";
-import { Mail } from "lucide-react";
+import { Mail, Building2 } from "lucide-react";
 import { r2, fmt, fmtIBAN } from "../../utils.js";
 import { S } from "../../styles.js";
 
