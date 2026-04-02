@@ -6,6 +6,7 @@ import React, { useState, useRef } from "react";
 import { PenLine, Zap, Download, Upload, Mail, Landmark, ArrowLeftRight, Receipt } from "lucide-react";
 import { apiFetch } from "../../api.js";
 import { UNTERNEHMEN } from "../../data/stammdaten.js";
+import { r2 } from "../../utils.js";
 
 // APP ROOT
 // ══════════════════════════════════════════════════════════════════════════════
@@ -15,6 +16,36 @@ import { UNTERNEHMEN } from "../../data/stammdaten.js";
 
 const be_fmt = n => (isNaN(n) ? "0,00" : Number(n).toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
 const be_uid = () => Math.random().toString(36).slice(2, 8);
+
+function belegZuText(b) {
+  const d = b.data;
+  switch (b.typ) {
+    case "eingangsrechnung": {
+      const pos = (d.positionen||[]).map(p=>`${p.menge} ${p.einheit} ${p.artikel} à ${p.ep} € netto`).join(", ");
+      const rabatt = d.rabattAktiv ? ` Sofortrabatt: ${d.rabattArt} ${d.rabattPct} %.` : "";
+      const bezug  = parseFloat(d.bezugskosten) > 0 ? ` Bezugskosten: ${d.bezugskosten} €.` : "";
+      const skonto = parseFloat(d.skontoPct) > 0 ? ` Skonto: ${d.skontoPct} % bei Zahlung in ${d.skontoTage} Tagen.` : "";
+      return `Eingangsrechnung von ${d.lieferantName} an ${d.empfaengerName}. Positionen: ${pos}.${rabatt}${bezug} USt: ${d.ustSatz} %. Zahlungsziel: ${d.zahlungsziel} Tage.${skonto} Rechnungs-Nr.: ${d.rechnungsNr}.`;
+    }
+    case "ausgangsrechnung": {
+      const pos = (d.positionen||[]).map(p=>`${p.menge} ${p.einheit} ${p.artikel} à ${p.ep} € netto`).join(", ");
+      const rabatt = d.rabattAktiv ? ` Sofortrabatt: ${d.rabattArt} ${d.rabattPct} %.` : "";
+      const skonto = parseFloat(d.skontoPct) > 0 ? ` Skonto: ${d.skontoPct} % bei Zahlung in ${d.skontoTage} Tagen.` : "";
+      return `Ausgangsrechnung von ${d.absenderName} an ${d.kundeName}. Positionen: ${pos}.${rabatt} USt: ${d.ustSatz} %. Zahlungsziel: ${d.zahlungsziel} Tage.${skonto}`;
+    }
+    case "kontoauszug": {
+      const hl = (d.buchungen||[]).find(x=>x.highlight);
+      return `Kontoauszug der ${d.bank}, Inhaber: ${d.inhaber}. Zu buchende Zeile: "${hl?.text||"(keine markiert)"}", Betrag: ${hl?.betrag||"?"} €.`;
+    }
+    case "ueberweisung":
+      return `Überweisung von ${d.auftraggeberName} an ${d.empfaengerName}, Betrag: ${d.betrag} €, Verwendung: ${d.verwendung}.${parseFloat(d.skontoBetrag)>0?` Skonto-Abzug: ${d.skontoBetrag} €.`:""}`;
+    case "email":
+      return `E-Mail von ${d.von} an ${d.an}, Betreff: "${d.betreff}". Inhalt: ${d.text?.slice(0,200)}`;
+    case "quittung":
+      return `Quittung Nr. ${d.quittungsNr}. Aussteller: ${d.aussteller}. Zahlender: ${d.empfaenger}. Betrag: ${d.betrag} €. Zweck: ${d.zweck}.`;
+    default: return JSON.stringify(b.data).slice(0, 300);
+  }
+}
 
 const BELEGTYPEN = [
   { id: "eingangsrechnung", label: "Eingangsrechnung", icon: Download },
