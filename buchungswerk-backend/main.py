@@ -22,6 +22,7 @@ JWT_ALGO        = "HS256"
 JWT_EXPIRE_DAYS = 7
 RESEND_KEY      = os.environ.get("RESEND_API_KEY", "")
 FROM_EMAIL      = os.environ.get("BW_FROM_EMAIL", "BuchungsWerk <noreply@buchungswerk.org>")
+ADMIN_EMAIL     = os.environ.get("BW_ADMIN_EMAIL", "")
 APP_URL         = os.environ.get("BW_APP_URL", "https://buchungswerk.org")
 DB_PATH         = os.environ.get("BW_DB", "buchungswerk.db")
 REQUIRE_VERIFY  = os.environ.get("BW_REQUIRE_VERIFY", "true").lower() == "true" and bool(RESEND_KEY)
@@ -1057,7 +1058,21 @@ class SupportLog(BaseModel):
 def create_support(data: SupportLog, db: sqlite3.Connection = Depends(get_db)):
     db.execute("INSERT INTO support_logs (typ,text,ts) VALUES (?,?,?)",
                (data.typ, data.text, data.ts or datetime.now().isoformat()))
-    db.commit(); return {"ok": True}
+    db.commit()
+    # E-Mail-Benachrichtigung an Admin
+    if ADMIN_EMAIL and RESEND_KEY:
+        typ_labels = {"bug": "🐛 Fehler", "idee": "💡 Idee", "lob": "⭐ Lob"}
+        typ_label = typ_labels.get(data.typ or "", data.typ or "Feedback")
+        send_email(
+            ADMIN_EMAIL,
+            f"[BuchungsWerk] Neues Feedback: {typ_label}",
+            f"<h2>Neues Feedback eingegangen</h2>"
+            f"<p><strong>Typ:</strong> {typ_label}</p>"
+            f"<p><strong>Zeitpunkt:</strong> {data.ts or datetime.now().isoformat()}</p>"
+            f"<hr/>"
+            f"<p>{(data.text or '').replace(chr(10), '<br/>')}</p>",
+        )
+    return {"ok": True}
 
 # ══════════════════════════════════════════════════════════════════════════════
 # LIVE-QUIZ (Lehrer-Orchestrierung)

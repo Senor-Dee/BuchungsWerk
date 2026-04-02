@@ -26,7 +26,7 @@ function SupportButton() {
         });
         dateiName = datei.name;
       }
-      await apiFetch("/support", "POST", { typ, text, dateiBase64, dateiName, ts: new Date().toISOString() });
+      await apiFetch("/support", "POST", { typ, text, dateiBase64, dateiName, ts: new Date().toISOString() }, 10000, true);
       setStatus("ok");
       setTimeout(() => { setOffen(false); setText(""); setDatei(null); setStatus(""); }, 2500);
     } catch(e) {
