@@ -1156,7 +1156,20 @@ Bilanz: Gegenüberstellung von Vermögen (Aktiva) und Kapital (Passiva) in Konto
             titel: `Einkauf auf Ziel${mitAV || mitKalk ? " (Zieleinkaufspreis!)" : ""}`,
             typ: "buchung",
             aufgabe: `Buchen Sie die folgende Eingangsrechnung.${mitAV || mitKalk ? " Hinweis: Als Buchungsbetrag gilt der Zieleinkaufspreis (nach Sofortrabatt-Abzug)!" : ""}`,
-            beleg: mkEingangsRE(f, art, menge, einheit, basisNetto, 19, false, 0, 0, (mitAV||mitKalk) ? { typ: rabattTypA, pct: winRabPct } : null),
+            beleg: (() => {
+              const showRab = (mitAV || mitKalk) && winKalk.rab > 0;
+              const lep = showRab ? winKalk.lep : basisNetto;
+              const ep  = r2(lep / menge);
+              const pos = [{ pos: 1, beschr: art, menge, einheit, ep, lepNetto: lep, netto: lep }];
+              if (showRab) pos.push({ pos: 2, beschr: `− ${rabattTypA} (${winRabPct} %)`, menge: null, einheit: null, ep: null, netto: -winKalk.rab, isRabatt: true });
+              return {
+                typ: "eingangsrechnung", lief: winLief,
+                empfaenger: { name: f.name, strasse: f.strasse, plz_ort: `${f.plz} ${f.ort}` },
+                rgnr: nr1, datum: fakeDatum(-8), lieferdatum: fakeDatum(-11), positionen: pos,
+                netto: basisNetto, ustPct: 19, ustBetrag: ust1, brutto: brutto1,
+                zahlungsziel: `Netto 30 Tage, zahlbar bis ${fakeDatum(22)}`, klasse7: false,
+              };
+            })(),
             soll: [{ nr: wt.aw.nr, name: wt.aw.name, betrag: basisNetto }, { nr: "2600", name: "Vorsteuer (VORST)", betrag: ust1 }],
             haben: [{ nr: "4400", name: "Verbindlichkeiten aus L+L (VE)", betrag: brutto1 }],
             nrPunkte: 1, punkte: 2 + 1 + 1,
@@ -1637,7 +1650,13 @@ Konten: 2000 R (Rohstoffe), 2010 F (Fremdbauteile), 2020 H (Hilfsstoffe), 2030 B
             titel: `Verkauf auf Ziel${mitKalk ? " (Zielverkaufspreis!)" : ""}`,
             typ: "buchung",
             aufgabe: `Buchen Sie die folgende Ausgangsrechnung.${mitKalk ? " Hinweis: Als Buchungsbetrag gilt der Zielverkaufspreis!" : ""}`,
-            beleg: mkAusgangsRE(f, art, menge, "Stk", basisNetto, 19, 0, kunde),
+            beleg: {
+              typ: "ausgangsrechnung", firma: f, kunde,
+              rgnr: nr1, datum: fakeDatum(-5), lieferdatum: fakeDatum(-7),
+              positionen: [{ pos: 1, beschr: art, menge, einheit: "Stk", ep: r2(basisNetto / menge), netto: basisNetto }],
+              netto: basisNetto, ustPct: 19, ustBetrag: ust1, brutto: brutto1,
+              zahlungsziel: `Netto 30 Tage, zahlbar bis ${fakeDatum(25)}`,
+            },
             soll: [{ nr: "2400", name: "Forderungen aus L+L (FO)", betrag: brutto1 }],
             haben: [
               { nr: "5000", name: "Umsatzerlöse FE (UEFE)", betrag: basisNetto },
