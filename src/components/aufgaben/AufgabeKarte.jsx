@@ -408,7 +408,7 @@ export function KomplexKarte({ aufgabe, nr, showLoesung, globalMode, klasse = 10
                   </div>
                   <SchemaTabelle rows={schritt.schema} />
                   {schritt.erklaerung && (
-                    <div style={{ marginTop: "8px", padding: "6px 10px", background: "#fff", borderRadius: "7px", border: "1px solid #d1fae5", fontSize: "12px", color: "#374151" }}>
+                    <div style={{ marginTop: "8px", padding: "6px 10px", background: "rgba(232,96,10,0.08)", borderRadius: "7px", border: "1px solid rgba(232,96,10,0.25)", fontSize: "12px", color: "rgba(240,236,227,0.85)" }}>
                       💡 {schritt.erklaerung}
                     </div>
                   )}
@@ -689,16 +689,16 @@ export function AufgabeKarte({ aufgabe, nr, showLoesung, globalMode, klasse = 10
         )}
 
         {(showLoesung || open) && aufgabe.taskTyp !== "schaubild" && (
-          <div style={{ background: isRechnung ? "#faf5ff" : "#f0fdf4", border: `1px solid ${isRechnung ? "#ddd6fe" : "#bbf7d0"}`, borderRadius: "10px", padding: "14px 16px", marginTop: "8px" }}>
+          <div style={{ background: isRechnung ? "rgba(139,92,246,0.08)" : "rgba(34,197,94,0.05)", border: `1px solid ${isRechnung ? "rgba(139,92,246,0.25)" : "rgba(74,222,128,0.2)"}`, borderRadius: "10px", padding: "14px 16px", marginTop: "8px" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px", flexWrap: "wrap", gap: "8px" }}>
               {/* Ansicht-Toggle für Buchungslösungen */}
               {!isRechnung && aufgabe.soll && (
-                <div style={{ display: "flex", border: "1.5px solid #bbf7d0", borderRadius: "8px", overflow: "hidden" }}>
+                <div style={{ display: "flex", border: "1.5px solid rgba(74,222,128,0.3)", borderRadius: "8px", overflow: "hidden" }}>
                   {[{ key: "buchungssatz", label: "Buchungssatz" }, { key: "tkonten", label: "T-Konten" }].map(opt => (
                     <button key={opt.key} onClick={() => setLoesungsView(opt.key)}
                       style={{ padding: "4px 12px", border: "none", cursor: "pointer", fontSize: "12px", fontWeight: loesungsView === opt.key ? 700 : 500,
-                        background: loesungsView === opt.key ? "#16a34a" : "#fff",
-                        color: loesungsView === opt.key ? "#fff" : "#64748b" }}>
+                        background: loesungsView === opt.key ? "#16a34a" : "rgba(240,236,227,0.06)",
+                        color: loesungsView === opt.key ? "#fff" : "rgba(240,236,227,0.6)" }}>
                       {opt.label}
                     </button>
                   ))}
