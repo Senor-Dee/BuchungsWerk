@@ -114,20 +114,20 @@ function KontenplanModal({ onSchliessen }) {
   });
 
   return (
-    <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,.65)", zIndex:3000, display:"flex", alignItems:"stretch", justifyContent:"center" }}
+    <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,.65)", backdropFilter:"blur(8px)", WebkitBackdropFilter:"blur(8px)", zIndex:3000, display:"flex", alignItems:"stretch", justifyContent:"center" }}
       onClick={e => e.target === e.currentTarget && onSchliessen()}>
-      <div style={{ background:"#0f172a", width:"100%", maxWidth:760, display:"flex", flexDirection:"column",
+      <div style={{ background:"rgba(22,16,8,0.97)", backdropFilter:"blur(24px)", WebkitBackdropFilter:"blur(24px)", border:"1px solid rgba(240,236,227,0.1)", width:"100%", maxWidth:760, display:"flex", flexDirection:"column",
         boxShadow:"0 8px 40px rgba(0,0,0,.6)", overflowY:"auto" }}>
 
         {/* Header */}
-        <div style={{ background:"linear-gradient(135deg,#1e293b,#0f172a)", borderBottom:"1px solid #334155",
+        <div style={{ background:"rgba(240,236,227,0.04)", borderBottom:"1px solid rgba(240,236,227,0.1)",
           padding:"18px 20px 14px", display:"flex", alignItems:"center", gap:12, flexShrink:0 }}>
           <div>
-            <div style={{ fontSize:16, fontWeight:800, color:"#f8fafc", letterSpacing:"-0.3px" }}>Kontenplan Bayern</div>
+            <div style={{ fontSize:16, fontWeight:800, color:"#f0ece3", letterSpacing:"-0.3px" }}>Kontenplan Bayern</div>
             <div style={{ fontSize:10, color:"rgba(240,236,227,0.4)", textTransform:"uppercase", letterSpacing:".1em", marginTop:2 }}>IKR · BwR · Klassen 7–10</div>
           </div>
-          <button onClick={onSchliessen} style={{ marginLeft:"auto", background:"#1e293b", border:"1.5px solid #334155",
-            borderRadius:8, color:"#94a3b8", fontSize:18, cursor:"pointer", width:34, height:34, display:"flex", alignItems:"center", justifyContent:"center" }}>×</button>
+          <button onClick={onSchliessen} style={{ marginLeft:"auto", background:"rgba(240,236,227,0.06)", border:"1.5px solid rgba(240,236,227,0.15)",
+            borderRadius:8, color:"rgba(240,236,227,0.5)", fontSize:18, cursor:"pointer", width:34, height:34, display:"flex", alignItems:"center", justifyContent:"center" }}>×</button>
         </div>
 
         {/* Suche */}

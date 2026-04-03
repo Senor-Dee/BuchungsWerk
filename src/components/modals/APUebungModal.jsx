@@ -262,16 +262,16 @@ function APUebungModal({ onSchliessen }) {
   };
 
   return (
-    <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,.72)", zIndex:3000, display:"flex", alignItems:"stretch", justifyContent:"center" }}
+    <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,.72)", backdropFilter:"blur(8px)", WebkitBackdropFilter:"blur(8px)", zIndex:3000, display:"flex", alignItems:"stretch", justifyContent:"center" }}
       onClick={e => e.target === e.currentTarget && onSchliessen()}>
-      <div style={{ background:"#0f172a", width:"100%", maxWidth:860, display:"flex", flexDirection:"column", boxShadow:"0 8px 40px rgba(0,0,0,.7)", overflowY:"auto" }}>
+      <div style={{ background:"rgba(22,16,8,0.97)", backdropFilter:"blur(24px)", WebkitBackdropFilter:"blur(24px)", border:"1px solid rgba(240,236,227,0.1)", width:"100%", maxWidth:860, display:"flex", flexDirection:"column", boxShadow:"0 8px 40px rgba(0,0,0,.7)", overflowY:"auto" }}>
 
         {/* Header */}
-        <div style={{ background:"linear-gradient(135deg,#1e293b,#0f172a)", borderBottom:"2px solid #e8600a", padding:"14px 20px 12px", display:"flex", alignItems:"center", gap:12, flexShrink:0 }}>
+        <div style={{ background:"rgba(240,236,227,0.04)", borderBottom:"2px solid #e8600a", padding:"14px 20px 12px", display:"flex", alignItems:"center", gap:12, flexShrink:0 }}>
           <span style={{ fontSize:24 }}>🎓</span>
           <div style={{ flex:1 }}>
-            <div style={{ color:"#f8fafc", fontWeight:800, fontSize:16 }}>AP-Übung · BwR Klasse 10</div>
-            <div style={{ color:"#94a3b8", fontSize:11 }}>
+            <div style={{ color:"#f0ece3", fontWeight:800, fontSize:16 }}>AP-Übung · BwR Klasse 10</div>
+            <div style={{ color:"rgba(240,236,227,0.45)", fontSize:11 }}>
               {satz.unternehmen.name} · {gesamt} Punkte gesamt
             </div>
           </div>
@@ -280,7 +280,7 @@ function APUebungModal({ onSchliessen }) {
             ↻ Neuer Satz
           </button>
           <button onClick={onSchliessen}
-            style={{ background:"#334155", border:"none", color:"#94a3b8", borderRadius:8, padding:"7px 14px", cursor:"pointer", fontSize:13, fontWeight:700 }}>✕</button>
+            style={{ background:"rgba(240,236,227,0.08)", border:"1px solid rgba(240,236,227,0.15)", color:"rgba(240,236,227,0.5)", borderRadius:8, padding:"7px 14px", cursor:"pointer", fontSize:13, fontWeight:700 }}>✕</button>
         </div>
 
         {/* Wahlteil-Selector */}

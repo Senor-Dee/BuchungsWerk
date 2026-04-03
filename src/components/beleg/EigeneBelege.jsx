@@ -363,41 +363,41 @@ Antworte NUR mit JSON (kein Markdown):
   const AufgabeKarte = ({ result, nr, isLatest }) => {
     const nrPunkte = result.nebenrechnung_punkte ?? 0;
     return (
-    <div style={{ borderTop: nr > 1 ? "2px dashed #e2e8f0" : "none", paddingTop: nr > 1 ? 16 : 0, display:"flex", flexDirection:"column", gap:10 }}>
+    <div style={{ borderTop: nr > 1 ? "2px dashed rgba(240,236,227,0.1)" : "none", paddingTop: nr > 1 ? 16 : 0, display:"flex", flexDirection:"column", gap:10 }}>
       {/* Kopfzeile */}
       <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-        <div style={{ width:24, height:24, borderRadius:"50%", background: isLatest ? "#e8600a" : "#e2e8f0", color: isLatest ? "#0f172a" : "#94a3b8", fontWeight:800, fontSize:11, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>{nr}</div>
-        <span style={{ fontWeight:700, fontSize:13, color:"#0f172a" }}>{result._label}</span>
+        <div style={{ width:24, height:24, borderRadius:"50%", background: isLatest ? "#e8600a" : "rgba(240,236,227,0.1)", color: isLatest ? "#0f172a" : "rgba(240,236,227,0.5)", fontWeight:800, fontSize:11, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>{nr}</div>
+        <span style={{ fontWeight:700, fontSize:13, color:"#f0ece3" }}>{result._label}</span>
         {(result.punkte_gesamt ?? 0) > 0 && (
           <span style={{ marginLeft:"auto", background:"#0f172a", color:"#e8600a", borderRadius:20, padding:"2px 11px", fontSize:11, fontWeight:800 }}>{result.punkte_gesamt} P</span>
         )}
       </div>
 
       {/* Aufgabenstellung */}
-      <div style={{ background:"#fff", border:"1px solid #e2e8f0", borderRadius:8, padding:14 }}>
-        <div style={{ fontSize:10, fontWeight:700, letterSpacing:".1em", textTransform:"uppercase", color:"#94a3b8", marginBottom:7 }}>Aufgabenstellung</div>
-        <div style={{ fontSize:14, lineHeight:1.7 }}>{result.aufgabe}</div>
+      <div style={{ background:"rgba(240,236,227,0.04)", border:"1px solid rgba(240,236,227,0.08)", borderRadius:8, padding:14 }}>
+        <div style={{ fontSize:10, fontWeight:700, letterSpacing:".1em", textTransform:"uppercase", color:"rgba(240,236,227,0.4)", marginBottom:7 }}>Aufgabenstellung</div>
+        <div style={{ fontSize:14, lineHeight:1.7, color:"#f0ece3" }}>{result.aufgabe}</div>
       </div>
 
       {/* Nebenrechnung mit ✓-Haken wenn bepunktet */}
       {result.nebenrechnung && (
-        <div style={{ background:"#fefce8", border:"1px solid #fde68a", borderRadius:8, padding:14 }}>
+        <div style={{ background:"rgba(251,191,36,0.06)", border:"1px solid rgba(251,191,36,0.2)", borderRadius:8, padding:14 }}>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:7 }}>
-            <div style={{ fontSize:10, fontWeight:700, letterSpacing:".1em", textTransform:"uppercase", color:"#92400e" }}>📐 Nebenrechnung</div>
+            <div style={{ fontSize:10, fontWeight:700, letterSpacing:".1em", textTransform:"uppercase", color:"rgba(251,191,36,0.7)" }}>📐 Nebenrechnung</div>
             <div style={{ display:"flex", gap:3, alignItems:"center" }}>
               {nrPunkte > 0
                 ? Array.from({ length: nrPunkte }).map((_, i) => <ISBHaken key={i} title={`✓ = 1 Punkt (Nebenrechnung Schritt ${i+1})`} />)
-                : <span style={{ fontSize:9, color:"#92400e", fontStyle:"italic" }}>kein eigener Punkt (Handreichung)</span>
+                : <span style={{ fontSize:9, color:"rgba(251,191,36,0.6)", fontStyle:"italic" }}>kein eigener Punkt (Handreichung)</span>
               }
             </div>
           </div>
-          <div style={{ fontFamily:"monospace", fontSize:12, whiteSpace:"pre-wrap", background:"#fffbeb", padding:"10px 12px", borderRadius:6, color:"#78350f" }}>{result.nebenrechnung}</div>
+          <div style={{ fontFamily:"monospace", fontSize:12, whiteSpace:"pre-wrap", background:"rgba(251,191,36,0.04)", padding:"10px 12px", borderRadius:6, color:"rgba(251,191,36,0.8)" }}>{result.nebenrechnung}</div>
         </div>
       )}
 
       {/* Buchungssätze – gruppe-basiert, ISB-Format: "an" nur einmal */}
-      <div style={{ background:"#fff", border:"1px solid #e2e8f0", borderRadius:8, padding:14 }}>
-        <div style={{ fontSize:10, fontWeight:700, letterSpacing:".1em", textTransform:"uppercase", color:"#94a3b8", marginBottom:10 }}>Buchungssatz</div>
+      <div style={{ background:"rgba(240,236,227,0.04)", border:"1px solid rgba(240,236,227,0.08)", borderRadius:8, padding:14 }}>
+        <div style={{ fontSize:10, fontWeight:700, letterSpacing:".1em", textTransform:"uppercase", color:"rgba(240,236,227,0.4)", marginBottom:10 }}>Buchungssatz</div>
         {(() => {
           const buchungen = result.buchungssatz || [];
           const gruppen = [...new Set(buchungen.map(b => b.gruppe ?? 0))];
@@ -411,7 +411,7 @@ Antworte NUR mit JSON (kein Markdown):
             // Zusammenges.: SOLL ✓  an  HABEN1 ✓  Betrag1  P
             //                           HABEN2 ✓  Betrag2  P
             return (
-              <div key={g} style={{ padding:"10px 12px", background:"#f8fafc", borderRadius:6, marginBottom:6, borderLeft:"3px solid #3b82f6", fontFamily:"inherit" }}>
+              <div key={g} style={{ padding:"10px 12px", background:"rgba(240,236,227,0.03)", borderRadius:6, marginBottom:6, borderLeft:"3px solid #3b82f6", fontFamily:"inherit" }}>
                 {zeilen.map((z, zi) => (
                   <div key={zi} style={{ display:"flex", alignItems:"center", gap:6, flexWrap:"wrap", fontSize:13, fontWeight:600, marginBottom: zi < zeilen.length-1 ? 4 : 0 }}>
                     {/* Soll – nur in erster Zeile */}
@@ -433,7 +433,7 @@ Antworte NUR mit JSON (kein Markdown):
                     {zi === 0 ? <ISBHaken /> : <span style={{ visibility:"hidden" }}><ISBHaken /></span>}
                     {/* "an" – nur in erster Zeile */}
                     {zi === 0
-                      ? <span style={{ color:"#94a3b8", fontWeight:400, fontSize:12, flexShrink:0 }}>an</span>
+                      ? <span style={{ color:"rgba(240,236,227,0.35)", fontWeight:400, fontSize:12, flexShrink:0 }}>an</span>
                       : <span style={{ color:"transparent", fontWeight:400, fontSize:12, flexShrink:0, userSelect:"none" }}>an</span>
                     }
                     {/* Haben-Konto */}
@@ -447,7 +447,7 @@ Antworte NUR mit JSON (kein Markdown):
                     </span>
                     <span style={{ background:"#0f172a", color:"#e8600a", borderRadius:4, padding:"1px 7px", fontSize:10, fontWeight:800 }}>{z.punkte ?? 1} P</span>
                     {/* Erklärung */}
-                    {z.erklaerung && <div style={{ width:"100%", fontSize:11, color:"#64748b", fontWeight:400, marginTop:2, paddingLeft:2 }}>{z.erklaerung}</div>}
+                    {z.erklaerung && <div style={{ width:"100%", fontSize:11, color:"rgba(240,236,227,0.45)", fontWeight:400, marginTop:2, paddingLeft:2 }}>{z.erklaerung}</div>}
                   </div>
                 ))}
               </div>
@@ -458,7 +458,7 @@ Antworte NUR mit JSON (kein Markdown):
 
       {/* Didaktik */}
       {result.erklaerung && (
-        <div style={{ background:"#fffbeb", border:"1px solid #fde68a", borderRadius:8, padding:12, fontSize:12, color:"#92400e", lineHeight:1.6 }}>
+        <div style={{ background:"rgba(251,191,36,0.06)", border:"1px solid rgba(251,191,36,0.15)", borderRadius:8, padding:12, fontSize:12, color:"rgba(251,191,36,0.75)", lineHeight:1.6 }}>
           <strong>💡 Didaktik (Lehrer):</strong> {result.erklaerung}
         </div>
       )}
@@ -466,11 +466,11 @@ Antworte NUR mit JSON (kein Markdown):
       {/* Export-Leiste */}
       <div style={{ display:"flex", gap:7 }}>
         <button onClick={() => exportText(result, nr)}
-          style={{ flex:1, padding:"8px 10px", background: kopiert===nr ? "#f0fdf4" : "#fff", border:`1.5px solid ${kopiert===nr?"#86efac":"#e2e8f0"}`, borderRadius:7, cursor:"pointer", fontSize:11, fontWeight:700, color: kopiert===nr?"#15803d":"#374151", display:"flex", alignItems:"center", justifyContent:"center", gap:5 }}>
+          style={{ flex:1, padding:"8px 10px", background: kopiert===nr ? "rgba(74,222,128,0.1)" : "rgba(240,236,227,0.04)", border:`1.5px solid ${kopiert===nr?"rgba(74,222,128,0.4)":"rgba(240,236,227,0.1)"}`, borderRadius:7, cursor:"pointer", fontSize:11, fontWeight:700, color: kopiert===nr?"#4ade80":"rgba(240,236,227,0.6)", display:"flex", alignItems:"center", justifyContent:"center", gap:5 }}>
           {kopiert===nr ? <><CheckSquare size={11} strokeWidth={1.5}/>Kopiert!</> : <><ClipboardList size={11} strokeWidth={1.5}/>Kopieren</>}
         </button>
         <button onClick={() => exportDruck(result)}
-          style={{ flex:1, padding:"8px 10px", background:"#fff", border:"1.5px solid #e2e8f0", borderRadius:7, cursor:"pointer", fontSize:11, fontWeight:700, color:"#374151" }}>
+          style={{ flex:1, padding:"8px 10px", background:"rgba(240,236,227,0.04)", border:"1.5px solid rgba(240,236,227,0.1)", borderRadius:7, cursor:"pointer", fontSize:11, fontWeight:700, color:"rgba(240,236,227,0.6)" }}>
           🖨 Drucken
         </button>
       </div>
@@ -480,23 +480,23 @@ Antworte NUR mit JSON (kein Markdown):
   const fmt_datum = iso => new Date(iso).toLocaleDateString("de-DE", { day:"2-digit", month:"2-digit", year:"numeric" });
 
   return (
-    <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", zIndex:1000, display:"flex", alignItems:"flex-start", justifyContent:"center", padding:"24px", overflowY:"auto" }}>
-      <div style={{ background:"#fff", borderRadius:16, width:"100%", maxWidth:1100, overflow:"hidden", boxShadow:"0 24px 64px rgba(0,0,0,.25)" }}>
+    <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", backdropFilter:"blur(8px)", WebkitBackdropFilter:"blur(8px)", zIndex:1000, display:"flex", alignItems:"flex-start", justifyContent:"center", padding:"24px", overflowY:"auto" }}>
+      <div style={{ background:"rgba(22,16,8,0.97)", backdropFilter:"blur(24px)", WebkitBackdropFilter:"blur(24px)", border:"1px solid rgba(240,236,227,0.12)", borderRadius:16, width:"100%", maxWidth:1100, overflow:"hidden", boxShadow:"0 24px 64px rgba(0,0,0,.5)" }}>
         {/* Header */}
-        <div style={{ background:"#0f172a", padding:"18px 24px", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+        <div style={{ background:"rgba(240,236,227,0.04)", borderBottom:"1px solid rgba(240,236,227,0.08)", padding:"18px 24px", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
           <div>
-            <div style={{ color:"#fff", fontWeight:800, fontSize:18 }}>📂 Eigene Belege</div>
-            <div style={{ color:"#94a3b8", fontSize:12, marginTop:2 }}>{belege.length} Beleg{belege.length!==1?"e":""} im Pool · erstellt im Beleg-Editor</div>
+            <div style={{ color:"#f0ece3", fontWeight:800, fontSize:18 }}>📂 Eigene Belege</div>
+            <div style={{ color:"rgba(240,236,227,0.45)", fontSize:12, marginTop:2 }}>{belege.length} Beleg{belege.length!==1?"e":""} im Pool · erstellt im Beleg-Editor</div>
           </div>
-          <button onClick={onSchliessen} style={{ background:"none", border:"1px solid #334155", color:"#94a3b8", borderRadius:8, padding:"6px 14px", cursor:"pointer", fontSize:13, fontWeight:600 }}>✕ Schließen</button>
+          <button onClick={onSchliessen} style={{ background:"none", border:"1px solid rgba(240,236,227,0.15)", color:"rgba(240,236,227,0.5)", borderRadius:8, padding:"6px 14px", cursor:"pointer", fontSize:13, fontWeight:600 }}>✕ Schließen</button>
         </div>
         <div style={{ display:"grid", gridTemplateColumns:"300px 1fr", minHeight:500 }}>
           {/* Linke Liste */}
-          <div style={{ borderRight:"1px solid #e2e8f0", overflowY:"auto", maxHeight:"70vh" }}>
+          <div style={{ borderRight:"1px solid rgba(240,236,227,0.08)", overflowY:"auto", maxHeight:"70vh" }}>
             {belege.length === 0 ? (
-              <div style={{ padding:"32px 20px", textAlign:"center", color:"#94a3b8" }}>
+              <div style={{ padding:"32px 20px", textAlign:"center", color:"rgba(240,236,227,0.4)" }}>
                 <div style={{ fontSize:32, marginBottom:12 }}>📭</div>
-                <div style={{ fontWeight:700, marginBottom:6 }}>Noch keine Belege</div>
+                <div style={{ fontWeight:700, marginBottom:6, color:"rgba(240,236,227,0.6)" }}>Noch keine Belege</div>
                 <div style={{ fontSize:12, lineHeight:1.5 }}>Erstelle im Beleg-Editor einen Beleg und klicke auf "In BuchungsWerk übernehmen".</div>
               </div>
             ) : belege.map(b => (
@@ -506,7 +506,7 @@ Antworte NUR mit JSON (kein Markdown):
                   background: selected?.id===b.id ? "rgba(232,96,10,0.08)" : "transparent",
                   borderLeft: selected?.id===b.id ? "3px solid #e8600a" : "3px solid transparent" }}>
                 <div style={{ fontWeight:700, fontSize:13, marginBottom:3 }}>{b.titel}</div>
-                <div style={{ fontSize:11, color:"#64748b" }}>{BELEGTYP_LABELS[b.typ]||b.typ} · {fmt_datum(b.erstellt)}</div>
+                <div style={{ fontSize:11, color:"rgba(240,236,227,0.4)" }}>{BELEGTYP_LABELS[b.typ]||b.typ} · {fmt_datum(b.erstellt)}</div>
                 <button onClick={e=>{e.stopPropagation();loeschen(b.id);}}
                   style={{ marginTop:6, fontSize:10, color:"#ef4444", background:"none", border:"none", cursor:"pointer", padding:0, fontWeight:600 }}>🗑 Löschen</button>
               </div>
@@ -515,14 +515,14 @@ Antworte NUR mit JSON (kein Markdown):
           {/* Rechte Detailansicht */}
           <div style={{ overflowY:"auto", maxHeight:"70vh", padding:20 }}>
             {!selected ? (
-              <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100%", color:"#94a3b8", textAlign:"center" }}>
+              <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100%", color:"rgba(240,236,227,0.4)", textAlign:"center" }}>
                 <div><div style={{ fontSize:40, marginBottom:12 }}>👈</div><div style={{ fontWeight:700 }}>Beleg auswählen</div><div style={{ fontSize:12, marginTop:4 }}>Klicke links auf einen Beleg.</div></div>
               </div>
             ) : (
               <>
                 {/* Beleg-Vorschau */}
                 <div style={{ marginBottom:20 }}>
-                  <div style={{ fontSize:11, fontWeight:700, letterSpacing:".1em", textTransform:"uppercase", color:"#94a3b8", marginBottom:10 }}>Beleg-Vorschau</div>
+                  <div style={{ fontSize:11, fontWeight:700, letterSpacing:".1em", textTransform:"uppercase", color:"rgba(240,236,227,0.4)", marginBottom:10 }}>Beleg-Vorschau</div>
                   {selected.typ==="eingangsrechnung" && <BeVorschauRechnung data={selected.data} typ="eingangsrechnung" />}
                   {selected.typ==="ausgangsrechnung" && <BeVorschauRechnung data={selected.data} typ="ausgangsrechnung" />}
                   {selected.typ==="kontoauszug"      && <BeVorschauKontoauszug data={selected.data} />}
@@ -532,13 +532,13 @@ Antworte NUR mit JSON (kein Markdown):
                 </div>
 
                 {/* KI-Block */}
-                <div style={{ background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:12, padding:16 }}>
-                  <div style={{ fontWeight:700, fontSize:14, marginBottom:12 }}>🤖 Aufgabe mit KI generieren</div>
+                <div style={{ background:"rgba(240,236,227,0.04)", border:"1px solid rgba(240,236,227,0.1)", borderRadius:12, padding:16 }}>
+                  <div style={{ fontWeight:700, fontSize:14, marginBottom:12, color:"#f0ece3" }}>🤖 Aufgabe mit KI generieren</div>
                   <div style={{ display:"flex", gap:10, alignItems:"center", marginBottom:12 }}>
-                    <label style={{ fontSize:12, fontWeight:600, color:"#64748b", flexShrink:0 }}>Klassenstufe:</label>
+                    <label style={{ fontSize:12, fontWeight:600, color:"rgba(240,236,227,0.45)", flexShrink:0 }}>Klassenstufe:</label>
                     {["7","8","9","10"].map(k => (
                       <button key={k} onClick={() => setKlasse(k)}
-                        style={{ padding:"5px 14px", borderRadius:20, border:"1.5px solid", borderColor:klasse===k?"#0f172a":"#e2e8f0", background:klasse===k?"#0f172a":"#fff", color:klasse===k?"#fff":"#475569", fontWeight:700, cursor:"pointer", fontSize:13 }}>
+                        style={{ padding:"5px 14px", borderRadius:20, border:"1.5px solid", borderColor:klasse===k?"#e8600a":"rgba(240,236,227,0.15)", background:klasse===k?"rgba(232,96,10,0.15)":"transparent", color:klasse===k?"#e8600a":"rgba(240,236,227,0.5)", fontWeight:700, cursor:"pointer", fontSize:13 }}>
                         {k}
                       </button>
                     ))}
@@ -555,7 +555,7 @@ Antworte NUR mit JSON (kein Markdown):
                                : msg.includes("401") || msg.includes("403") ? "Nicht autorisiert – bitte neu einloggen"
                                : msg.includes("Timeout") ? "Timeout – Server zu langsam, bitte nochmal versuchen"
                                : `Fehler: ${msg}`;
-                    return <div style={{ padding:12, background:"#fee2e2", borderRadius:8, color:"#dc2626", fontSize:12, fontWeight:600 }}>⚠ {hint}</div>;
+                    return <div style={{ padding:12, background:"rgba(239,68,68,0.15)", borderRadius:8, color:"#f87171", fontSize:12, fontWeight:600 }}>⚠ {hint}</div>;
                   })()}
 
                   {/* Alle Aufgaben in der Historie */}
@@ -566,20 +566,20 @@ Antworte NUR mit JSON (kein Markdown):
                       ))}
 
                       {/* Weiterführende Vorschläge unter der letzten Karte */}
-                      <div style={{ borderTop:"1px solid #e2e8f0", paddingTop:14 }}>
-                        <div style={{ fontSize:11, fontWeight:700, letterSpacing:".1em", textTransform:"uppercase", color:"#94a3b8", marginBottom:10 }}>💡 Weiterführende Aufgaben</div>
-                        {vorschlaegeStatus==="loading" && <div style={{ fontSize:12, color:"#94a3b8" }}>⏳ Lade Vorschläge…</div>}
+                      <div style={{ borderTop:"1px solid rgba(240,236,227,0.08)", paddingTop:14 }}>
+                        <div style={{ fontSize:11, fontWeight:700, letterSpacing:".1em", textTransform:"uppercase", color:"rgba(240,236,227,0.4)", marginBottom:10 }}>💡 Weiterführende Aufgaben</div>
+                        {vorschlaegeStatus==="loading" && <div style={{ fontSize:12, color:"rgba(240,236,227,0.4)" }}>⏳ Lade Vorschläge…</div>}
                         {vorschlaegeStatus==="error"   && <div style={{ fontSize:12, color:"#ef4444" }}>Vorschläge konnten nicht geladen werden.</div>}
                         {vorschlaege && (
                           <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
                             {vorschlaege.map((v, i) => (
                               <button key={i} onClick={() => generieren(v.variante, v.titel)}
-                                style={{ textAlign:"left", padding:"11px 14px", background:"#fff", border:"1.5px solid #e2e8f0", borderRadius:10, cursor:"pointer" }}
-                                onMouseEnter={e=>e.currentTarget.style.borderColor="#0f172a"}
-                                onMouseLeave={e=>e.currentTarget.style.borderColor="#e2e8f0"}>
+                                style={{ textAlign:"left", padding:"11px 14px", background:"rgba(240,236,227,0.04)", border:"1.5px solid rgba(240,236,227,0.1)", borderRadius:10, cursor:"pointer", color:"#f0ece3" }}
+                                onMouseEnter={e=>e.currentTarget.style.borderColor="rgba(232,96,10,0.5)"}
+                                onMouseLeave={e=>e.currentTarget.style.borderColor="rgba(240,236,227,0.1)"}>
                                 <div style={{ fontWeight:700, fontSize:13, marginBottom:3 }}>{v.titel}</div>
-                                <div style={{ fontSize:11, color:"#64748b", lineHeight:1.5 }}>{v.beschreibung}</div>
-                                <div style={{ fontSize:10, color:"#94a3b8", marginTop:5, fontWeight:600 }}>→ Aufgabe generieren und unten anfügen</div>
+                                <div style={{ fontSize:11, color:"rgba(240,236,227,0.45)", lineHeight:1.5 }}>{v.beschreibung}</div>
+                                <div style={{ fontSize:10, color:"rgba(240,236,227,0.3)", marginTop:5, fontWeight:600 }}>→ Aufgabe generieren und unten anfügen</div>
                               </button>
                             ))}
                           </div>

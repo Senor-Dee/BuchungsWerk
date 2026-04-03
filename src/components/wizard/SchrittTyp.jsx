@@ -18,7 +18,6 @@ export function SchrittTyp({ onWeiter, onBelegEditor, onEigeneBelege, onSimulati
   const ic = initialConfig;
   const [typ, setTyp] = useState(ic?.typ ?? null);
   const [hoveredCard, setHoveredCard] = useState(null);
-  const [hoveredTool, setHoveredTool] = useState(null);
   const [pruefungsart, setPruefungsart] = useState(ic?.pruefungsart ?? null);
   const [klasse, setKlasse] = useState(ic?.klasse ?? null);
   const [datum, setDatum] = useState(ic?.datum ?? new Date().toISOString().split("T")[0]);
@@ -172,15 +171,16 @@ export function SchrittTyp({ onWeiter, onBelegEditor, onEigeneBelege, onSimulati
     <div style={{ background: "transparent" }}>
 
       {/* ── HERO ── */}
-      <div style={{ background: "linear-gradient(160deg,#1a1208 0%,#251a0a 100%)", padding: "32px 20px 36px" }}>
+      <div style={{ padding: "18px 16px 20px" }}>
         <div style={{ maxWidth: "860px", margin: "0 auto" }}>
-          <div style={{ fontSize: "12px", fontWeight: 700, letterSpacing: "0.15em", textTransform: "uppercase", color: "#e8600a", marginBottom: "6px" }}>BwR Bayern</div>
-          <div style={{ fontSize: "26px", fontWeight: 900, color: "#fff", letterSpacing: "-0.03em", marginBottom: "24px" }}>Was möchtest du erstellen?</div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "12px" }}>
+          <div style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.15em", textTransform: "uppercase", color: "#e8600a", marginBottom: "4px" }}>BwR Bayern</div>
+          <div style={{ fontSize: "18px", fontWeight: 800, color: "rgba(240,236,227,0.85)", letterSpacing: "-0.02em", marginBottom: "14px" }}>Was möchtest du erstellen?</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: "8px" }}>
         {[
           ["Übung", PenLine, "Aufgaben üben", () => { setTyp("Übung"); setPruefungsart(null); }],
-          ["Prüfung", ClipboardList, "Schulaufgabe erstellen", () => setTyp("Prüfung")],
+          ["Prüfung", ClipboardList, "Schulaufgabe", () => setTyp("Prüfung")],
           ["Simulation", Factory, "Firma führen", () => { setTyp("Simulation"); onSimulation && onSimulation(); }],
+          ["Beleg-Editor", ReceiptEuro, "Beleg erstellen", () => onBelegEditor && onBelegEditor()],
         ].map(([t, icon, desc, onClick]) => {
           const sel = typ === t;
           const hov = hoveredCard === t && !sel;
@@ -188,18 +188,17 @@ export function SchrittTyp({ onWeiter, onBelegEditor, onEigeneBelege, onSimulati
             <button key={t} onClick={onClick}
               onMouseEnter={() => setHoveredCard(t)}
               onMouseLeave={() => setHoveredCard(null)}
-              style={{ flex: 1, padding: "20px 16px", cursor: "pointer", textAlign: "center",
-                borderRadius: "16px", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)",
-                border: `2.5px solid ${sel ? "#e8600a" : hov ? "rgba(240,236,227,0.32)" : "rgba(240,236,227,0.15)"}`,
-                background: sel ? "linear-gradient(135deg,rgba(20,16,8,0.9),rgba(40,28,12,0.95))"
-                  : hov ? "rgba(40,30,15,0.8)" : "rgba(30,22,10,0.6)",
-                color: sel || hov ? "#f0ece3" : "rgba(240,236,227,0.7)",
-                boxShadow: sel ? "0 4px 24px rgba(232,96,10,0.35)" : hov ? "0 2px 12px rgba(0,0,0,0.3)" : "none",
+              style={{ flex: 1, padding: "14px 10px", cursor: "pointer", textAlign: "center",
+                borderRadius: "14px", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)",
+                border: `2px solid ${sel ? "#e8600a" : hov ? "rgba(240,236,227,0.28)" : "rgba(240,236,227,0.12)"}`,
+                background: sel ? "rgba(232,96,10,0.12)" : hov ? "rgba(40,30,15,0.8)" : "rgba(30,22,10,0.5)",
+                color: sel ? "#e8600a" : hov ? "#f0ece3" : "rgba(240,236,227,0.6)",
+                boxShadow: sel ? "0 4px 20px rgba(232,96,10,0.25)" : hov ? "0 2px 10px rgba(0,0,0,0.25)" : "none",
                 transform: hov ? "translateY(-1px)" : "none",
                 transition: "all 0.18s" }}>
-              <div style={{ marginBottom: "10px", display:"flex", justifyContent:"center", color:"rgba(240,236,227,0.75)" }}>{React.createElement(icon, { size: 36, strokeWidth: 1.5 })}</div>
-              <div style={{ fontWeight: 800, fontSize: "16px", marginBottom: "3px" }}>{t}</div>
-              <div style={{ fontSize: "11px", opacity: 0.7 }}>{desc}</div>
+              <div style={{ marginBottom: "7px", display:"flex", justifyContent:"center" }}>{React.createElement(icon, { size: 22, strokeWidth: 1.5 })}</div>
+              <div style={{ fontWeight: 700, fontSize: "13px", marginBottom: "2px" }}>{t}</div>
+              <div style={{ fontSize: "10px", opacity: 0.6 }}>{desc}</div>
             </button>
           );
         })}
@@ -237,33 +236,6 @@ export function SchrittTyp({ onWeiter, onBelegEditor, onEigeneBelege, onSimulati
 
       {/* ── MAIN CONTENT ── */}
       <div style={{ maxWidth: "860px", margin: "0 auto", padding: "20px 16px" }}>
-
-      {/* Beleg-Werkzeug */}
-      <div style={{ marginBottom: "20px" }}>
-        {(() => {
-          const hov = hoveredTool === "editor";
-          return (
-            <button onClick={onBelegEditor}
-              onMouseEnter={() => setHoveredTool("editor")}
-              onMouseLeave={() => setHoveredTool(null)}
-              style={{ width: "100%", maxWidth: "420px", padding: "14px 16px", borderRadius: "14px",
-                backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)",
-                border: `2px solid ${hov ? "rgba(240,236,227,0.32)" : "rgba(240,236,227,0.15)"}`,
-                background: hov ? "rgba(40,30,15,0.8)" : "rgba(30,22,10,0.6)",
-                cursor: "pointer", display: "flex", alignItems: "center", gap: "10px",
-                color: "#f0ece3", fontWeight: 700, fontSize: "14px", minHeight: "56px",
-                boxShadow: hov ? "0 2px 12px rgba(0,0,0,0.3)" : "none",
-                transform: hov ? "translateY(-1px)" : "none",
-                transition: "all 0.18s" }}>
-              <ReceiptEuro size={22} strokeWidth={1.5} style={{ color: hov ? "#f0ece3" : "rgba(240,236,227,0.6)", flexShrink: 0 }} />
-              <div style={{ textAlign: "left" }}>
-                <div style={S.bold}>Beleg-Editor</div>
-                <div style={{ fontSize: "11px", color: "rgba(240,236,227,0.45)", fontWeight: 500 }}>Beleg erstellen</div>
-              </div>
-            </button>
-          );
-        })()}
-      </div>
 
       {/* Prüfungsart — nur bei Prüfung */}
       {typ === "Prüfung" && (

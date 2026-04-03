@@ -1014,15 +1014,15 @@ Antworte NUR mit reinem JSON:
   const typLabel = BELEGTYPEN.find(t => t.id === typ)?.label;
 
   return (
-    <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.55)", zIndex:1100, display:"flex", flexDirection:"column" }}>
+    <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.55)", backdropFilter:"blur(8px)", WebkitBackdropFilter:"blur(8px)", zIndex:1100, display:"flex", flexDirection:"column" }}>
       <style>{BE_CSS}</style>
       {/* Modal-Header */}
-      <div style={{ background:"#0f172a", borderBottom:"2px solid #e8600a", padding:"0 24px", height:"52px", display:"flex", alignItems:"center", justifyContent:"space-between", flexShrink:0 }}>
+      <div style={{ background:"rgba(22,16,8,0.97)", backdropFilter:"blur(24px)", WebkitBackdropFilter:"blur(24px)", borderBottom:"2px solid #e8600a", padding:"0 24px", height:"52px", display:"flex", alignItems:"center", justifyContent:"space-between", flexShrink:0 }}>
         <div style={{ display:"flex", alignItems:"center", gap:"12px" }}>
-          <span style={{ color:"#fff", fontWeight:800, fontSize:"17px" }}>Buchungs<span style={{color:"#e8600a"}}>Werk</span></span>
+          <span style={{ color:"#f0ece3", fontWeight:800, fontSize:"17px" }}>Buchungs<span style={{color:"#e8600a"}}>Werk</span></span>
           <span style={{ fontSize:"10px", fontWeight:700, background:"#e8600a22", color:"#e8600a", border:"1px solid #e8600a55", borderRadius:"4px", padding:"2px 8px", letterSpacing:".06em", textTransform:"uppercase" }}>Beleg-Editor</span>
         </div>
-        <button onClick={onSchliessen} style={{ background:"none", border:"1px solid #334155", color:"#94a3b8", borderRadius:"7px", padding:"5px 14px", cursor:"pointer", fontSize:"12px", fontWeight:700 }}>✕ Schließen</button>
+        <button onClick={onSchliessen} style={{ background:"none", border:"1px solid rgba(240,236,227,0.15)", color:"rgba(240,236,227,0.5)", borderRadius:"7px", padding:"5px 14px", cursor:"pointer", fontSize:"12px", fontWeight:700 }}>✕ Schließen</button>
       </div>
       {/* Typ-Tabs */}
       <div className="be-typ-bar">
