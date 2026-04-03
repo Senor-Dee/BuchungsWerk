@@ -5,6 +5,8 @@
 
 import { describe, test, expect } from 'vitest';
 import { belegToBuchungssatz, buchungssatzToText, getMinKlasseForBelegTyp } from './buchungsEngine.js';
+import { KONTEN } from '../data/kontenplan.js';
+import { KONTENPLAN } from '../utils/kontenplanEngine.js';
 
 // ── Testdaten-Helfer ──────────────────────────────────────────────────────────
 
@@ -580,5 +582,37 @@ describe('Performance (1 Test)', () => {
     }
     const ms = (Date.now() - start) / 100;
     expect(ms).toBeLessThan(50); // < 50ms für 4 Buchungen
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// GRUPPE 12: Kontenplan Konsistenz (Engine-Fix-2 / BUG-05)
+// ══════════════════════════════════════════════════════════════════════════════
+describe('Kontenplan Konsistenz', () => {
+  const kernKonten = [
+    { nr: '2600', kuerzel: 'VORST' },
+    { nr: '2800', kuerzel: 'BK' },
+    { nr: '2880', kuerzel: 'KA' },
+    { nr: '2400', kuerzel: 'FO' },
+    { nr: '4400', kuerzel: 'VE' },
+    { nr: '4800', kuerzel: 'UST' },
+    { nr: '5000', kuerzel: 'UEFE' },
+    { nr: '6000', kuerzel: 'AWR' },
+    { nr: '6750', kuerzel: 'KGV' },
+    { nr: '8010', kuerzel: 'SBK' },
+  ];
+
+  kernKonten.forEach(({ nr, kuerzel }) => {
+    test(`Konto ${nr} (${kuerzel}) existiert in BEIDEN Kontenplan-Quellen`, () => {
+      const altKonto = KONTEN.find(k => k.nr === nr);
+      expect(altKonto, `Konto ${nr} fehlt in src/data/kontenplan.js`).toBeTruthy();
+
+      const neuKonto = KONTENPLAN[nr];
+      expect(neuKonto, `Konto ${nr} fehlt in src/utils/kontenplanEngine.js`).toBeTruthy();
+
+      const altKuerzel = (altKonto?.kuerzel || altKonto?.kürzel || '').toUpperCase();
+      const neuKuerzel = (neuKonto?.kürzel || '').toUpperCase();
+      expect(altKuerzel).toBe(neuKuerzel);
+    });
   });
 });

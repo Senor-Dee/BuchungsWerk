@@ -389,7 +389,15 @@ function processKontoauszug(data, klasse) {
   const isZins     = /zins|zinsgut|rendite|kapital/.test(text);
   const isGebühr   = /gebühr|gebuehr|bankgebühr|bankgebuehr|kontoführ|kontofuehr|provision|comm/.test(text);
   const isAbhebung = /abhebung|barabhebung|bargeld|kassenab/.test(text);
-  const isEingang  = betragRaw > 0 || /eingang|kundenzahlung|gutschrift|überweisung eingang/.test(text);
+  // Richtung: explizit aus data.richtung (bevorzugt) oder Keyword/Vorzeichen-Fallback
+  let isEingang;
+  if (data.richtung === 'eingang') {
+    isEingang = true;
+  } else if (data.richtung === 'ausgang') {
+    isEingang = false;
+  } else {
+    isEingang = betragRaw > 0 || /eingang|kundenzahlung|gutschrift|überweisung eingang/.test(text);
+  }
 
   if (isZins) {
     return [zeile({
@@ -466,10 +474,15 @@ function processEmail(data, klasse) {
   // Mahngebühren
   const isMahnung    = /mahnung|mahngebühr|mahngebuehr|mahnkost|verzugszins/.test(kombi);
 
-  // Betrag aus Email-Text extrahieren (sucht Muster wie "5,00 €" oder "5.00")
-  const betragMatch = kombi.match(/(\d{1,3}(?:\.\d{3})*(?:,\d{2})?)\s*(?:€|eur)/i) ||
-                      kombi.match(/(\d+[,\.]\d{2})/);
-  const emailBetrag = betragMatch ? r2(parseGeld(betragMatch[1])) : 0;
+  // Betrag: explizit aus data.betrag (sicherer) oder Regex-Fallback aus Text
+  let emailBetrag = 0;
+  if (data.betrag && parseGeld(data.betrag) > 0) {
+    emailBetrag = r2(parseGeld(data.betrag));
+  } else {
+    const betragMatch = kombi.match(/(\d{1,3}(?:\.\d{3})*(?:,\d{2})?)\s*(?:€|eur)/i) ||
+                        kombi.match(/(\d+[,\.]\d{2})/);
+    emailBetrag = betragMatch ? r2(parseGeld(betragMatch[1])) : 0;
+  }
 
   if (isGutschrift) {
     if (emailBetrag <= 0) {
@@ -531,17 +544,38 @@ function processEmail(data, klasse) {
  * @returns {object[]} Buchungssatz-Zeilen
  */
 function processQuittung(data, klasse) {
-  const betrag = parseGeld(data.betrag);
-  if (betrag <= 0) {
+  const betragRaw = parseGeld(data.betrag);
+  if (betragRaw <= 0) {
     throw new Error('Quittung: Betrag muss größer als 0 sein');
+  }
+
+  const ustRate   = parseGeld(data.ustSatz ?? 0) / 100;
+  const istBrutto = data.istBrutto !== false; // Default: betrag ist Brutto
+  const hasUSt    = ustRate > 0 && klasse >= 8;
+
+  let netto, ustBetrag, brutto;
+  if (hasUSt) {
+    if (istBrutto) {
+      brutto    = r2(betragRaw);
+      netto     = r2(brutto / (1 + ustRate));
+      ustBetrag = r2(brutto - netto);
+    } else {
+      netto     = r2(betragRaw);
+      ustBetrag = r2(netto * ustRate);
+      brutto    = r2(netto + ustBetrag);
+    }
+  } else {
+    brutto    = r2(betragRaw);
+    netto     = brutto;
+    ustBetrag = 0;
   }
 
   const zweck = (data.zweck || '').toLowerCase();
 
   // Konto-Auswahl basierend auf Zweck
   let aufwandNr   = '6800';
-  let aufwandKürz = 'BMK';   // Default: Büromaterial
-  let erklaerung  = `Kl.${klasse}: Barkauf Büromaterial – Kasse (KA) abnimmt`;
+  let aufwandKürz = 'BMK';
+  let erklaerung  = `Kl.${klasse}: Barkauf Büromaterial – Kasse (KA) verringert sich`;
 
   if (/porto|fracht|transport|versand/.test(zweck)) {
     aufwandNr = '6140'; aufwandKürz = 'AFR';
@@ -554,15 +588,29 @@ function processQuittung(data, klasse) {
     erklaerung = `Kl.${klasse}: Versicherungsbeitrag bar bezahlt`;
   }
 
-  return [
-    zeile({
+  const result = [];
+
+  // Aufwand-Zeile (immer)
+  result.push(zeile({
+    gruppe: 1, klasse,
+    sollNr: aufwandNr, sollName: aufwandKürz,
+    habenNr: '2880',  habenName: 'KA',
+    betrag: netto,
+    erklaerung,
+  }));
+
+  // VORST-Zeile (nur Klasse 8+ mit USt)
+  if (hasUSt && ustBetrag > 0) {
+    result.push(zeile({
       gruppe: 1, klasse,
-      sollNr: aufwandNr, sollName: aufwandKürz,
+      sollNr: '2600', sollName: 'VORST',
       habenNr: '2880', habenName: 'KA',
-      betrag,
-      erklaerung,
-    }),
-  ];
+      betrag: ustBetrag,
+      erklaerung: `Kl.${klasse} LB6: Vorsteuer aus Barkauf (${(ustRate * 100).toFixed(0)} %)`,
+    }));
+  }
+
+  return result;
 }
 
 // ── Hauptfunktion ─────────────────────────────────────────────────────────────
