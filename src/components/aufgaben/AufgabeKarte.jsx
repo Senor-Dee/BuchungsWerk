@@ -15,7 +15,8 @@ import { KürzelSpan, renderMitTooltips } from "../kontenplan/KontenplanModal.js
 import DraggableHaken from "../DraggableHaken.jsx";
 import { SchaubildAnzeige, GeschaeftsfallKarte } from "../common/Schaubilder.jsx";
 import { BuchungsSatz, TKonten, NebenrechnungBox, SchemaTabelle,
-         AngebotsVergleichAufgabe, AngebotsVergleichLoesung } from "./Buchungskomponenten.jsx";
+         AngebotsVergleichAufgabe, AngebotsVergleichLoesung,
+         BELEG_LABEL } from "./Buchungskomponenten.jsx";
 
 export function TheorieKarte({ aufgabe, nr, showLoesung, klasse = 10 }) {
   const [open, setOpen] = useState(false);
