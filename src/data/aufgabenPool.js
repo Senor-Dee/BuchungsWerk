@@ -1576,13 +1576,19 @@ Konten: 2000 R (Rohstoffe), 2010 F (Fremdbauteile), 2020 H (Hilfsstoffe), 2030 B
           const menge  = rnd(5, 40, 1);
           const nr1    = augnr();
 
-          // ── Vorkalkulation (Verkaufskalkulation) ─────────────────────────────
-          // Einstandspreis → + Aufschlag → = Zielverkaufspreis → + USt → = Brutto-Rechnungspreis
-          const ekp      = rnd(800, 6000, 100);
-          const aufschPct = pick([20, 25, 30, 35, 40]);
-          const aufsch   = r2(ekp * aufschPct / 100);
-          const vkpNetto = r2(ekp + aufsch);                 // = Zielverkaufspreis ← Buchungsbasis
-          const basisNetto = mitKalk ? vkpNetto : rnd(2000, 14000, 200);
+          // ── Vorkalkulation (Verkaufskalkulation – ISB Vorwärtskalkulation) ─────
+          // EP → +Gewinn → BVP → +Kundenskonto → ZVP(Buchungsbasis) → +Kundenrabatt → LVP
+          const ekp        = rnd(800, 6000, 100);
+          const aufschPct  = pick([20, 25, 30, 35, 40]);
+          const aufsch     = r2(ekp * aufschPct / 100);
+          const bvp        = r2(ekp + aufsch);                       // Barverkaufspreis
+          const skoKalkPct = pick([2, 3]);                           // Kundenskonto %
+          const zvp        = r2(bvp / (1 - skoKalkPct / 100));      // Zielverkaufspreis (ISB: BVP÷(1−sk%))
+          const skoKalkB   = r2(zvp - bvp);                         // Kundenskonto-Betrag
+          const rabKalkPct = pick([5, 8, 10]);                       // Kundenrabatt %
+          const lvp        = r2(zvp / (1 - rabKalkPct / 100));      // Listenverkaufspreis netto
+          const rabKalkB   = r2(lvp - zvp);                         // Kundenrabatt-Betrag
+          const basisNetto = mitKalk ? zvp : rnd(2000, 14000, 200); // ZVP = Buchungsbasis!
           const ust1     = r2(basisNetto * 0.19);
           const brutto1  = r2(basisNetto + ust1);
 
@@ -1629,18 +1635,22 @@ Konten: 2000 R (Rohstoffe), 2010 F (Fremdbauteile), 2020 H (Hilfsstoffe), 2030 B
               titel: "Verkaufskalkulation",
               typ: "kalkulation_vk",
               _optsKey: "vorkalkulation",
-              aufgabe: `Ermitteln Sie den Zielverkaufspreis für ${menge} Stk. ${art}. Kalkulationsgrundlage: Einstandspreis ${fmt(ekp)} € · Handelsspanne (Aufschlag): ${aufschPct} % auf den Einstandspreis.`,
+              aufgabe: `Ermitteln Sie den Listenverkaufspreis (netto) für ${menge} Stk. ${art} mithilfe der Vorwärtskalkulation. Kalkulationsdaten: Einstandspreis: ${fmt(ekp)} € · Gewinnzuschlag: ${aufschPct} % auf den Einstandspreis · Kundenskonto: ${skoKalkPct} % · Kundenrabatt: ${rabKalkPct} %. Markieren Sie den Buchungsbetrag.`,
               beleg: null, soll: [], haben: [],
               schema: [
-                { label: "Einstandspreis", wert: ekp, einheit: "€" },
-                { label: `+ Aufschlag (${aufschPct} %)`, wert: aufsch, einheit: "€" },
-                { label: "= Zielverkaufspreis (Buchungsbasis)", wert: vkpNetto, einheit: "€", bold: true, trennlinie: true, highlight: true },
+                { label: "Einstandspreis (EP)", wert: ekp, einheit: "€" },
+                { label: `+ Gewinn (${aufschPct} %)`, wert: aufsch, einheit: "€" },
+                { label: "= Barverkaufspreis (BVP)", wert: bvp, einheit: "€", bold: true, trennlinie: true },
+                { label: `+ Kundenskonto (${skoKalkPct} % auf ZVP)`, wert: skoKalkB, einheit: "€" },
+                { label: "= Zielverkaufspreis (ZVP)", wert: zvp, einheit: "€", bold: true, trennlinie: true, highlight: true },
+                { label: `+ Kundenrabatt (${rabKalkPct} % auf LVP)`, wert: rabKalkB, einheit: "€" },
+                { label: "= Listenverkaufspreis netto (LVP)", wert: lvp, einheit: "€", bold: true, trennlinie: true },
                 { label: "+ USt (19 %)", wert: ust1, einheit: "€" },
-                { label: "= Brutto-Rechnungsbetrag", wert: brutto1, einheit: "€", bold: true, trennlinie: true },
+                { label: "= Brutto-Rechnungsbetrag (auf Basis ZVP)", wert: brutto1, einheit: "€", bold: true, trennlinie: true },
               ],
-              punkte: 4,
-              nrPunkte: 3,
-              erklaerung: `EKP (${fmt(ekp)} €) + Aufschlag ${aufschPct} % (${fmt(aufsch)} €) = Zielverkaufspreis ${fmt(vkpNetto)} € → Buchungsbasis. + USt 19 % (${fmt(ust1)} €) = Rechnungsbetrag ${fmt(brutto1)} €.`,
+              punkte: 6,
+              nrPunkte: 5,
+              erklaerung: `EP (${fmt(ekp)} €) + Gewinn ${aufschPct} % = BVP ${fmt(bvp)} €. BVP ÷ (1 − ${skoKalkPct} %) = ZVP ${fmt(zvp)} € → Buchungsbasis! ZVP ÷ (1 − ${rabKalkPct} %) = LVP ${fmt(lvp)} € (Katalogpreis). Buchungssatz: FO ${fmt(brutto1)} € Soll | UEFE ${fmt(zvp)} € + UST ${fmt(ust1)} € Haben.`,
             });
           }
 

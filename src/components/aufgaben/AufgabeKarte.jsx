@@ -71,8 +71,8 @@ export function TheorieKarte({ aufgabe, nr, showLoesung, klasse = 10 }) {
     return (
       <div style={{ fontSize: "13px" }}>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginBottom: "4px" }}>
-          <div style={{ fontWeight: 700, color: "#374151", padding: "4px 0", borderBottom: "2px solid rgba(240,236,227,0.12)" }}>Begriff</div>
-          <div style={{ fontWeight: 700, color: "#374151", padding: "4px 0", borderBottom: "2px solid rgba(240,236,227,0.12)" }}>Definition</div>
+          <div style={{ fontWeight: 700, color: "rgba(240,236,227,0.8)", padding: "4px 0", borderBottom: "2px solid rgba(240,236,227,0.12)" }}>Begriff</div>
+          <div style={{ fontWeight: 700, color: "rgba(240,236,227,0.8)", padding: "4px 0", borderBottom: "2px solid rgba(240,236,227,0.12)" }}>Definition</div>
           {shuffled.terms.map((t, i) => (
             <React.Fragment key={i}>
               <div style={{ display: "flex", alignItems: "flex-start", gap: "8px", padding: "6px 0", borderBottom: "1px solid rgba(240,236,227,0.08)" }}>
@@ -224,17 +224,6 @@ export function KomplexKarte({ aufgabe, nr, showLoesung, globalMode, klasse = 10
         </button>
       </div>
 
-      {/* ── Szenario-Box ── */}
-      <div style={{ padding: "12px 18px 10px", background: "rgba(240,236,227,0.04)", borderBottom: "1px solid rgba(240,236,227,0.1)", fontSize: "13px", color: "rgba(240,236,227,0.8)", textAlign: "left" }}>
-        <span style={{ fontWeight: 700, color: "#e8600a", display:"inline-flex", alignItems:"center", gap:4 }}><ClipboardList size={13} strokeWidth={1.5}/>Szenario</span>
-        {Array.isArray(aufgabe.kontext)
-          ? aufgabe.kontext.map((teil, i) => (
-              <p key={i} style={{ margin: "6px 0 0", lineHeight: 1.6, paddingLeft: i > 0 ? "12px" : 0, borderLeft: i > 0 ? "2px solid #e2e8f0" : "none", textAlign: "left" }}>{teil}</p>
-            ))
-          : <p style={{ margin: "6px 0 0", lineHeight: 1.6, textAlign: "left" }}>{aufgabe.kontext}</p>
-        }
-      </div>
-
       {/* ── Schritte ── */}
       {(aufgabe.schritte || []).map((schritt, i) => {
         const isOpen = showLoesung || openAll || !!openSchritte[i];
@@ -258,8 +247,8 @@ export function KomplexKarte({ aufgabe, nr, showLoesung, globalMode, klasse = 10
               {onSchrittEntfernen && schritt._optsKey && (
                 <button onClick={() => onSchrittEntfernen(i)}
                   title="Teilaufgabe entfernen"
-                  style={{ padding: "3px 8px", border: "1px solid #fca5a5", borderRadius: "6px", background: "#fff1f2",
-                    color: "#dc2626", fontSize: "11px", fontWeight: 700, cursor: "pointer" }}>
+                  style={{ padding: "3px 8px", border: "1px solid rgba(220,38,38,0.3)", borderRadius: "6px", background: "rgba(220,38,38,0.12)",
+                    color: "#fca5a5", fontSize: "11px", fontWeight: 700, cursor: "pointer" }}>
                   ✕
                 </button>
               )}
@@ -287,7 +276,7 @@ export function KomplexKarte({ aufgabe, nr, showLoesung, globalMode, klasse = 10
                       }
                       setEditText(anrede(klasse, schritt.aufgabe ?? ""));
                       setEditSchrittIdx(null);
-                    }} style={{ padding: "5px 12px", background: "#fee2e2", color: "#dc2626", border: "none", borderRadius: "6px", fontWeight: 700, fontSize: "11px", cursor: "pointer", display:"flex", alignItems:"center", gap:4 }}><RefreshCw size={10} strokeWidth={1.5}/>Original</button>
+                    }} style={{ padding: "5px 12px", background: "rgba(220,38,38,0.12)", color: "#fca5a5", border: "none", borderRadius: "6px", fontWeight: 700, fontSize: "11px", cursor: "pointer", display:"flex", alignItems:"center", gap:4 }}><RefreshCw size={10} strokeWidth={1.5}/>Original</button>
                     <button disabled={kiLaden} onClick={async () => {
                       setKiLaden(true);
                       try {
@@ -305,7 +294,7 @@ export function KomplexKarte({ aufgabe, nr, showLoesung, globalMode, klasse = 10
                 </div>
               ) : (
                 <div style={{ display: "flex", alignItems: "flex-start", gap: "8px", marginBottom: "10px" }}>
-                  <p style={{ margin: 0, fontSize: "13px", color: "#374151", fontWeight: 600, flex: 1 }}>
+                  <p style={{ margin: 0, fontSize: "13px", color: "rgba(240,236,227,0.9)", fontWeight: 600, flex: 1 }}>
                     {schritt._aufgabeEdit ?? anrede(klasse, schritt.aufgabe)}
                   </p>
                   <button onClick={() => { setEditText(schritt._aufgabeEdit ?? anrede(klasse, schritt.aufgabe ?? "")); setEditSchrittIdx(i); }}
@@ -446,8 +435,8 @@ export function KomplexKarte({ aufgabe, nr, showLoesung, globalMode, klasse = 10
                 <button key={d.optsKey}
                   onClick={() => { onSchrittHinzufuegen(d.optsKey); setAddMenuOffen(false); }}
                   style={{ display: "block", width: "100%", padding: "9px 16px", border: "none", background: "transparent",
-                    textAlign: "left", fontSize: "13px", fontWeight: 600, color: "#0f172a", cursor: "pointer" }}
-                  onMouseEnter={e => e.currentTarget.style.background = "#f1f5f9"}
+                    textAlign: "left", fontSize: "13px", fontWeight: 600, color: "rgba(240,236,227,0.85)", cursor: "pointer" }}
+                  onMouseEnter={e => e.currentTarget.style.background = "rgba(240,236,227,0.08)"}
                   onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
                   + {d.label}
                 </button>
@@ -628,7 +617,7 @@ export function AufgabeKarte({ aufgabe, nr, showLoesung, globalMode, klasse = 10
             <div style={{ display: "flex", gap: "8px", marginTop: "6px", flexWrap: "wrap" }}>
               <button onClick={saveEdit} style={{ padding: "6px 14px", background: "#141008", color: "#fff", border: "none", borderRadius: "7px", fontWeight: 700, fontSize: "12px", cursor: "pointer", display:"flex", alignItems:"center", gap:4 }}><Save size={12} strokeWidth={1.5}/>Speichern</button>
               <button onClick={resetEdit} title="Zurück zur generierten Formulierung"
-                style={{ padding: "6px 14px", background: "#fee2e2", color: "#dc2626", border: "none", borderRadius: "7px", fontWeight: 700, fontSize: "12px", cursor: "pointer", display:"flex", alignItems:"center", gap:4 }}><RefreshCw size={12} strokeWidth={1.5}/>Original</button>
+                style={{ padding: "6px 14px", background: "rgba(220,38,38,0.12)", color: "#fca5a5", border: "none", borderRadius: "7px", fontWeight: 700, fontSize: "12px", cursor: "pointer", display:"flex", alignItems:"center", gap:4 }}><RefreshCw size={12} strokeWidth={1.5}/>Original</button>
               <button onClick={kiNeuformulierung} disabled={kiLaden}
                 style={{ padding: "6px 14px", background: "rgba(232,96,10,0.15)", color: "#e8600a", border: "1px solid rgba(232,96,10,0.3)", borderRadius: "7px", fontWeight: 700, fontSize: "12px", cursor: kiLaden ? "wait" : "pointer", opacity: kiLaden ? 0.7 : 1, display:"flex", alignItems:"center", gap:4 }}>
                 {kiLaden ? <><Zap size={12} strokeWidth={1.5}/>KI…</> : <><RefreshCw size={12} strokeWidth={1.5}/>KI-Neuformulierung</>}
@@ -728,7 +717,7 @@ export function AufgabeKarte({ aufgabe, nr, showLoesung, globalMode, klasse = 10
                 ? <BuchungsSatz soll={aufgabe.soll} haben={aufgabe.haben} />
                 : <TKonten soll={aufgabe.soll} haben={aufgabe.haben} />
             )}
-            <div style={{ marginTop: "10px", padding: "8px 12px", background: "rgba(232,96,10,0.12)", borderRadius: "8px", border: "1px solid rgba(232,96,10,0.3)", fontSize: "13px", color: "#374151", lineHeight: 1.6 }}>
+            <div style={{ marginTop: "10px", padding: "8px 12px", background: "rgba(232,96,10,0.12)", borderRadius: "8px", border: "1px solid rgba(232,96,10,0.3)", fontSize: "13px", color: "rgba(240,236,227,0.85)", lineHeight: 1.6 }}>
               💡 {renderMitTooltips(aufgabe.erklaerung)}
             </div>
           </div>
