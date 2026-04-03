@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
 from typing import Optional
-import sqlite3, os, secrets, random, string
+import sqlite3, os, secrets, random, string, html
 from datetime import datetime, timedelta, timezone, date
 
 import bcrypt
@@ -733,7 +733,7 @@ def admin_send_email(uid: int, data: AdminEmailReq,
         raise HTTPException(404, "Benutzer nicht gefunden")
     ok = send_email(row["email"], data.betreff,
         f"<p>Hallo {row['vorname']},</p>"
-        f"<p>{data.nachricht.replace(chr(10), '<br>')}</p>"
+        f"<p>{html.escape(data.nachricht).replace(chr(10), '<br>')}</p>"
         f"<hr><p style='color:#999;font-size:12px'>BuchungsWerk</p>")
     if not ok:
         raise HTTPException(502, "E-Mail konnte nicht gesendet werden")
@@ -1077,7 +1077,7 @@ def create_support(data: SupportLog, db: sqlite3.Connection = Depends(get_db)):
             f"<p><strong>Typ:</strong> {typ_label}</p>"
             f"<p><strong>Zeitpunkt:</strong> {data.ts or datetime.now().isoformat()}</p>"
             f"<hr/>"
-            f"<p>{(data.text or '').replace(chr(10), '<br/>')}</p>",
+            f"<p>{html.escape(data.text or '').replace(chr(10), '<br/>')}</p>",
         )
     return {"ok": True}
 
