@@ -1,5 +1,6 @@
 // ── Test 7: Fachliche UI-Tests – Phase TEST Track B ───────────────────────────
 import { test, expect } from "@playwright/test";
+import AxeBuilder from "@axe-core/playwright";
 import { setupLoggedIn, navigateToSchritt3, mockKIAPI } from "./fixtures/helpers.js";
 
 // ── Hilfsfunktion: Navigation zu einer beliebigen Klasse + LB ─────────────────
@@ -282,4 +283,32 @@ test.describe("Fachliche UI-Tests – Phase TEST Track B", () => {
     expect(result.error).toBeUndefined();
     expect(result.mismatches).toHaveLength(0); // 0/10 Kunden-Mismatches
   });
+
+  // ── TEST-B8: Rechnung-Lösung Kontrast (axe color-contrast) ───────────────────
+  test("7.8: Rechnung-Lösung – axe color-contrast im Lösungs-Container", async ({ page }) => {
+    await setupLoggedIn(page);
+    await page.goto("/");
+    await page.waitForSelector("text=Was möchtest du erstellen?", { timeout: 8000 });
+    // Klasse 7, LB1 Prozentrechnung (Index 0) – enthält taskTyp:"rechnung"
+    await navigateKlasseLB(page, 7, 0);
+
+    // Erste Lösung aufklappen
+    const loesungsBtn = page.getByRole("button", { name: "▼ Lösung" }).first();
+    await expect(loesungsBtn).toBeVisible({ timeout: 5000 });
+    await loesungsBtn.click();
+    await page.waitForTimeout(400);
+
+    // Lösungs-Container muss sichtbar sein
+    const container = page.locator('[data-testid="loesung-container"]').first();
+    await expect(container).toBeVisible({ timeout: 3000 });
+
+    // axe-core Kontrast-Check scoped auf den Lösungs-Container
+    const results = await new AxeBuilder({ page })
+      .include('[data-testid="loesung-container"]')
+      .withRules(["color-contrast"])
+      .analyze();
+
+    expect(results.violations).toHaveLength(0);
+  });
+
 });

@@ -689,7 +689,7 @@ export function AufgabeKarte({ aufgabe, nr, showLoesung, globalMode, klasse = 10
         )}
 
         {(showLoesung || open) && aufgabe.taskTyp !== "schaubild" && (
-          <div style={{ background: isRechnung ? "rgba(139,92,246,0.08)" : "rgba(34,197,94,0.05)", border: `1px solid ${isRechnung ? "rgba(139,92,246,0.25)" : "rgba(74,222,128,0.2)"}`, borderRadius: "10px", padding: "14px 16px", marginTop: "8px" }}>
+          <div data-testid="loesung-container" style={{ background: isRechnung ? "rgba(139,92,246,0.08)" : "rgba(34,197,94,0.05)", border: `1px solid ${isRechnung ? "rgba(139,92,246,0.25)" : "rgba(74,222,128,0.2)"}`, borderRadius: "10px", padding: "14px 16px", marginTop: "8px" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px", flexWrap: "wrap", gap: "8px" }}>
               {/* Ansicht-Toggle für Buchungslösungen */}
               {!isRechnung && aufgabe.soll && (
