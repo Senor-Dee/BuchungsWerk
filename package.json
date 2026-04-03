@@ -8,7 +8,9 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:digital": "node scripts/digital-tester.mjs",
+    "test:digital:quick": "node scripts/digital-tester.mjs --quick"
   },
   "dependencies": {
     "docx": "^8.5.0",
