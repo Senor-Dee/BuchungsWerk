@@ -10,7 +10,10 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:digital": "node scripts/digital-tester.mjs",
-    "test:digital:quick": "node scripts/digital-tester.mjs --quick"
+    "test:digital:quick": "node scripts/digital-tester.mjs --quick",
+    "test:shadow": "node scripts/shadow-tester.mjs",
+    "test:shadow:quick": "node scripts/shadow-tester.mjs --quick",
+    "test:shadow:lang": "node scripts/shadow/language-scanner.mjs"
   },
   "dependencies": {
     "docx": "^8.5.0",
@@ -22,6 +25,8 @@
     "@axe-core/playwright": "^4.11.1",
     "@playwright/test": "^1.59.1",
     "@vitejs/plugin-react": "^4.3.1",
+    "dictionary-de": "^3.0.0",
+    "nspell": "^2.1.5",
     "vite": "^5.4.0",
     "vitest": "^4.1.2"
   }

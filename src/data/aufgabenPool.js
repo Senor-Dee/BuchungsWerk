@@ -3357,7 +3357,7 @@ ${f.name} überweist am 01.10. eine ${k.art} in Höhe von ${fmt(gesamt)} € fü
             soll: [{ nr: k.nr, name: k.name, betrag: gesamt }, { nr: "2900", name: "Aktive Rechnungsabgrenzung (ARA)", betrag: araBetrag }],
             haben: [{ nr: "2800", name: "Bank (BK)", betrag: gesamt }, { nr: k.nr, name: k.name, betrag: araBetrag }],
             nrPunkte: 4,
-            erklaerung: `ARA: Zahlung im alten Jahr, Aufwand gehört auch ins neue Jahr. (1) ${k.nr} ${gesamt} € an 2800 BK. (2) Vorabschluss: 2900 ARA ${araBetrag} € an ${k.nr} (Anteil neues Jahr).`,
+            erklaerung: `ARA: Zahlung im alten Jahr, Aufwand gehört auch ins neue Jahr. (1) ${k.nr} ${fmt(gesamt)} € an 2800 BK. (2) Vorabschluss: 2900 ARA ${fmt(araBetrag)} € an ${k.nr} (Anteil neues Jahr).`,
           };
         },
       },
