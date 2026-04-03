@@ -813,7 +813,7 @@ class SessionCreate(BaseModel):
     config_json: Optional[str] = None
 
 @app.post("/sessions", status_code=201)
-def create_session(data: SessionCreate, db: sqlite3.Connection = Depends(get_db)):
+def create_session(data: SessionCreate, db: sqlite3.Connection = Depends(get_db), current_user: dict = Depends(get_current_user)):
     cur = db.execute(
         "INSERT INTO quiz_sessions (klasse_id,schueler_id,titel,klasse_stufe,pruefungsart,config_json) VALUES (?,?,?,?,?,?)",
         (data.klasse_id, data.schueler_id, data.titel, data.klasse_stufe, data.pruefungsart, data.config_json)
@@ -850,7 +850,7 @@ class ErgebnisCreate(BaseModel):
     antwort_json: Optional[str] = None
 
 @app.post("/ergebnisse", status_code=201)
-def create_ergebnis(data: ErgebnisCreate, db: sqlite3.Connection = Depends(get_db)):
+def create_ergebnis(data: ErgebnisCreate, db: sqlite3.Connection = Depends(get_db), current_user: dict = Depends(get_current_user)):
     cur = db.execute(
         "INSERT INTO ergebnisse (session_id,frage_nr,frage_typ,punkte,max_punkte,korrekt,antwort_json) VALUES (?,?,?,?,?,?,?)",
         (data.session_id, data.frage_nr, data.frage_typ, data.punkte, data.max_punkte,
@@ -931,7 +931,7 @@ class SpielErgebnis(BaseModel):
     klasse: Optional[str] = None
 
 @app.post("/spielrangliste", status_code=201)
-def create_spielergebnis(data: SpielErgebnis, db: sqlite3.Connection = Depends(get_db)):
+def create_spielergebnis(data: SpielErgebnis, db: sqlite3.Connection = Depends(get_db), current_user: dict = Depends(get_current_user)):
     cur = db.execute(
         "INSERT INTO spielrangliste (session_code,spieler,punkte,max_punkte,zeit,klasse) VALUES (?,?,?,?,?,?)",
         (data.session_code, data.spieler, data.punkte, data.max_punkte, data.zeit, data.klasse)
@@ -986,6 +986,8 @@ class SessionJoinReq(BaseModel):
 
 @app.post("/session/join", status_code=200)
 def session_join(data: SessionJoinReq, db: sqlite3.Connection = Depends(get_db)):
+    if not _re.match(r'^[a-zA-ZäöüÄÖÜß0-9 \-]{1,40}$', data.spieler):
+        raise HTTPException(400, "Ungültiger Spielername")
     import json as _json
     stand_json = _json.dumps({"punkte": data.punkte, "max_punkte": data.max_punkte})
     db.execute(
@@ -1073,7 +1075,7 @@ class SupportLog(BaseModel):
     ts: Optional[str] = None
 
 @app.post("/support", status_code=201)
-def create_support(data: SupportLog, db: sqlite3.Connection = Depends(get_db)):
+def create_support(data: SupportLog, db: sqlite3.Connection = Depends(get_db), current_user: dict = Depends(get_current_user)):
     db.execute("INSERT INTO support_logs (typ,text,ts) VALUES (?,?,?)",
                (data.typ, data.text, data.ts or datetime.now().isoformat()))
     db.commit()
@@ -1366,7 +1368,7 @@ def _streak_badge(streak: int) -> str:
     return "check"
 
 @app.post("/streak/record")
-def streak_record(data: StreakRecord, db: sqlite3.Connection = Depends(get_db)):
+def streak_record(data: StreakRecord, db: sqlite3.Connection = Depends(get_db), current_user: dict = Depends(get_current_user)):
     name = data.name.strip()[:40]
     if not name:
         raise HTTPException(400, "Name erforderlich")
@@ -1446,7 +1448,7 @@ def _berechne_level(aufgaben_geloest: int, gesamt_aufgaben: int, genauigkeit: fl
     return "BLAU"
 
 @app.post("/level/record")
-def level_record(data: LevelRecord, db: sqlite3.Connection = Depends(get_db)):
+def level_record(data: LevelRecord, db: sqlite3.Connection = Depends(get_db), current_user: dict = Depends(get_current_user)):
     name = data.name.strip()[:40]
     lernbereich = data.lernbereich.strip()[:80]
     if not name or not lernbereich:
