@@ -7,6 +7,8 @@ import { describe, test, expect } from 'vitest';
 import { belegToBuchungssatz, buchungssatzToText, getMinKlasseForBelegTyp, validatePoolBuchungssatz } from './buchungsEngine.js';
 import { KONTEN } from '../data/kontenplan.js';
 import { KONTENPLAN } from '../utils/kontenplanEngine.js';
+import { AUFGABEN_POOL } from '../data/aufgabenPool.js';
+import { UNTERNEHMEN } from '../data/stammdaten.js';
 
 // ── Testdaten-Helfer ──────────────────────────────────────────────────────────
 
@@ -648,5 +650,214 @@ describe('validatePoolBuchungssatz', () => {
       haben: [{ nr: '4400', name: 'VE',  betrag: 100.01 }],
     };
     expect(() => validatePoolBuchungssatz(aufgabe, 'test_rundung')).not.toThrow();
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// GRUPPE 14: TEST-A1 – Pool-Volltest (alle Buchungssatz/Komplex-Tasks)
+// ══════════════════════════════════════════════════════════════════════════════
+describe('TEST-A1: Pool-Volltest – alle Buchungssatz-Tasks bilanzieren', () => {
+  // UNTERNEHMEN[0] = LumiTec GmbH – vollständiges Firma-Objekt (rohstoffe, fertigerzeugnisse, etc.)
+  const TEST_FIRMA = UNTERNEHMEN[0];
+  const TEST_OPTS  = { werkstoffId: 'rohstoffe', schwierigkeit: 'gemischt' };
+
+  Object.entries(AUFGABEN_POOL).forEach(([klasse, lernbereiche]) => {
+    Object.entries(lernbereiche).forEach(([lb, tasks]) => {
+      tasks
+        .filter(t => ['buchungssatz', 'komplex'].includes(t.taskTyp))
+        .forEach(task => {
+          test(`${task.id} (Klasse ${klasse}, ${lb})`, () => {
+            const gen = task.taskTyp === 'theorie'
+              ? task.generate()
+              : task.generate(TEST_FIRMA, TEST_OPTS);
+
+            if (task.taskTyp === 'komplex' && gen.schritte) {
+              gen.schritte.forEach((schritt, i) => {
+                validatePoolBuchungssatz(schritt, `${task.id}_schritt_${i}`);
+              });
+            } else {
+              validatePoolBuchungssatz(gen, task.id);
+            }
+          });
+        });
+    });
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// GRUPPE 15: TEST-A2 – Engine-Korrektheit alle 6 Belegtypen
+// ══════════════════════════════════════════════════════════════════════════════
+describe('TEST-A2: Engine-Korrektheit alle Belegtypen', () => {
+  // Eingangsrechnung Klasse 7
+  test('Eingangsrechnung Klasse 7 – Brutto, kein VORST, leere Kontonummern', () => {
+    const { buchungssatz } = belegToBuchungssatz({
+      typ: 'eingangsrechnung',
+      data: { ustSatz: '19', bezugskosten: 0, rabattAktiv: false,
+              positionen: [{ artikel: 'Rohstoffe', menge: 10, ep: 100 }] }
+    }, 7);
+    expect(buchungssatz).toHaveLength(1);
+    expect(buchungssatz[0].soll_nr).toBe('');
+    expect(buchungssatz[0].haben_nr).toBe('');
+    expect(buchungssatz[0].soll_name).toBe('AWR');
+    expect(buchungssatz[0].betrag).toBeCloseTo(1190, 1);
+  });
+
+  // Eingangsrechnung Klasse 8
+  test('Eingangsrechnung Klasse 8 – Netto + VORST', () => {
+    const { buchungssatz } = belegToBuchungssatz({
+      typ: 'eingangsrechnung',
+      data: { ustSatz: '19', bezugskosten: 0, rabattAktiv: false,
+              positionen: [{ artikel: 'Rohstoffe', menge: 10, ep: 100 }] }
+    }, 8);
+    const awr   = buchungssatz.find(z => z.soll_name === 'AWR');
+    const vorst = buchungssatz.find(z => z.soll_name === 'VORST');
+    expect(awr?.betrag).toBeCloseTo(1000, 1);
+    expect(vorst?.betrag).toBeCloseTo(190, 1);
+    expect(buchungssatz[0].soll_nr).toBe('6000');
+  });
+
+  // GWG-Grenzwert ≤ 800 → GWG
+  test('Eingangsrechnung GWG-Grenzwert exakt 800€', () => {
+    const { buchungssatz } = belegToBuchungssatz({
+      typ: 'eingangsrechnung',
+      data: { ustSatz: '19', bezugskosten: 0, rabattAktiv: false,
+              positionen: [{ artikel: 'Büromaschinen', menge: 1, ep: 800 }] }
+    }, 8);
+    expect(buchungssatz[0].soll_name).toBe('GWG');
+  });
+
+  // GWG-Grenzwert 800,01 → kein GWG
+  test('Eingangsrechnung GWG-Grenzwert 800,01€ → nicht GWG', () => {
+    const { buchungssatz } = belegToBuchungssatz({
+      typ: 'eingangsrechnung',
+      data: { ustSatz: '19', bezugskosten: 0, rabattAktiv: false,
+              positionen: [{ artikel: 'Büromaschinen', menge: 1, ep: 800.01 }] }
+    }, 8);
+    expect(buchungssatz[0].soll_name).not.toBe('GWG');
+  });
+
+  // Ausgangsrechnung
+  test('Ausgangsrechnung Klasse 8 – FO + UEFE + UST', () => {
+    const { buchungssatz } = belegToBuchungssatz({
+      typ: 'ausgangsrechnung',
+      data: { ustSatz: '19', positionen: [{ artikel: 'Fertigerzeugnisse', menge: 5, ep: 200 }] }
+    }, 8);
+    const fo   = buchungssatz.find(z => z.soll_name === 'FO');
+    const uefe = buchungssatz.find(z => z.haben_name === 'UEFE');
+    const ust  = buchungssatz.find(z => z.haben_name === 'UST');
+    expect(fo).toBeTruthy();
+    expect(uefe).toBeTruthy();
+    expect(ust).toBeTruthy();
+  });
+
+  // Überweisung mit Skonto
+  test('Überweisung mit Skonto – KGV wird gebucht', () => {
+    // Engine liest data.skontoBetrag (nicht skontoAktiv/skontoPct)
+    // 1190 * 2% = 23.80 Skonto
+    const { buchungssatz } = belegToBuchungssatz({
+      typ: 'ueberweisung',
+      data: { betrag: '1190', skontoBetrag: '23,80',
+              verwendungszweck: 'Rechnung 123' }
+    }, 9);
+    const kgv = buchungssatz.find(z => z.haben_name === 'KGV' || z.soll_name === 'KGV');
+    expect(kgv).toBeTruthy();
+  });
+
+  // Kontoauszug explizite Richtung
+  test('Kontoauszug mit data.richtung = eingang → BK an FO', () => {
+    const { buchungssatz } = belegToBuchungssatz({
+      typ: 'kontoauszug',
+      data: { buchungen: [{ text: 'Zahlung', betrag: '500', highlight: true }],
+              richtung: 'eingang' }
+    }, 9);
+    expect(buchungssatz[0].soll_name).toBe('BK');
+    expect(buchungssatz[0].haben_name).toBe('FO');
+  });
+
+  // Email Gutschrift 7% USt
+  test('Email Gutschrift 7% USt – UST auf Soll', () => {
+    const { buchungssatz } = belegToBuchungssatz({
+      typ: 'email',
+      data: { betreff: 'Gutschrift 100,00 €', text: '', ustSatz: 7 }
+    }, 9);
+    const ust = buchungssatz.find(z => z.soll_name === 'UST');
+    expect(ust?.betrag).toBeCloseTo(7, 1);
+  });
+
+  // Quittung mit USt
+  test('Quittung Klasse 8 mit USt 19% – VORST wird gebucht', () => {
+    const { buchungssatz } = belegToBuchungssatz({
+      typ: 'quittung',
+      data: { betrag: '119', ustSatz: 19, istBrutto: true, zweck: 'Büromaterial' }
+    }, 8);
+    const vorst = buchungssatz.find(z => z.soll_name === 'VORST');
+    expect(vorst?.betrag).toBeCloseTo(19, 1);
+    const bmk = buchungssatz.find(z => z.soll_name === 'BMK');
+    expect(bmk?.betrag).toBeCloseTo(100, 1);
+  });
+
+  test('Quittung Klasse 7 – kein VORST', () => {
+    const { buchungssatz } = belegToBuchungssatz({
+      typ: 'quittung',
+      data: { betrag: '50', ustSatz: 19, zweck: 'Porto' }
+    }, 7);
+    const vorst = buchungssatz.find(z => z.soll_name === 'VORST');
+    expect(vorst).toBeUndefined();
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// GRUPPE 16: TEST-A3 – Kontenplan-Vollkonsistenz (alle 78 Konten)
+// ══════════════════════════════════════════════════════════════════════════════
+describe('TEST-A3: Kontenplan-Vollkonsistenz (78 Konten)', () => {
+  test('Alle kontenplan.js Einträge mit minSchulklasse haben KONTENPLAN-Eintrag', () => {
+    const nurMitMinSchulklasse = KONTEN.filter(k => k.minSchulklasse !== undefined);
+    const fehlend = nurMitMinSchulklasse.filter(k => !KONTENPLAN[k.nr]);
+    expect(fehlend).toHaveLength(0);
+  });
+
+  test('minSchulklasse-Werte in kontenplan.js stimmen mit minKlasse in kontenplanEngine.js überein', () => {
+    const nurMitMinSchulklasse = KONTEN.filter(k => k.minSchulklasse !== undefined && KONTENPLAN[k.nr]);
+    const diskrepanzen = nurMitMinSchulklasse.filter(k =>
+      KONTENPLAN[k.nr].minKlasse !== k.minSchulklasse
+    );
+    if (diskrepanzen.length > 0) {
+      console.error('Diskrepante Konten:', diskrepanzen.map(k =>
+        `${k.nr} ${k.kuerzel}: kontenplan=${k.minSchulklasse} engine=${KONTENPLAN[k.nr]?.minKlasse}`
+      ));
+    }
+    expect(diskrepanzen).toHaveLength(0);
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// GRUPPE 17: TEST-A4 – Edge Cases Engine
+// ══════════════════════════════════════════════════════════════════════════════
+describe('TEST-A4: Edge Cases', () => {
+  test('Email ohne erkennbaren Betrag und ohne data.betrag → Error', () => {
+    expect(() => belegToBuchungssatz({
+      typ: 'email',
+      data: { betreff: 'Gutschrift ohne Betrag', text: 'Hallo' }
+    }, 8)).toThrow();
+  });
+
+  test('Quittung Betrag 0 → Error', () => {
+    expect(() => belegToBuchungssatz({
+      typ: 'quittung', data: { betrag: '0' }
+    }, 8)).toThrow();
+  });
+
+  test('Überweisung ohne Skonto (skontoAktiv: false) → kein KGV', () => {
+    const { buchungssatz } = belegToBuchungssatz({
+      typ: 'ueberweisung',
+      data: { betrag: '500', skontoAktiv: false, verwendungszweck: 'Zahlung' }
+    }, 8);
+    const kgv = buchungssatz.find(z => z.soll_name === 'KGV' || z.haben_name === 'KGV');
+    expect(kgv).toBeUndefined();
+  });
+
+  test('Unbekannter Belegtyp → Error mit Hinweis', () => {
+    expect(() => belegToBuchungssatz({ typ: 'unbekannt', data: {} }, 8))
+      .toThrow(/Unbekannter belegTyp/);
   });
 });

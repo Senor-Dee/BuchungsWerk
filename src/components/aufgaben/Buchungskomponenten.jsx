@@ -27,7 +27,7 @@ export function BuchungsSatz({ soll, haben }) {
   const anRow = sollLen - 1;
 
   return (
-    <div style={{ fontFamily: "'Courier New',monospace", fontSize: "14px", lineHeight: 2.1,
+    <div data-testid="buchungssatz" style={{ fontFamily: "'Courier New',monospace", fontSize: "14px", lineHeight: 2.1,
                   background: "rgba(240,236,227,0.05)", border: "1.5px solid rgba(240,236,227,0.15)", borderRadius: "8px",
                   padding: "12px 16px", display: "inline-block", minWidth: "100%" }}>
       {Array.from({ length: rows }).map((_, rowIdx) => {
@@ -43,7 +43,9 @@ export function BuchungsSatz({ soll, haben }) {
               {s ? (
                 <>
                   <span style={{ ...col.nr, color: "#93c5fd" }}>{s.nr}</span>
-                  <KürzelSpan nr={s.nr} style={{ ...col.kürz, color: "#93c5fd" }} />
+                  {s.nr
+                    ? <KürzelSpan nr={s.nr} style={{ ...col.kürz, color: "#93c5fd" }} />
+                    : <span style={{ ...col.kürz, color: "#93c5fd" }}>{s.name}</span>}
                   <DraggableHaken />
                   <span style={{ ...col.betr, color: "rgba(240,236,227,0.8)" }}>{fmt(s.betrag)} €</span>
                 </>
@@ -58,7 +60,9 @@ export function BuchungsSatz({ soll, haben }) {
               {h ? (
                 <>
                   <span style={{ ...col.nr, color: "#fca5a5" }}>{h.nr}</span>
-                  <KürzelSpan nr={h.nr} style={{ ...col.kürz, color: "#fca5a5" }} />
+                  {h.nr
+                    ? <KürzelSpan nr={h.nr} style={{ ...col.kürz, color: "#fca5a5" }} />
+                    : <span style={{ ...col.kürz, color: "#fca5a5" }}>{h.name}</span>}
                   <DraggableHaken />
                   <span style={{ ...col.betr, color: "rgba(240,236,227,0.8)" }}>{fmt(h.betrag)} €</span>
                 </>
