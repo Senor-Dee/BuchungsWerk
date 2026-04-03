@@ -126,6 +126,39 @@ export function validatePoolBuchungssatz(aufgabe, taskId = '?') {
 }
 
 /**
+ * Konvertiert Engine-Format-Buchungssatz → Pool-Format.
+ * Engine-Format: [{gruppe, soll_nr, soll_name, haben_nr, haben_name, betrag}]
+ * Pool-Format:   {soll: [{nr, name, betrag}], haben: [{nr, name, betrag}]}
+ *
+ * Wird genutzt um Engine-Ausgabe in Pool-Tasks einzusetzen (Pool-Migration).
+ * @param {object[]} buchungssatz – Engine-Format-Array
+ * @returns {{ soll: object[], haben: object[] }}
+ */
+export function engineFormatToPoolFormat(buchungssatz) {
+  if (!buchungssatz || buchungssatz.length === 0) return { soll: [], haben: [] };
+
+  // Soll-Seite: jede Zeile trägt einen Soll-Betrag
+  const soll = buchungssatz.map(z => ({
+    nr:     z.soll_nr   || '',
+    name:   z.soll_name || '',
+    betrag: r2(z.betrag),
+  }));
+
+  // Haben-Seite: pro einzigartigem Haben-Konto aggregieren
+  const habenMap = {};
+  buchungssatz.forEach(z => {
+    const key = `${z.haben_nr}||${z.haben_name}`;
+    if (!habenMap[key]) {
+      habenMap[key] = { nr: z.haben_nr || '', name: z.haben_name || '', betrag: 0 };
+    }
+    habenMap[key].betrag = r2(habenMap[key].betrag + z.betrag);
+  });
+  const haben = Object.values(habenMap);
+
+  return { soll, haben };
+}
+
+/**
  * Prüft ob ein Konto in der angegebenen Klasse lehrplan-konform ist.
  * Gibt eine Warnung zurück (kein throw), da Engine tolerant sein soll.
  * @param {string} kontoNr

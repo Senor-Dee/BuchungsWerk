@@ -6,7 +6,7 @@ import React, { useState, useRef, useEffect, useMemo } from "react";
 import { ClipboardList, Calendar, Download, FilePen, Printer,
          Monitor, Library, Save, CheckSquare } from "lucide-react";
 import { fmt, fmtIBAN, berechnePunkte, LB_INFO, r2 } from "../../utils.js";
-import { validatePoolBuchungssatz, belegPoolToBuchungssatz } from "../../utils/buchungsEngine.js";
+import { validatePoolBuchungssatz, belegPoolToBuchungssatz, engineFormatToPoolFormat } from "../../utils/buchungsEngine.js";
 import { S } from "../../styles.js";
 import { apiFetch } from "../../api.js";
 import { useSettings, trackMastery } from "../../settings.js";
@@ -78,25 +78,25 @@ export default function SchrittAufgaben({ config, firma, initialAufgaben, onNeu,
           validatePoolBuchungssatz(gen, typ.id);
         }
 
-        // 2. Beleg-Crosscheck: Tasks mit Beleg-Objekt → Engine parallel berechnen
-        //    Bei Diskrepanz: Warnung in DEV (kein Rendering-Einfluss)
+        // 2. Beleg-Crosscheck → Engine autoritativ für Beleg-Tasks
         if (gen?.beleg?.typ && typeof belegPoolToBuchungssatz === 'function') {
           try {
-            const engineResult = belegPoolToBuchungssatz(gen.beleg, config?.klasse || 8);
-            if (import.meta.env?.DEV && gen.soll?.length) {
-              const engSumme  = r2(engineResult.buchungssatz.reduce((s, z) => s + (z.betrag || 0), 0));
-              const poolSumme = r2((gen.soll || []).reduce((s, z) => s + (z.betrag || 0), 0));
-              if (Math.abs(engSumme - poolSumme) > 0.01) {
-                console.warn(
-                  `[BuchungsEngine] Beleg-Diskrepanz Task "${typ.id}": Pool-Soll=${poolSumme.toFixed(2)} Engine-Soll=${engSumme.toFixed(2)}`,
-                  { poolSoll: gen.soll, engineBS: engineResult.buchungssatz }
-                );
+            const klasseNum = parseInt(config?.klasse || 8, 10);
+            const engineResult = belegPoolToBuchungssatz(gen.beleg, klasseNum);
+
+            if (engineResult?.buchungssatz?.length) {
+              // Engine-Output in Pool-Format konvertieren und Pool-Werte ersetzen
+              const enginePool = engineFormatToPoolFormat(engineResult.buchungssatz);
+              gen = { ...gen, soll: enginePool.soll, haben: enginePool.haben };
+
+              if (import.meta.env?.DEV) {
+                console.info(`[BuchungsEngine] ✅ Task "${typ.id}": Engine-Output autoritativ gesetzt (${enginePool.soll.length} Soll, ${enginePool.haben.length} Haben)`);
               }
             }
           } catch (engineErr) {
-            // Engine-Crosscheck-Fehler nicht an User weitergeben – nur loggen
+            // Engine-Fehler → Pool-Werte bleiben (Graceful Degradation)
             if (import.meta.env?.DEV) {
-              console.warn(`[BuchungsEngine] Crosscheck fehlgeschlagen für "${typ.id}":`, engineErr.message);
+              console.warn(`[BuchungsEngine] ⚠️ Engine-Override fehlgeschlagen für "${typ.id}" – Pool-Werte behalten:`, engineErr.message);
             }
           }
         }

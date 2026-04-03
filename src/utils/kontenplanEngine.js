@@ -4,6 +4,8 @@
 // Validiert durch bwr-sensei (BwR-Fachexperte Bayern) ✅
 // ══════════════════════════════════════════════════════════════════════════════
 
+import { KONTEN } from '../data/kontenplan.js';
+
 /**
  * ISB-Kontenplan Bayern nach LehrplanPLUS 2026.
  * NUR diese Konten sind lehrplan-konform (kein SKR03/04!).
@@ -14,83 +16,27 @@
  *   minKlasse   – ab welcher Jahrgangsstufe lehrplan-konform eingeführt
  *   lernbereich – primärer Lernbereich im Lehrplan (z.B. "LB4")
  *   typ         – "aktiv" | "passiv" | "ertrag" | "aufwand" | "abschluss"
+ *
+ * Single Source of Truth: src/data/kontenplan.js
+ * KONTENPLAN wird programmatisch aus KONTEN abgeleitet.
  */
-export const KONTENPLAN = {
-  // ── AKTIVKONTEN (Bestand) ──────────────────────────────────────────────────
-  // Anlagevermögen
-  '0500': { kürzel: 'GR',    name: 'Grundstücke',                               minKlasse: 7, lernbereich: 'LB3',      typ: 'aktiv'    },
-  '0700': { kürzel: 'MA',    name: 'Maschinen und Anlagen',                      minKlasse: 8, lernbereich: 'LB2',      typ: 'aktiv'    },
-  '0840': { kürzel: 'FP',    name: 'Fuhrpark',                                   minKlasse: 8, lernbereich: 'LB2',      typ: 'aktiv'    },
-  '0860': { kürzel: 'BM',    name: 'Büromaschinen',                              minKlasse: 8, lernbereich: 'LB2',      typ: 'aktiv'    },
-  '0870': { kürzel: 'BGA',   name: 'Büromöbel und Geschäftsausstattung',         minKlasse: 8, lernbereich: 'LB2',      typ: 'aktiv'    },
-  '0890': { kürzel: 'GWG',   name: 'Geringwertige Wirtschaftsgüter',             minKlasse: 8, lernbereich: 'LB2',      typ: 'aktiv'    },
-  // Umlaufvermögen – Vorräte
-  '2000': { kürzel: 'R',     name: 'Rohstoffe',                                  minKlasse: 7, lernbereich: 'LB4',      typ: 'aktiv'    },
-  '2010': { kürzel: 'F',     name: 'Fremdbauteile',                              minKlasse: 8, lernbereich: 'LB2',      typ: 'aktiv'    },
-  '2020': { kürzel: 'H',     name: 'Hilfsstoffe',                                minKlasse: 8, lernbereich: 'LB2',      typ: 'aktiv'    },
-  '2030': { kürzel: 'B',     name: 'Betriebsstoffe',                             minKlasse: 8, lernbereich: 'LB2',      typ: 'aktiv'    },
-  // Umlaufvermögen – Forderungen
-  '2400': { kürzel: 'FO',    name: 'Forderungen aus L+L',                        minKlasse: 8, lernbereich: 'LB4',      typ: 'aktiv'    },
-  '2470': { kürzel: 'ZWFO',  name: 'Zweifelhafte Forderungen',                   minKlasse: 9, lernbereich: 'LB5',      typ: 'aktiv'    },
-  // Umlaufvermögen – Steuern & Abgrenzung
-  '2600': { kürzel: 'VORST', name: 'Vorsteuer',                                  minKlasse: 8, lernbereich: 'LB6',      typ: 'aktiv'    },
-  '2800': { kürzel: 'BK',    name: 'Bank (Kontokorrentkonto)',                   minKlasse: 7, lernbereich: 'LB3',      typ: 'aktiv'    },
-  '2880': { kürzel: 'KA',    name: 'Kasse',                                      minKlasse: 7, lernbereich: 'LB3',      typ: 'aktiv'    },
-  '2900': { kürzel: 'ARA',   name: 'Aktive Rechnungsabgrenzung',                 minKlasse: 10, lernbereich: 'LB1',     typ: 'aktiv'    },
 
-  // ── PASSIVKONTEN (Bestand) ─────────────────────────────────────────────────
-  // Eigenkapital
-  '3000': { kürzel: 'EK',    name: 'Eigenkapital',                               minKlasse: 7, lernbereich: 'LB3',      typ: 'passiv'   },
-  '3001': { kürzel: 'P',     name: 'Privatkonto',                                minKlasse: 9, lernbereich: 'LB1',      typ: 'passiv'   },
-  // Wertberichtigungen
-  '3670': { kürzel: 'EWB',   name: 'Einzelwertberichtigung',                     minKlasse: 9, lernbereich: 'LB5',      typ: 'passiv'   },
-  '3680': { kürzel: 'PWB',   name: 'Pauschalwertberichtigung',                   minKlasse: 9, lernbereich: 'LB5',      typ: 'passiv'   },
-  '3900': { kürzel: 'RST',   name: 'Rückstellungen',                             minKlasse: 10, lernbereich: 'LB1',     typ: 'passiv'   },
-  // Verbindlichkeiten
-  '4200': { kürzel: 'KBKV',  name: 'Kurzfristige Bankverbindlichkeiten',         minKlasse: 8, lernbereich: 'LB6',      typ: 'passiv'   },
-  '4250': { kürzel: 'LBKV',  name: 'Langfristige Bankverbindlichkeiten',         minKlasse: 9, lernbereich: 'LB3',      typ: 'passiv'   },
-  '4400': { kürzel: 'VE',    name: 'Verbindlichkeiten aus L+L',                  minKlasse: 7, lernbereich: 'LB4',      typ: 'passiv'   },
-  // Steuern
-  '4800': { kürzel: 'UST',   name: 'Umsatzsteuer',                               minKlasse: 8, lernbereich: 'LB6',      typ: 'passiv'   },
-  '4900': { kürzel: 'PRA',   name: 'Passive Rechnungsabgrenzung',                minKlasse: 10, lernbereich: 'LB1',     typ: 'passiv'   },
-
-  // ── ERTRAGSKONTEN (GuV – Haben = Einnahmen) ───────────────────────────────
-  '5000': { kürzel: 'UEFE',  name: 'Umsatzerlöse für eigene Erzeugnisse',        minKlasse: 8, lernbereich: 'LB4',      typ: 'ertrag'   },
-  '5400': { kürzel: 'EMP',   name: 'Erlöse/Mahngebühren/Provisionen',            minKlasse: 9, lernbereich: 'LB5',      typ: 'ertrag'   },
-  '5430': { kürzel: 'ASBE',  name: 'Andere sonstige betriebliche Erträge',       minKlasse: 8, lernbereich: 'LB4',      typ: 'ertrag'   },
-  '5710': { kürzel: 'ZE',    name: 'Zinserträge',                                minKlasse: 9, lernbereich: 'LB3',      typ: 'ertrag'   },
-  '5780': { kürzel: 'DDE',   name: 'Dividendenerträge',                          minKlasse: 9, lernbereich: 'LB3',      typ: 'ertrag'   },
-
-  // ── AUFWANDSKONTEN (GuV – Soll = Ausgaben) ────────────────────────────────
-  // Materialaufwand
-  '6000': { kürzel: 'AWR',   name: 'Aufwendungen für Rohstoffe',                 minKlasse: 7, lernbereich: 'LB4',      typ: 'aufwand'  },
-  '6001': { kürzel: 'BZKR',  name: 'Bezugskosten für Rohstoffe',                 minKlasse: 8, lernbereich: 'LB2',      typ: 'aufwand'  },
-  '6010': { kürzel: 'AWF',   name: 'Aufwendungen für Fremdbauteile',             minKlasse: 8, lernbereich: 'LB2',      typ: 'aufwand'  },
-  '6011': { kürzel: 'BZKF',  name: 'Bezugskosten für Fremdbauteile',             minKlasse: 8, lernbereich: 'LB2',      typ: 'aufwand'  },
-  '6020': { kürzel: 'AWH',   name: 'Aufwendungen für Hilfsstoffe',               minKlasse: 8, lernbereich: 'LB2',      typ: 'aufwand'  },
-  '6021': { kürzel: 'BZKH',  name: 'Bezugskosten für Hilfsstoffe',               minKlasse: 8, lernbereich: 'LB2',      typ: 'aufwand'  },
-  '6030': { kürzel: 'AWB',   name: 'Aufwendungen für Betriebsstoffe',            minKlasse: 8, lernbereich: 'LB2',      typ: 'aufwand'  },
-  '6031': { kürzel: 'BZKB',  name: 'Bezugskosten für Betriebsstoffe',            minKlasse: 8, lernbereich: 'LB2',      typ: 'aufwand'  },
-  // Personal
-  '6200': { kürzel: 'LG',    name: 'Löhne und Gehälter',                         minKlasse: 8, lernbereich: 'LB5',      typ: 'aufwand'  },
-  '6400': { kürzel: 'AGASV', name: 'Arbeitgeberanteil Sozialversicherung',       minKlasse: 8, lernbereich: 'LB5',      typ: 'aufwand'  },
-  // Abschreibungen
-  '6520': { kürzel: 'ABSA',  name: 'Abschreibungen auf Sachanlagen',             minKlasse: 9, lernbereich: 'LB2',      typ: 'aufwand'  },
-  '6540': { kürzel: 'ABGWG', name: 'Abschreibungen auf GWG',                    minKlasse: 8, lernbereich: 'LB2',      typ: 'aufwand'  },
-  // Sonstige
-  '6700': { kürzel: 'AWMP',  name: 'Mieten, Pachten',                            minKlasse: 7, lernbereich: 'LB3',      typ: 'aufwand'  },
-  '6750': { kürzel: 'KGV',   name: 'Kosten des Geldverkehrs (Skonto-Gewinn)',    minKlasse: 9, lernbereich: 'LB3',      typ: 'aufwand'  },
-  '6800': { kürzel: 'BMK',   name: 'Büromaterial und Kleingüter',                minKlasse: 7, lernbereich: 'LB3',      typ: 'aufwand'  },
-  '6820': { kürzel: 'KOM',   name: 'Kommunikationsgebühren',                     minKlasse: 9, lernbereich: 'LB3',      typ: 'aufwand'  },
-  '6870': { kürzel: 'WER',   name: 'Werbung',                                    minKlasse: 7, lernbereich: 'LB3',      typ: 'aufwand'  },
-  '6900': { kürzel: 'VBEI',  name: 'Versicherungsbeiträge',                      minKlasse: 7, lernbereich: 'LB3',      typ: 'aufwand'  },
-  '6950': { kürzel: 'ABFO',  name: 'Abschreibungen auf Forderungen',             minKlasse: 9, lernbereich: 'LB5',      typ: 'aufwand'  },
-  '7510': { kürzel: 'ZAW',   name: 'Zinsaufwendungen',                           minKlasse: 9, lernbereich: 'LB3',      typ: 'aufwand'  },
-
-  // ── ABSCHLUSSKONTEN ────────────────────────────────────────────────────────
-  '8010': { kürzel: 'SBK',   name: 'Schlussbilanzkonto',                         minKlasse: 7, lernbereich: 'LB5',      typ: 'abschluss' },
-  '8020': { kürzel: 'GUV',   name: 'Gewinn- und Verlustrechnung',                minKlasse: 7, lernbereich: 'LB5',      typ: 'abschluss' },
-};
+// KONTENPLAN-Dict aus kontenplan.js ableiten (Single Source of Truth)
+// Konvertiert Array-Format → Dict-Format mit kürzel (Umlaut) statt kuerzel
+export const KONTENPLAN = Object.fromEntries(
+  KONTEN
+    .filter(k => k.minSchulklasse !== undefined)
+    .map(k => [
+      k.nr,
+      {
+        kürzel:      k.kuerzel,           // kuerzel → kürzel (Konsistenz mit Engine)
+        name:        k.name,
+        minKlasse:   k.minSchulklasse,    // minSchulklasse → minKlasse (Engine-API bleibt gleich)
+        lernbereich: k.lernbereich,
+        typ:         k.typ,
+      }
+    ])
+);
 
 // ── Konten nach Jahrgangsstufe (erstmals eingeführt) ──────────────────────────
 // Jede Stufe ENTHÄLT alle vorherigen Konten (kumulativ)!
