@@ -416,16 +416,16 @@ Antworte NUR mit JSON (kein Markdown):
                   <div key={zi} style={{ display:"flex", alignItems:"center", gap:6, flexWrap:"wrap", fontSize:13, fontWeight:600, marginBottom: zi < zeilen.length-1 ? 4 : 0 }}>
                     {/* Soll – nur in erster Zeile */}
                     {zi === 0 ? (
-                      <span style={{ color:"#1d4ed8", minWidth:0 }}>
+                      <span style={{ color:"#93c5fd", minWidth:0 }}>
                         {sollSeite.map((s, si) => (
-                          <span key={si}>{s.soll_nr && <>{s.soll_nr} </>}<KürzelSpan nr={s.soll_nr} style={{ color:"#1d4ed8", fontWeight:600, fontSize:13 }} /></span>
+                          <span key={si}>{s.soll_nr && <>{s.soll_nr} </>}<KürzelSpan nr={s.soll_nr} style={{ color:"#93c5fd", fontWeight:600, fontSize:13 }} /></span>
                         ))}
                       </span>
                     ) : (
                       /* Platzhalter gleicher Breite für Folgezeilen */
-                      <span style={{ visibility:"hidden", color:"#1d4ed8", userSelect:"none", minWidth:0 }}>
+                      <span style={{ visibility:"hidden", color:"#93c5fd", userSelect:"none", minWidth:0 }}>
                         {sollSeite.map((s, si) => (
-                          <span key={si}>{s.soll_nr && <>{s.soll_nr} </>}<KürzelSpan nr={s.soll_nr} style={{ color:"#1d4ed8", fontWeight:600, fontSize:13 }} /></span>
+                          <span key={si}>{s.soll_nr && <>{s.soll_nr} </>}<KürzelSpan nr={s.soll_nr} style={{ color:"#93c5fd", fontWeight:600, fontSize:13 }} /></span>
                         ))}
                       </span>
                     )}
@@ -437,15 +437,15 @@ Antworte NUR mit JSON (kein Markdown):
                       : <span style={{ color:"transparent", fontWeight:400, fontSize:12, flexShrink:0, userSelect:"none" }}>an</span>
                     }
                     {/* Haben-Konto */}
-                    <span style={{ color:"#dc2626" }}>
-                      {z.haben_nr && <>{z.haben_nr} </>}<KürzelSpan nr={z.haben_nr} style={{ color:"#dc2626", fontWeight:600, fontSize:13 }} />
+                    <span style={{ color:"#fca5a5" }}>
+                      {z.haben_nr && <>{z.haben_nr} </>}<KürzelSpan nr={z.haben_nr} style={{ color:"#fca5a5", fontWeight:600, fontSize:13 }} />
                     </span>
                     <ISBHaken />
                     {/* Betrag + Punkte */}
-                    <span style={{ marginLeft:"auto", fontFamily:"monospace", color:"#059669", fontWeight:700 }}>
+                    <span style={{ marginLeft:"auto", fontFamily:"monospace", color:"#4ade80", fontWeight:700 }}>
                       {btFmt(z.betrag)} €
                     </span>
-                    <span style={{ background:"#0f172a", color:"#e8600a", borderRadius:4, padding:"1px 7px", fontSize:10, fontWeight:800 }}>{z.punkte ?? 1} P</span>
+                    <span style={{ background:"rgba(232,96,10,0.15)", border:"1px solid rgba(232,96,10,0.35)", color:"#e8600a", borderRadius:4, padding:"1px 7px", fontSize:10, fontWeight:800 }}>{z.punkte ?? 1} P</span>
                     {/* Erklärung */}
                     {z.erklaerung && <div style={{ width:"100%", fontSize:11, color:"rgba(240,236,227,0.45)", fontWeight:400, marginTop:2, paddingLeft:2 }}>{z.erklaerung}</div>}
                   </div>
