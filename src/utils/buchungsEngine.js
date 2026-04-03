@@ -72,20 +72,25 @@ function zeile({ gruppe = 1, sollNr, sollName, habenNr, habenName, betrag, punkt
 // ── Validierung ───────────────────────────────────────────────────────────────
 
 /**
- * Prüft die Bilanzregel: Summe Soll = Summe Haben (GoB-Anforderung).
- * Toleranz: 0,01 € (Rundungsfehler).
+ * Prüft Vollständigkeit und Konsistenz einer Buchungssatz-Zeile (Engine-Format).
+ * Hinweis: Im Engine-Format repräsentiert jede Zeile genau eine Soll-Haben-Paarung
+ * mit einem Betrag. Es gibt kein separates haben_betrag-Feld – Soll = Haben je Zeile.
  * @param {object[]} buchungssatz
- * @throws {Error} wenn Bilanzregel verletzt
+ * @throws {Error} wenn Zeile unvollständig oder inkonsistent
  */
 function validateBilanzregel(buchungssatz) {
-  // Für das BelegEditorModal-Format gibt es keine explizite soll/haben-Summe,
-  // aber jede Zeile hat betrag für BEIDE Seiten (soll_name und haben_name).
-  // Bei zusammengesetzten Buchungssätzen (gleiche gruppe) werden mehrere
-  // Soll-Zeilen gegen ein Haben aufgerechnet — die Summe der gruppe ist korrekt.
-  // Hier prüfen wir nur, dass kein betrag ≤ 0 ist (außer Storno-Fälle).
-  buchungssatz.forEach(z => {
+  buchungssatz.forEach((z, i) => {
     if (typeof z.betrag !== 'number') {
-      throw new Error('Buchungssatz: betrag muss eine Zahl sein');
+      throw new Error(`Buchungssatz Zeile ${i + 1}: betrag muss eine Zahl sein (ist: ${typeof z.betrag})`);
+    }
+    if (z.betrag < 0) {
+      throw new Error(`Buchungssatz Zeile ${i + 1}: betrag darf nicht negativ sein (${z.betrag})`);
+    }
+    if (!z.soll_name || !z.haben_name) {
+      throw new Error(`Buchungssatz Zeile ${i + 1}: soll_name und haben_name müssen gesetzt sein`);
+    }
+    if (z.soll_name === z.haben_name && z.soll_nr === z.haben_nr) {
+      throw new Error(`Buchungssatz Zeile ${i + 1}: Soll- und Haben-Konto sind identisch (${z.soll_name})`);
     }
   });
 }
@@ -470,7 +475,8 @@ function processEmail(data, klasse) {
     if (emailBetrag <= 0) {
       throw new Error('Email Gutschrift: Kein Betrag erkannt (bitte Betrag wie "100,00 €" in Betreff oder Text angeben)');
     }
-    const ust = r2(emailBetrag * 0.19);  // Standard 19%
+    const ustRate = parseGeld(data.ustSatz ?? 19) / 100;
+    const ust = r2(emailBetrag * ustRate);
 
     return [
       // Storno der FO→UEFE Buchung: UEFE an FO (Ertrag gemindert, Forderung weg)
@@ -663,8 +669,20 @@ export function belegToBuchungssatz(beleg, klasse) {
  * @returns {string} z.B. "6000 AWR 100,00 + 2600 VORST 19,00 an 4400 VE 119,00"
  */
 export function buchungssatzToText(buchungssatz) {
-  if (!buchungssatz || buchungssatz.length === 0) return '';
+  if (!buchungssatz) return '';
 
+  // Pool-Format erkennen: Objekt mit soll[] und haben[] Arrays (kein Engine-Array)
+  if (!Array.isArray(buchungssatz) && buchungssatz.soll && buchungssatz.haben) {
+    return _buchungssatzToTextPoolFormat([buchungssatz]);
+  }
+  if (!Array.isArray(buchungssatz) || buchungssatz.length === 0) return '';
+
+  // Pool-Format als Array: [{ soll: [...], haben: [...] }]
+  if (buchungssatz[0] && Array.isArray(buchungssatz[0].soll)) {
+    return _buchungssatzToTextPoolFormat(buchungssatz);
+  }
+
+  // Engine-Format: [{ gruppe, soll_nr, soll_name, haben_nr, haben_name, betrag }]
   const gruppen = {};
   buchungssatz.forEach(z => {
     const g = z.gruppe ?? 1;
@@ -681,6 +699,16 @@ export function buchungssatzToText(buchungssatz) {
       : `${erstHaben.haben_nr} ${erstHaben.haben_name} ${habenGesamt.toFixed(2)}`;
     return `${sollSeite} an ${habenSeite}`;
   }).join(' | ');
+}
+
+/** @private Interne Hilfsfunktion für Pool-Format */
+function _buchungssatzToTextPoolFormat(aufgaben) {
+  return aufgaben.map(a => {
+    if (!a.soll || !a.haben) return '';
+    const sollSeite = a.soll.map(s => `${s.nr} ${s.name} ${Number(s.betrag).toFixed(2)}`).join(' + ');
+    const habenSeite = a.haben.map(h => `${h.nr} ${h.name} ${Number(h.betrag).toFixed(2)}`).join(' + ');
+    return `${sollSeite} an ${habenSeite}`;
+  }).filter(Boolean).join(' | ');
 }
 
 /**

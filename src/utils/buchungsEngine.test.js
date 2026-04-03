@@ -501,9 +501,73 @@ describe('Kontenplan', () => {
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
-// GRUPPE 10: Performance (1 Test)
+// GRUPPE 10: Engine-Fix-1 (Neue Tests – 2026-04-03)
 // ══════════════════════════════════════════════════════════════════════════════
-describe('Performance', () => {
+describe('Engine-Fix-1: processEmail ustSatz + buchungssatzToText Pool-Format', () => {
+
+  test('processEmail Gutschrift mit 7% USt', () => {
+    const result = belegToBuchungssatz({
+      typ: 'email',
+      data: { betreff: 'Gutschrift 100,00 €', text: '', ustSatz: 7 }
+    }, 9);
+    const ustZeile = result.buchungssatz.find(z =>
+      z.soll_name?.includes('UST') || z.haben_name?.includes('UST')
+    );
+    expect(ustZeile).toBeDefined();
+    expect(ustZeile.betrag).toBeCloseTo(7, 1);
+  });
+
+  test('processEmail Gutschrift mit 19% USt (Standard wenn kein ustSatz)', () => {
+    const result = belegToBuchungssatz({
+      typ: 'email',
+      data: { betreff: 'Gutschrift 100,00 €', text: '' }
+    }, 9);
+    const ustZeile = result.buchungssatz.find(z =>
+      z.soll_name?.includes('UST') || z.haben_name?.includes('UST')
+    );
+    expect(ustZeile).toBeDefined();
+    expect(ustZeile.betrag).toBeCloseTo(19, 1);
+  });
+
+  test('buchungssatzToText – Pool-Format als Array', () => {
+    const poolAufgabe = [{
+      soll: [{ nr: '6000', name: 'AWR', betrag: 1000 }, { nr: '2600', name: 'VORST', betrag: 190 }],
+      haben: [{ nr: '4400', name: 'VE', betrag: 1190 }],
+    }];
+    const text = buchungssatzToText(poolAufgabe);
+    expect(text).toContain('6000');
+    expect(text).toContain('4400');
+    expect(text).toContain('an');
+  });
+
+  test('buchungssatzToText – Pool-Format als Objekt (kein Array)', () => {
+    const poolObjekt = {
+      soll: [{ nr: '2400', name: 'FO', betrag: 1190 }],
+      haben: [{ nr: '5000', name: 'UEFE', betrag: 1000 }, { nr: '4800', name: 'UST', betrag: 190 }],
+    };
+    const text = buchungssatzToText(poolObjekt);
+    expect(text).toContain('2400');
+    expect(text).toContain('5000');
+    expect(text).toContain('an');
+  });
+
+  test('validateBilanzregel wirft bei negativem betrag', () => {
+    expect(() => belegToBuchungssatz({
+      typ: 'eingangsrechnung',
+      data: {
+        positionen: [{ id: '1', artikel: 'Test', menge: '-10', einheit: 'Stk', ep: '100,00' }],
+        ustSatz: '19', bezugskosten: '0', rabattAktiv: false, rabattPct: '0', zahlungsziel: '30',
+        isGWG: false, skonto: false, skontoPct: '0',
+      }
+    }, 8)).toThrow();
+  });
+
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// GRUPPE 11: Performance (1 Test)
+// ══════════════════════════════════════════════════════════════════════════════
+describe('Performance (1 Test)', () => {
 
   test('Ausführungszeit < 50ms pro Buchungssatz', () => {
     const belege = [

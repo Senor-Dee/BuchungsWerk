@@ -26,10 +26,11 @@ test.describe("Dashboard, Navigation & Einstellungen", () => {
     await expect(page.getByRole("button", { name: /Klassenzimmer/ })).toBeVisible();
     await expect(page.getByRole("button", { name: /Kontenplan/ })).toBeVisible();
 
-    // Alle 3 Typ-Karten vorhanden (enthalten: Titel + Beschreibung)
+    // Alle 4 Typ-Karten vorhanden (Übung, Prüfung, Simulation, Beleg-Editor)
     await expect(page.locator("button").filter({ hasText: "Aufgaben üben" })).toBeVisible();
-    await expect(page.locator("button").filter({ hasText: "Schulaufgabe erstellen" })).toBeVisible();
+    await expect(page.locator("button").filter({ hasText: "Schulaufgabe" })).toBeVisible();
     await expect(page.locator("button").filter({ hasText: "Firma führen" })).toBeVisible();
+    await expect(page.locator("button").filter({ hasText: "Beleg erstellen" })).toBeVisible();
 
     // Klasse-Buttons erscheinen erst nach Typ-Auswahl (typ && <> in SchrittTyp)
     await page.locator("button").filter({ hasText: "Aufgaben üben" }).click();
