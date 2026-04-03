@@ -96,6 +96,36 @@ function validateBilanzregel(buchungssatz) {
 }
 
 /**
+ * Prüft einen Pool-Format-Buchungssatz auf Bilanzkonformität.
+ * Pool-Format: { soll: [{nr, name, betrag}], haben: [{nr, name, betrag}] }
+ *
+ * In DEV-Modus: wirft Error bei Soll ≠ Haben
+ * In PROD-Modus: console.warn (kein throw – kein User-Impact)
+ *
+ * @param {object} aufgabe – Rückgabeobjekt eines Pool-generate()
+ * @param {string} [taskId] – Optional: Task-ID für bessere Fehlermeldungen
+ */
+export function validatePoolBuchungssatz(aufgabe, taskId = '?') {
+  if (!aufgabe) return;
+  const soll  = aufgabe.soll  || [];
+  const haben = aufgabe.haben || [];
+  if (soll.length === 0 && haben.length === 0) return; // Kein Buchungssatz (z.B. Rechnung/Theorie)
+
+  const sollSumme  = r2(soll.reduce( (s, z) => s + r2(parseGeld(z.betrag) || 0), 0));
+  const habenSumme = r2(haben.reduce((s, z) => s + r2(parseGeld(z.betrag) || 0), 0));
+
+  if (Math.abs(sollSumme - habenSumme) > 0.01) {
+    const msg = `[BuchungsEngine] Pool-Bilanzfehler Task "${taskId}": Soll=${sollSumme.toFixed(2)} ≠ Haben=${habenSumme.toFixed(2)}`;
+    // In DEV: werfen – Fehler sofort sichtbar bei Generate
+    if (typeof import.meta !== 'undefined' && import.meta.env?.DEV) {
+      throw new Error(msg);
+    }
+    // In PROD: nur warnen – Schüler sieht keinen Absturz
+    console.warn(msg);
+  }
+}
+
+/**
  * Prüft ob ein Konto in der angegebenen Klasse lehrplan-konform ist.
  * Gibt eine Warnung zurück (kein throw), da Engine tolerant sein soll.
  * @param {string} kontoNr
@@ -779,7 +809,11 @@ export function getMinKlasseForBelegTyp(belegTyp) {
 // ── Pool-Format-Adapter ───────────────────────────────────────────────────────
 
 /**
- * Adapter: Konvertiert stammdaten.js Pool-Beleg-Format → Engine-Format.
+ * Adapter: Pool-Beleg-Format → Engine-Format → Buchungssatz
+ *
+ * Wird genutzt für den Beleg-Crosscheck in SchrittAufgaben.jsx:
+ * Für Pool-Tasks mit Beleg-Objekt berechnet die Engine den Buchungssatz
+ * parallel und vergleicht mit dem Pool-Ergebnis (DEV-Modus Warnung bei Diskrepanz).
  *
  * Pool-Format (mkEingangsRE / mkAusgangsRE etc.) verwendet numerische Werte
  * und etwas andere Feldnamen als das BelegEditorModal-Format, das die Engine

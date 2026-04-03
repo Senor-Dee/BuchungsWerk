@@ -5,7 +5,8 @@
 import React, { useState, useRef, useEffect, useMemo } from "react";
 import { ClipboardList, Calendar, Download, FilePen, Printer,
          Monitor, Library, Save, CheckSquare } from "lucide-react";
-import { fmt, fmtIBAN, berechnePunkte, LB_INFO } from "../../utils.js";
+import { fmt, fmtIBAN, berechnePunkte, LB_INFO, r2 } from "../../utils.js";
+import { validatePoolBuchungssatz, belegPoolToBuchungssatz } from "../../utils/buchungsEngine.js";
 import { S } from "../../styles.js";
 import { apiFetch } from "../../api.js";
 import { useSettings, trackMastery } from "../../settings.js";
@@ -70,6 +71,37 @@ export default function SchrittAufgaben({ config, firma, initialAufgaben, onNeu,
       let gen;
       try {
         gen = typ.taskTyp === "theorie" ? typ.generate() : typ.generate(firma, opts);
+
+        // ── Engine-Safety-Net ────────────────────────────────────────────────
+        // 1. Pool-Bilanzcheck: Soll-Summe muss Haben-Summe entsprechen
+        if (gen && typeof validatePoolBuchungssatz === 'function') {
+          validatePoolBuchungssatz(gen, typ.id);
+        }
+
+        // 2. Beleg-Crosscheck: Tasks mit Beleg-Objekt → Engine parallel berechnen
+        //    Bei Diskrepanz: Warnung in DEV (kein Rendering-Einfluss)
+        if (gen?.beleg?.typ && typeof belegPoolToBuchungssatz === 'function') {
+          try {
+            const engineResult = belegPoolToBuchungssatz(gen.beleg, config?.klasse || 8);
+            if (import.meta.env?.DEV && gen.soll?.length) {
+              const engSumme  = r2(engineResult.buchungssatz.reduce((s, z) => s + (z.betrag || 0), 0));
+              const poolSumme = r2((gen.soll || []).reduce((s, z) => s + (z.betrag || 0), 0));
+              if (Math.abs(engSumme - poolSumme) > 0.01) {
+                console.warn(
+                  `[BuchungsEngine] Beleg-Diskrepanz Task "${typ.id}": Pool-Soll=${poolSumme.toFixed(2)} Engine-Soll=${engSumme.toFixed(2)}`,
+                  { poolSoll: gen.soll, engineBS: engineResult.buchungssatz }
+                );
+              }
+            }
+          } catch (engineErr) {
+            // Engine-Crosscheck-Fehler nicht an User weitergeben – nur loggen
+            if (import.meta.env?.DEV) {
+              console.warn(`[BuchungsEngine] Crosscheck fehlgeschlagen für "${typ.id}":`, engineErr.message);
+            }
+          }
+        }
+        // ── Ende Engine-Safety-Net ─────────────────────────────────────────
+
       } catch(e) {
         console.warn("BuchungsWerk: Fehler in generate() für", typ.id, e.message);
         continue;

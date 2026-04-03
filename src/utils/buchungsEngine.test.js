@@ -4,7 +4,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 
 import { describe, test, expect } from 'vitest';
-import { belegToBuchungssatz, buchungssatzToText, getMinKlasseForBelegTyp } from './buchungsEngine.js';
+import { belegToBuchungssatz, buchungssatzToText, getMinKlasseForBelegTyp, validatePoolBuchungssatz } from './buchungsEngine.js';
 import { KONTEN } from '../data/kontenplan.js';
 import { KONTENPLAN } from '../utils/kontenplanEngine.js';
 
@@ -614,5 +614,39 @@ describe('Kontenplan Konsistenz', () => {
       const neuKuerzel = (neuKonto?.kürzel || '').toUpperCase();
       expect(altKuerzel).toBe(neuKuerzel);
     });
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// GRUPPE 13: validatePoolBuchungssatz (Engine-Fix-3 / BUG-01)
+// ══════════════════════════════════════════════════════════════════════════════
+describe('validatePoolBuchungssatz', () => {
+  test('Korrekte Pool-Aufgabe (Soll = Haben) – kein Fehler', () => {
+    const aufgabe = {
+      soll:  [{ nr: '6000', name: 'AWR', betrag: 1000 }, { nr: '2600', name: 'VORST', betrag: 190 }],
+      haben: [{ nr: '4400', name: 'VE',  betrag: 1190 }],
+    };
+    expect(() => validatePoolBuchungssatz(aufgabe, 'test_korrekt')).not.toThrow();
+  });
+
+  test('Bilanzfehler (Soll ≠ Haben) – wirft Error in DEV', () => {
+    const aufgabe = {
+      soll:  [{ nr: '6000', name: 'AWR', betrag: 1000 }],
+      haben: [{ nr: '4400', name: 'VE',  betrag: 999 }], // 1 € Differenz
+    };
+    expect(() => validatePoolBuchungssatz(aufgabe, 'test_fehler')).toThrow(/Bilanzfehler/);
+  });
+
+  test('Aufgabe ohne soll/haben (Rechnung/Theorie) – kein Fehler', () => {
+    const aufgabe = { aufgabe: 'Was ist Buchhaltung?', punkte: 2 };
+    expect(() => validatePoolBuchungssatz(aufgabe, 'test_theorie')).not.toThrow();
+  });
+
+  test('Rundungstoleranz 0.01 wird akzeptiert', () => {
+    const aufgabe = {
+      soll:  [{ nr: '6000', name: 'AWR', betrag: 100.005 }],
+      haben: [{ nr: '4400', name: 'VE',  betrag: 100.01 }],
+    };
+    expect(() => validatePoolBuchungssatz(aufgabe, 'test_rundung')).not.toThrow();
   });
 });
