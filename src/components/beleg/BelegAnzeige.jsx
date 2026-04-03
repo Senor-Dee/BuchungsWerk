@@ -271,7 +271,6 @@ export function BelegKontoauszug({ b }) {
               <td style={{ padding: "9px 14px", color: "#64748b", whiteSpace: "nowrap" }}>{buch.datum}</td>
               <td style={{ padding: "9px 14px", color: "#374151" }}>
                 {buch.text}
-                {buch.highlight && <span style={{ marginLeft: "8px", fontSize: "10px", background: "#e8600a", color: "#0f172a", fontWeight: 800, padding: "1px 6px", borderRadius: "10px" }}>◀ zu buchen</span>}
               </td>
               <td style={{ padding: "9px 14px", textAlign: "right", fontWeight: 700, fontFamily: "monospace", color: buch.betrag > 0 ? "#15803d" : "#dc2626" }}>
                 {buch.betrag > 0 ? "+" : ""}{fmt(Math.abs(buch.betrag))} €

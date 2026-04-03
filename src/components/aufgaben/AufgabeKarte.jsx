@@ -155,7 +155,7 @@ export function TheorieKarte({ aufgabe, nr, showLoesung, klasse = 10 }) {
       </div>
 
       <div style={{ padding: "16px" }}>
-        <p style={{ margin: "0 0 14px", color: "rgba(240,236,227,0.85)", fontWeight: 600, fontSize: "14px" }}>{aufgabeText}</p>
+        <p style={{ margin: "0 0 14px", color: "rgba(240,236,227,0.85)", fontWeight: 600, fontSize: "14px", whiteSpace: "pre-wrap" }}>{aufgabeText}</p>
         {themenTyp === "lueckentext" && lt  && renderLückentext(lt, show)}
         {themenTyp === "zuordnung"   && zu  && renderZuordnung(zu, show)}
         {themenTyp === "mc"          && mc  && renderMC(mc, show)}
@@ -294,7 +294,7 @@ export function KomplexKarte({ aufgabe, nr, showLoesung, globalMode, klasse = 10
                 </div>
               ) : (
                 <div style={{ display: "flex", alignItems: "flex-start", gap: "8px", marginBottom: "10px" }}>
-                  <p style={{ margin: 0, fontSize: "13px", color: "rgba(240,236,227,0.9)", fontWeight: 600, flex: 1 }}>
+                  <p style={{ margin: 0, fontSize: "13px", color: "rgba(240,236,227,0.9)", fontWeight: 600, flex: 1, whiteSpace: "pre-wrap" }}>
                     {schritt._aufgabeEdit ?? anrede(klasse, schritt.aufgabe)}
                   </p>
                   <button onClick={() => { setEditText(schritt._aufgabeEdit ?? anrede(klasse, schritt.aufgabe ?? "")); setEditSchrittIdx(i); }}

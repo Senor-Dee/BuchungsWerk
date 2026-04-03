@@ -1635,7 +1635,7 @@ Konten: 2000 R (Rohstoffe), 2010 F (Fremdbauteile), 2020 H (Hilfsstoffe), 2030 B
               titel: "Verkaufskalkulation",
               typ: "kalkulation_vk",
               _optsKey: "vorkalkulation",
-              aufgabe: `Ermitteln Sie den Listenverkaufspreis (netto) für ${menge} Stk. ${art} mithilfe der Vorwärtskalkulation. Kalkulationsdaten: Einstandspreis: ${fmt(ekp)} € · Gewinnzuschlag: ${aufschPct} % auf den Einstandspreis · Kundenskonto: ${skoKalkPct} % · Kundenrabatt: ${rabKalkPct} %. Markieren Sie den Buchungsbetrag.`,
+              aufgabe: `Ermitteln Sie den Listenverkaufspreis (netto) für ${menge} Stk. ${art} mithilfe der Vorwärtskalkulation.\nGegebene Größen:\n• Einstandspreis: ${fmt(ekp)} €\n• Gewinnzuschlag: ${aufschPct} % auf den EP\n• Kundenskonto: ${skoKalkPct} %\n• Kundenrabatt: ${rabKalkPct} %\nMarkieren Sie den Buchungsbetrag.`,
               beleg: null, soll: [], haben: [],
               schema: [
                 { label: "Einstandspreis (EP)", wert: ekp, einheit: "€" },
@@ -1744,7 +1744,7 @@ Konten: 2000 R (Rohstoffe), 2010 F (Fremdbauteile), 2020 H (Hilfsstoffe), 2030 B
                 { nr: "4800", name: "Umsatzsteuer (UST-Korrektur)", betrag: skoU },
               ],
               haben: [{ nr: "2400", name: "Forderungen aus L+L (FO)", betrag: foNach }],
-              nrPunkte: 3,
+              nrPunkte: 0,
               punkte: 3 + 1 + 3,
               erklaerung: `FO ${fmt(foNach)} € erlischt (Haben). Bank ${fmt(zahlung)} €. Skonto → EBFE ${fmt(skoN)} €, UST-Korrektur ${fmt(skoU)} €. NR: ${fmt(nettoNach)} × ${skoPct} % = ${fmt(skoN)} €; ${fmt(foNach)} − ${fmt(skoB)} = ${fmt(zahlung)} €.`,
             });

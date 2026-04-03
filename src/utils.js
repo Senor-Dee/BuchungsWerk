@@ -58,6 +58,8 @@ export const ANREDE_REGELN = [
   [/verwenden Sie/gi,            _imp("verwende")],
   [/erfassen Sie/gi,             _imp("erfasse")],
   [/ordnen Sie/gi,               _imp("ordne")],
+  [/markieren Sie/gi,            _imp("markiere")],
+  [/schlie\u00dfen Sie/gi,       _imp("schlie\u00dfe")],
   [/f\u00fchren Sie/gi,          _imp("f\u00fchre")],
   [/vervollst\u00e4ndigen Sie/gi, _imp("vervollst\u00e4ndige")],
   [/beantworten Sie/gi,          _imp("beantworte")],
