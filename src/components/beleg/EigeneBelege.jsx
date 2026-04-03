@@ -96,7 +96,7 @@ function EigeneBelege({ onSchliessen }) {
     if (engineBuchungssatz) {
       // Engine hat Buchungssatz berechnet → KI nur für Aufgabentext (~400 Tokens)
       const bsText = buchungssatzToText(engineBuchungssatz);
-      maxTokens = 400;
+      maxTokens = 800;
       prompt = `Du bist BwR-Fachlehrer an einer bayerischen Realschule (Klasse ${klasse}, ISB LehrplanPLUS Bayern).
 Erstelle auf Basis des folgenden Belegs einen Aufgabentext für Schüler.
 Der Buchungssatz wurde bereits berechnet: ${bsText}
@@ -115,7 +115,7 @@ Antworte NUR mit JSON (kein Markdown):
 }`;
     } else {
       // Fallback: vollständiger Prompt mit Kontenplan (~1000 Tokens)
-      maxTokens = 1000;
+      maxTokens = 1500;
       prompt = `Du bist BwR-Fachlehrer an einer bayerischen Realschule (Klasse ${klasse}, ISB LehrplanPLUS Bayern).
 Erstelle auf Basis des folgenden Belegs eine korrekte Buchungsaufgabe.
 
