@@ -29,7 +29,13 @@ REQUIRE_VERIFY  = os.environ.get("BW_REQUIRE_VERIFY", "true").lower() == "true" 
 ANTHROPIC_KEY   = os.environ.get("BW_ANTHROPIC_KEY", "")
 
 # ── App ────────────────────────────────────────────────────────────────────────
-app = FastAPI(title="BuchungsWerk API", version="2.0.0")
+app = FastAPI(
+    title="BuchungsWerk API",
+    version="2.0.0",
+    docs_url=None,
+    redoc_url=None,
+    openapi_url=None,
+)
 
 app.add_middleware(
     CORSMiddleware,
@@ -44,8 +50,9 @@ security_scheme = HTTPBearer(auto_error=False)
 # ── DB ─────────────────────────────────────────────────────────────────────────
 def get_db():
     conn = sqlite3.connect(DB_PATH, check_same_thread=False)
-    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA foreign_keys = ON")
+    conn.row_factory = sqlite3.Row
     try:
         yield conn
     finally:
