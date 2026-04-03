@@ -106,10 +106,16 @@ BELEG: ${belegText}${varianteZusatz}
 Kontoangabe: Klasse ≤7 → nur Kürzel (soll_nr = ""), Klasse 8–10 → Nummer + Kürzel.
 Anrede: Klasse ≤9 → Du-Form, Klasse 10 → Sie-Form.
 
+NR-PUNKTE (ISB-Handreichung BwR 2025):
+- Klasse 7: nebenrechnung_punkte=1 wenn Brutto→Netto gerechnet werden muss.
+- Klasse 8+: nebenrechnung_punkte=0 für einfache ER/AR. Einfache USt- oder Brutto-Berechnung = KEIN Punkt.
+- Klasse 8+ Ausnahmen (NR-Punkt): Skonto-Berechnung, EWB/PWB, Disagio/Auszahlungsbetrag, Periodenabgrenzung.
+- Im Zweifel: nebenrechnung_punkte=0.
+
 Antworte NUR mit JSON (kein Markdown):
 {
   "aufgabe": "Aufgabenstellung für Schüler (1–3 Sätze)",
-  "nebenrechnung": "Rechenweg mit Schrittangabe, sonst leer",
+  "nebenrechnung": "Rechenweg nur wenn ISB-relevant, sonst leer string",
   "nebenrechnung_punkte": 0,
   "erklaerung": "Didaktischer Kommentar für den Lehrer (2–3 Sätze)"
 }`;

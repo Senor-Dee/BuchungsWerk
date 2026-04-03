@@ -910,12 +910,16 @@ AUFGABENTEXT-REGEL: Da der Beleg sichtbar ist, KEINE Belegdaten wiederholen!
 RICHTIG: "Buche die Eingangsrechnung in die Bücher der [Firma] ein."
 FALSCH: "...19% USt, Zahlungsziel 30 Tage, Beträge..."
 
-NR-Punkt (nebenrechnung_punkte=1): nur wenn Brutto→Netto selbst berechnet werden muss (Kl.8+).
+NR-PUNKTE (ISB-Handreichung BwR 2025):
+- Klasse 7: nebenrechnung_punkte=1 wenn Brutto→Netto gerechnet werden muss.
+- Klasse 8+: nebenrechnung_punkte=0 für einfache ER/AR (USt- und Brutto-Berechnung = KEIN Punkt ab Kl.8!).
+- Klasse 8+ Ausnahmen mit NR-Punkt: Skonto-Berechnung, EWB/PWB, Disagio/Auszahlungsbetrag, Periodenabgrenzung.
+- Im Zweifel: nebenrechnung_punkte=0 setzen.
 
 Antworte NUR mit reinem JSON:
 {
   "aufgabe": "1 Satz Aufgabentext (ohne Belegdaten!)",
-  "nebenrechnung": "Rechenweg Brutto→Netto falls nötig, sonst leer",
+  "nebenrechnung": "Rechenweg nur wenn ISB-relevant, sonst leer string",
   "nebenrechnung_punkte": 0,
   "erklaerung": "LB-Bezug (z.B. LB2 Kl.8: Wareneinkauf auf Ziel), typische Schülerfehler"
 }`

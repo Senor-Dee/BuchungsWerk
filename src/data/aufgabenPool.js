@@ -876,8 +876,8 @@ Bilanz: Gegenüberstellung von Vermögen (Aktiva) und Kapital (Passiva) in Konto
             ],
             soll: [{ nr: wt.aw.nr, name: wt.aw.name, betrag: richtigNetto }, { nr: "2600", name: "Vorsteuer (VORST)", betrag: richtigUSt }],
             haben: [{ nr: "4400", name: "Verbindlichkeiten aus L+L (VE)", betrag: richtigBrutto }],
-            nrPunkte: 3,
-            erklaerung: `Fehler: ${fehlerTyp === "netto" ? `Netto falsch berechnet (${fmt(falschNetto)} statt ${fmt(richtigNetto)} €)` : fehlerTyp === "ust" ? `USt falsch berechnet (${fmt(falschUSt)} statt ${fmt(richtigUSt)} €)` : `Brutto falsch berechnet (${fmt(falschBrutto)} statt ${fmt(richtigBrutto)} €)`}. Buchung immer mit korrekten Werten: ${wt.aw.kürzel} ${fmt(richtigNetto)} €, VORST ${fmt(richtigUSt)} €, VE ${fmt(richtigBrutto)} €.`,
+            nrPunkte: 1,
+            erklaerung: `Fehler: ${fehlerTyp === "netto" ? `Netto falsch berechnet (${fmt(falschNetto)} statt ${fmt(richtigNetto)} €)` : fehlerTyp === "ust" ? `USt falsch berechnet (${fmt(falschUSt)} statt ${fmt(richtigUSt)} €)` : `Brutto falsch berechnet (${fmt(falschBrutto)} statt ${fmt(richtigBrutto)} €)`}. ISB Kl.8: Nur Menge×EP = 1 NR-Punkt. USt- und Brutto-Berechnung = kein Punkt (ISB-Handreichung 2025). Buchung mit korrekten Werten: ${wt.aw.kürzel} ${fmt(richtigNetto)} €, VORST ${fmt(richtigUSt)} €, VE ${fmt(richtigBrutto)} €.`,
           };
         },
       },
