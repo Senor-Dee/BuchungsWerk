@@ -1101,6 +1101,10 @@ def _rate_check(session_id: str):
     if len(_rate_buckets[session_id]) >= _RATE_LIMIT:
         raise HTTPException(429, "Zu viele Anfragen – bitte warte kurz")
     _rate_buckets[session_id].append(now)
+    # Cleanup: leere Buckets entfernen (Memory Leak Fix)
+    keys_to_delete = [k for k, v in _rate_buckets.items() if len(v) == 0]
+    for k in keys_to_delete:
+        del _rate_buckets[k]
 
 def _quiz_code() -> str:
     """8-stelliger alphanumerischer Code, eindeutig lesbar (keine 0/O/1/I). 32^8 ≈ 1 Billion Kombos."""
