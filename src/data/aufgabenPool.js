@@ -1637,7 +1637,7 @@ Konten: 2000 R (Rohstoffe), 2010 F (Fremdbauteile), 2020 H (Hilfsstoffe), 2030 B
             titel: `Verkauf auf Ziel${mitKalk ? " (Zielverkaufspreis!)" : ""}`,
             typ: "buchung",
             aufgabe: `Buchen Sie die folgende Ausgangsrechnung.${mitKalk ? " Hinweis: Als Buchungsbetrag gilt der Zielverkaufspreis!" : ""}`,
-            beleg: mkAusgangsRE(f, art, menge, "Stk", basisNetto, 19),
+            beleg: mkAusgangsRE(f, art, menge, "Stk", basisNetto, 19, 0, kunde),
             soll: [{ nr: "2400", name: "Forderungen aus L+L (FO)", betrag: brutto1 }],
             haben: [
               { nr: "5000", name: "Umsatzerlöse FE (UEFE)", betrag: basisNetto },

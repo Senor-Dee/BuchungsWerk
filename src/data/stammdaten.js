@@ -130,8 +130,8 @@ export const mkEingangsRE = (f, artikel, menge, einheit, netto, ustPct, klasse7 
   };
 };
 
-export const mkAusgangsRE = (f, artikel, menge, einheit, netto, ustPct, skonto = 0) => {
-  const kunde = pick(KUNDEN);
+export const mkAusgangsRE = (f, artikel, menge, einheit, netto, ustPct, skonto = 0, kundeOverride = null) => {
+  const kunde = kundeOverride || pick(KUNDEN);
   const u = r2(netto * ustPct / 100);
   return {
     typ: "ausgangsrechnung", firma: f, kunde,

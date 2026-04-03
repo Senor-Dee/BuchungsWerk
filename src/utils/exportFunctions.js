@@ -71,6 +71,10 @@ export function exportKomplexHTML(aufgabe, mitLoesung) {
   return html;
 }
 
+// Lucide-Icon-Namen → Emoji (für HTML/DOCX-Export, da Lucide nur in React rendert)
+const ICON_EMOJI = { Sun: "☀️", Trees: "🌲", Scissors: "✂️", Dumbbell: "🏋️" };
+export const firmaIconEmoji = icon => ICON_EMOJI[icon] || icon || "🏢";
+
 // Firmen-Vorspann-HTML
 export function exportFirmaHTML(config, firma) {
   const introSie = `Als Mitarbeiter/in im Unternehmen ${firma.name}, ${firma.ort || ""}, bearbeiten Sie verschiedene betriebswirtschaftliche Aufgaben.`;
@@ -82,7 +86,7 @@ export function exportFirmaHTML(config, firma) {
     ["Betriebsstoffe", firma.betriebsstoffe],
   ].filter(([, list]) => list?.length);
   return `<div class="firma-block">
-    <div class="firma-name">${firma.icon || "🏢"} ${firma.name} · ${firma.plz || ""} ${firma.ort || ""}</div>
+    <div class="firma-name">${firmaIconEmoji(firma.icon)} ${firma.name} · ${firma.plz || ""} ${firma.ort || ""}</div>
     <div class="firma-info">${firma.slogan || ""} ${intro}</div>
     <div class="firma-details">
       <span><strong>Rechtsform:</strong> ${firma.rechtsform || ""}</span>

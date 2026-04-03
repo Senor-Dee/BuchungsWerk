@@ -7,7 +7,7 @@ import { FilePen, Printer, ClipboardList,
          FileText, CheckSquare, Files, Bot, Download } from "lucide-react";
 import { anrede, berechnePunkte } from "../../utils.js";
 import { S } from "../../styles.js";
-import { generateExportHTML, makeBelegDocx, buildDocxBlob } from "../../utils/exportFunctions.js";
+import { generateExportHTML, makeBelegDocx, buildDocxBlob, firmaIconEmoji } from "../../utils/exportFunctions.js";
 import KopfzeilenEditor, { DEFAULT_KOPFZEILE } from "../export/KopfzeilenEditor.jsx";
 
 export default function ExportModal({ aufgaben, config, firma, kiHistorie, onSchliessen }) {
@@ -274,7 +274,7 @@ export default function ExportModal({ aufgaben, config, firma, kiHistorie, onSch
             margins: { top: 100, bottom: 100, left: 180, right: 140 },
             children: [
               new Paragraph({ spacing: { after: 16 }, children: [
-                new TextRun({ text: (firma.icon ? firma.icon + "  " : "") + firma.name, size: 24, bold: true, color: firmaFarbe, font: "Arial" }),
+                new TextRun({ text: firmaIconEmoji(firma.icon) + "  " + firma.name, size: 24, bold: true, color: firmaFarbe, font: "Arial" }),
                 // rechtsform nicht separat – bereits im Firmennamen enthalten
                 ...(firma.ort ? [new TextRun({ text: "  ·  " + firma.plz + " " + firma.ort, size: 18, color: "555555", font: "Arial" })] : []),
                 ...(firma.slogan ? [new TextRun({ text: "  |  ", size: 18, color: "BBBBBB", font: "Arial" }), new TextRun({ text: firma.slogan, size: 20, italic: true, bold: false, color: "555555", font: "Georgia" })] : []),
