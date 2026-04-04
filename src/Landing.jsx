@@ -396,11 +396,30 @@ const FEATURES = [
     desc:"Mit einer Schullizenz erhalten alle Lehrkräfte Ihrer Schule Zugang. Eigene Aufgaben und Szenarien zentral speichern und im Kollegium teilen – für einheitlichen Unterricht ohne Mehraufwand.", tag:"Schule" },
 ];
 
-// iPad Pro (Landscape) – Gold, kein Home-Button, minimal + realistisch
+// iPad Pro (Landscape) – Space Black (App-Farben), Apple Pencil, Speaker, kein Home-Button
 function IPadFrame({ children, deviceW, deviceH }) {
-  const bezel  = 28;
-  const outerR = 22;
-  const innerR = 12;
+  const bezel  = 26;
+  const outerR = 20;
+  const innerR = 10;
+
+  // Speaker-Grill: 4 Schlitze auf den Kurzseiten (links + rechts in Landscape)
+  const SLOTS   = 4;
+  const SLOT_W  = 2;
+  const SLOT_H  = 9;
+  const SLOT_GAP = 3.5;
+  function SpeakerGrille() {
+    return (
+      <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:SLOT_GAP }}>
+        {Array.from({ length: SLOTS }).map((_, i) => (
+          <div key={i} style={{
+            width: SLOT_W, height: SLOT_H, borderRadius: 1,
+            background: "rgba(0,0,0,0.55)",
+            boxShadow: "inset 0 0.5px 0 rgba(0,0,0,0.5), 0 0 0 0.5px rgba(255,255,255,0.05)",
+          }} />
+        ))}
+      </div>
+    );
+  }
 
   return (
     <div style={{
@@ -408,28 +427,77 @@ function IPadFrame({ children, deviceW, deviceH }) {
       width:  deviceW,
       height: deviceH,
       borderRadius: outerR,
-      // iPad Pro Gold (Champagne)
-      background: "linear-gradient(150deg, #ecddb8 0%, #d9c07a 25%, #ccaa50 50%, #d6bc72 75%, #ecddb8 100%)",
+      // Warm Space Black – passend zu App-Farben (#141008)
+      background: "linear-gradient(145deg, #343028 0%, #26221a 30%, #1e1a13 55%, #26221a 75%, #343028 100%)",
       boxShadow: [
-        "0 0 0 1px rgba(255,240,190,0.65)",
-        "inset 0 0 0 0.5px rgba(100,75,15,0.25)",
-        "0 50px 120px rgba(0,0,0,0.65)",
-        "0 12px 40px rgba(0,0,0,0.45)",
-        "inset 0 2px 0 rgba(255,255,210,0.75)",
-        "inset 0 -1px 0 rgba(100,70,10,0.15)",
+        "0 0 0 1px rgba(255,255,255,0.10)",
+        "inset 0 0 0 0.5px rgba(0,0,0,0.6)",
+        "0 50px 120px rgba(0,0,0,0.80)",
+        "0 14px 44px rgba(0,0,0,0.60)",
+        "inset 0 1.5px 0 rgba(255,255,255,0.14)",
+        "inset 0 -1px 0 rgba(0,0,0,0.7)",
       ].join(", "),
       flexShrink: 0,
     }}>
 
-      {/* Kamera: Oberkante zentriert (Landscape-Kamera iPad Pro 2022+) */}
+      {/* Apple Pencil – liegt auf der Oberkante auf */}
+      <div style={{
+        position: "absolute",
+        top: -12, left: "9%", width: "70%", height: 11,
+        borderRadius: 5.5,
+        background: "linear-gradient(180deg, #f2f2f2 0%, #e2e2e2 45%, #c8c8c8 100%)",
+        boxShadow: [
+          "0 3px 9px rgba(0,0,0,0.50)",
+          "inset 0 1px 0 rgba(255,255,255,0.88)",
+          "inset 0 -0.5px 0 rgba(0,0,0,0.12)",
+          "0 0 0 0.5px rgba(0,0,0,0.20)",
+        ].join(", "),
+        zIndex: 10,
+      }}>
+        {/* Metall-Spitze rechts */}
+        <div style={{
+          position: "absolute", right: -8, top: 1.5, bottom: 1.5, width: 14,
+          borderRadius: "0 5px 5px 0",
+          background: "linear-gradient(180deg, #d5d5d5 0%, #ababab 100%)",
+          boxShadow: "0 0 0 0.5px rgba(0,0,0,0.22)",
+        }} />
+        {/* Dezente Trennlinie (Flat-Edge-Seite) */}
+        <div style={{
+          position: "absolute", left: "13%", top: 2, height: 7,
+          width: 1.5, borderRadius: 1, background: "rgba(0,0,0,0.14)",
+        }} />
+        {/* Mittige Naht */}
+        <div style={{
+          position: "absolute", left: "51%", top: 2, bottom: 2,
+          width: 0.5, background: "rgba(0,0,0,0.08)",
+        }} />
+      </div>
+
+      {/* Kamera: Oberkante zentriert */}
       <div style={{
         position: "absolute",
         top: Math.round(bezel * 0.45) - 4,
         left: "50%", transform: "translateX(-50%)",
         width: 7, height: 7, borderRadius: "50%",
-        background: "radial-gradient(circle at 35% 35%, #6b5c20, #0e0e0a)",
-        boxShadow: "0 0 0 1px rgba(80,60,10,0.5), 0 0 0 2.5px rgba(180,150,60,0.35)",
+        background: "radial-gradient(circle at 35% 35%, #2a2828, #0c0c0a)",
+        boxShadow: "0 0 0 1px rgba(0,0,0,0.65), 0 0 0 2.5px rgba(70,65,55,0.35)",
       }} />
+
+      {/* Speaker LINKS – zentriert vertikal */}
+      <div style={{
+        position: "absolute", left: Math.round(bezel * 0.38), top: 0, bottom: 0,
+        display: "flex", alignItems: "center", justifyContent: "center",
+      }}>
+        <SpeakerGrille />
+      </div>
+
+      {/* Speaker RECHTS – zentriert vertikal */}
+      <div style={{
+        position: "absolute", right: Math.round(bezel * 0.38), top: 0, bottom: 0,
+        display: "flex", alignItems: "center", justifyContent: "center",
+      }}>
+        <SpeakerGrille />
+      </div>
 
       {/* USB-C: Unterkante zentriert */}
       <div style={{
@@ -438,8 +506,8 @@ function IPadFrame({ children, deviceW, deviceH }) {
         left: "50%", transform: "translateX(-50%)",
         width: Math.round(deviceW * 0.04), height: 3,
         borderRadius: 2,
-        background: "rgba(80,60,10,0.22)",
-        boxShadow: "inset 0 1px 0 rgba(0,0,0,0.18)",
+        background: "rgba(0,0,0,0.45)",
+        boxShadow: "inset 0 1px 0 rgba(0,0,0,0.35)",
       }} />
 
       {/* Screen */}
@@ -449,7 +517,7 @@ function IPadFrame({ children, deviceW, deviceH }) {
         borderRadius: innerR,
         background: "#0e0b07",
         overflow: "hidden",
-        boxShadow: "inset 0 0 0 1px rgba(0,0,0,0.6), inset 0 2px 14px rgba(0,0,0,0.55)",
+        boxShadow: "inset 0 0 0 1px rgba(0,0,0,0.7), inset 0 2px 14px rgba(0,0,0,0.6)",
       }}>
         {children}
       </div>
@@ -460,6 +528,20 @@ function IPadFrame({ children, deviceW, deviceH }) {
 function FeaturesSection() {
   const sectionRef = useRef(null);
   const [activeIdx, setActiveIdx] = useState(0);
+
+  // Echtzeit-Uhr für iPad-Statusleiste
+  const [clock, setClock] = useState(() => {
+    const d = new Date();
+    return `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`;
+  });
+  useEffect(() => {
+    const tick = () => {
+      const d = new Date();
+      setClock(`${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`);
+    };
+    const id = setInterval(tick, 30000);
+    return () => clearInterval(id);
+  }, []);
 
   // "start start / end end" → progress 0 = sticky startet, progress 1 = sticky endet
   const { scrollYProgress } = useScroll({
@@ -531,7 +613,7 @@ function FeaturesSection() {
                 display:"flex", alignItems:"center", justifyContent:"space-between",
                 padding:"0 12px", zIndex:10 }}>
                 <span style={{ fontSize:9, fontWeight:700, color:"rgba(240,236,227,0.6)",
-                  fontFamily:"'IBM Plex Sans',sans-serif" }}>9:41</span>
+                  fontFamily:"'IBM Plex Sans',sans-serif" }}>{clock}</span>
                 <div style={{ display:"flex", gap:5, alignItems:"center" }}>
                   <div style={{ width:16, height:7, borderRadius:1.5,
                     border:"1px solid rgba(240,236,227,0.45)", position:"relative" }}>
@@ -545,6 +627,25 @@ function FeaturesSection() {
 
               {/* Feature-Content – Landscape 2-Spalten-Layout */}
               <div style={{ position:"absolute", inset:0, paddingTop:20, overflow:"hidden" }}>
+
+                {/* Vertikale Dots – rechter Rand im Screen */}
+                <div style={{
+                  position: "absolute", right: 11, top: "50%",
+                  transform: "translateY(-50%)",
+                  display: "flex", flexDirection: "column", gap: 7,
+                  zIndex: 5, pointerEvents: "none",
+                }}>
+                  {FEATURES.map((_, i) => (
+                    <div key={i} style={{
+                      width: 5,
+                      height: i === activeIdx ? 22 : 5,
+                      borderRadius: 3,
+                      background: i === activeIdx ? "#e8600a" : "rgba(240,236,227,0.22)",
+                      transition: "height 280ms ease, background 280ms ease",
+                    }} />
+                  ))}
+                </div>
+
                 <AnimatePresence mode="wait">
                   {(() => {
                     const f = FEATURES[activeIdx];
@@ -625,17 +726,6 @@ function FeaturesSection() {
           </motion.div>
         </div>
 
-        {/* Dot-Indikatoren */}
-        <div style={{ display:"flex", gap:8, marginTop:"1vh", zIndex:2 }}>
-          {FEATURES.map((_, i) => (
-            <div key={i} style={{
-              width: i === activeIdx ? 22 : 7,
-              height: 7, borderRadius: 4,
-              background: i === activeIdx ? "#e8600a" : "rgba(240,236,227,0.18)",
-              transition:"all 260ms ease",
-            }} />
-          ))}
-        </div>
       </div>
     </section>
   );
@@ -653,7 +743,7 @@ const STEPS = [
 
 function HowItWorksSection() {
   const [cur,    setCur]    = useState(0);
-  const [dir,    setDir]    = useState(1);  // 1 = nach unten (nächster), -1 = nach oben (vorheriger)
+  const [dir,    setDir]    = useState(1);  // 1 = right, -1 = left
   const [animKey, setAnimKey] = useState(0);
 
   const go = (next, d = 1) => { setDir(d); setCur(next); setAnimKey(k => k + 1); };
@@ -691,107 +781,106 @@ function HowItWorksSection() {
         </SR>
 
         <SR delay={120} zoom>
-          <div style={{ display:"flex", gap:0, alignItems:"stretch" }}>
+          {/* Carousel */}
+          <div style={{ position:"relative", overflow:"hidden", borderRadius:16,
+            border:"1px solid rgba(240,236,227,0.09)",
+            background:"rgba(28,20,10,0.5)", minHeight:280 }}>
 
-            {/* LINKS: Vertikale Schritt-Liste */}
-            <div style={{ display:"flex", flexDirection:"column", width:200, flexShrink:0, paddingTop:8, paddingBottom:8 }}>
-              {STEPS.map((s, i) => (
-                <button key={i} data-cursor-small onClick={() => go(i, i > cur ? 1 : -1)} style={{
-                  display:"flex", alignItems:"center", gap:14,
-                  padding:"20px 24px 20px 20px",
-                  flex:1,
-                  background:"none", cursor:"pointer",
-                  borderTop:"none", borderRight:"none", borderBottom:"none",
-                  borderLeft:`2px solid ${i === cur ? "#e8600a" : "rgba(240,236,227,0.09)"}`,
-                  opacity: i === cur ? 1 : 0.42,
-                  transition:"opacity 300ms, border-left-color 300ms",
-                  textAlign:"left",
-                }}>
-                  {/* Nummer-Kreis */}
-                  <div style={{
-                    width:36, height:36, borderRadius:"50%", flexShrink:0,
-                    background: i === cur ? "linear-gradient(180deg,#f07320,#c24f08)" : "rgba(240,236,227,0.07)",
-                    display:"flex", alignItems:"center", justifyContent:"center",
-                    boxShadow: i === cur ? "0 0 18px rgba(232,96,10,0.4)" : "none",
-                    transition:"background 300ms, box-shadow 300ms",
-                  }}>
-                    <span style={{ fontFamily:"'Fira Code',monospace", fontSize:"11px", fontWeight:700,
-                      color: i === cur ? "#fff" : "rgba(240,236,227,0.3)" }}>{s.nr}</span>
-                  </div>
-                  {/* Icon */}
-                  <s.Icon size={16} strokeWidth={1.5}
-                    color={i === cur ? "#e8600a" : "rgba(240,236,227,0.28)"}
-                    style={{ transition:"color 300ms" }} />
-                </button>
-              ))}
-            </div>
+            {/* Left click zone */}
+            <div data-cursor-left onClick={prev} style={{
+              position:"absolute", left:0, top:0, width:"50%", height:"100%",
+              zIndex:3, cursor:"pointer" }}/>
+            {/* Right click zone */}
+            <div data-cursor-right onClick={next} style={{
+              position:"absolute", right:0, top:0, width:"50%", height:"100%",
+              zIndex:3, cursor:"pointer" }}/>
 
-            {/* RECHTS: Animierter Inhalt */}
-            <div style={{ flex:1, position:"relative", overflow:"hidden", borderRadius:16,
-              border:"1px solid rgba(240,236,227,0.09)",
-              background:"rgba(28,20,10,0.5)", minHeight:280 }}>
-
-              <div key={animKey} style={{
-                padding:"52px 52px",
-                animation:`${dir > 0 ? "step-in-up" : "step-in-dn"} 0.50s cubic-bezier(.4,0,.2,1) both`,
-              }}>
-                {/* Icon + Titel */}
-                <div style={{ display:"flex", alignItems:"center", gap:14, marginBottom:24 }}>
-                  <div style={{ width:44, height:44, borderRadius:"50%",
-                    background:"linear-gradient(180deg,#f07320,#c24f08)",
-                    display:"flex", alignItems:"center", justifyContent:"center",
-                    boxShadow:"0 0 20px rgba(232,96,10,0.45)", flexShrink:0 }}>
-                    <step.Icon size={20} strokeWidth={1.5} color="#fff" />
-                  </div>
-                  <span style={{ fontFamily:"'Fira Code',monospace", fontSize:"12px",
-                    color:"rgba(240,236,227,0.22)", letterSpacing:"0.1em" }}>
-                    {cur + 1} / {STEPS.length}
-                  </span>
+            {/* Step content */}
+            <div key={animKey} style={{
+              padding:"52px 60px",
+              animation:`${dir > 0 ? "step-in-r" : "step-in-l"} 0.55s cubic-bezier(.4,0,.2,1) both`,
+            }}>
+              {/* Step counter */}
+              <div style={{ display:"flex", alignItems:"center", gap:14, marginBottom:24 }}>
+                <div style={{ width:44, height:44, borderRadius:"50%",
+                  background:"linear-gradient(180deg,#f07320,#c24f08)",
+                  display:"flex", alignItems:"center", justifyContent:"center",
+                  boxShadow:"0 0 20px rgba(232,96,10,0.45)", flexShrink:0 }}>
+                  <span style={{ fontFamily:"'Fira Code',monospace",
+                    fontSize:"13px", fontWeight:700, color:"#fff" }}>{step.nr}</span>
                 </div>
-
-                <div style={{ fontFamily:"'Bebas Neue',sans-serif",
-                  fontSize:"clamp(28px,4vw,48px)", color:"#f0ece3",
-                  letterSpacing:"0.04em", marginBottom:16, lineHeight:1 }}>{step.title}</div>
-
-                <p style={{ fontSize:"16px", color:"rgba(240,236,227,0.6)",
-                  lineHeight:1.7, maxWidth:"480px", fontFamily:"'IBM Plex Sans',sans-serif",
-                  margin:0 }}>{step.desc}</p>
+                <step.Icon size={20} strokeWidth={1.5} color="rgba(240,236,227,0.4)"/>
+                <span style={{ fontFamily:"'Fira Code',monospace", fontSize:"12px",
+                  color:"rgba(240,236,227,0.2)", letterSpacing:"0.1em" }}>
+                  {cur + 1} / {STEPS.length}
+                </span>
               </div>
 
-              {/* Obere Orange-Akzentlinie */}
-              <div style={{ position:"absolute", top:0, left:0, right:0, height:"2px",
-                background:`linear-gradient(90deg,transparent,rgba(232,96,10,${0.2 + cur * 0.25}),transparent)`,
-                transition:"background 600ms" }}/>
+              <div style={{ fontFamily:"'Bebas Neue',sans-serif",
+                fontSize:"clamp(28px,4vw,48px)", color:"#f0ece3",
+                letterSpacing:"0.04em", marginBottom:16, lineHeight:1 }}>{step.title}</div>
 
-              {/* Pfeil-Navigation unten rechts */}
-              <div style={{ position:"absolute", bottom:20, right:20,
-                display:"flex", flexDirection:"column", gap:6 }}>
-                <button onClick={prev} data-cursor-small style={{
-                  background:"none",
-                  borderTop:"none", borderLeft:"none", borderRight:"none",
-                  borderBottom:"1px solid rgba(240,236,227,0.15)",
-                  borderRadius:"50%", width:32, height:32, cursor:"pointer",
-                  color:"rgba(240,236,227,0.4)", display:"flex", alignItems:"center",
-                  justifyContent:"center", transition:"border-color 150ms,color 150ms",
-                  border:"1px solid rgba(240,236,227,0.15)",
-                }}
-                onMouseEnter={e => { e.currentTarget.style.borderColor="#e8600a"; e.currentTarget.style.color="#e8600a"; }}
-                onMouseLeave={e => { e.currentTarget.style.borderColor="rgba(240,236,227,0.15)"; e.currentTarget.style.color="rgba(240,236,227,0.4)"; }}>
-                  <ChevronLeft size={14} strokeWidth={2} style={{ transform:"rotate(90deg)" }}/>
-                </button>
-                <button onClick={next} data-cursor-small style={{
-                  background:"none", border:"1px solid rgba(240,236,227,0.15)",
-                  borderRadius:"50%", width:32, height:32, cursor:"pointer",
-                  color:"rgba(240,236,227,0.4)", display:"flex", alignItems:"center",
-                  justifyContent:"center", transition:"border-color 150ms,color 150ms",
-                }}
-                onMouseEnter={e => { e.currentTarget.style.borderColor="#e8600a"; e.currentTarget.style.color="#e8600a"; }}
-                onMouseLeave={e => { e.currentTarget.style.borderColor="rgba(240,236,227,0.15)"; e.currentTarget.style.color="rgba(240,236,227,0.4)"; }}>
-                  <ChevronRight size={14} strokeWidth={2} style={{ transform:"rotate(90deg)" }}/>
-                </button>
-              </div>
-
+              <p style={{ fontSize:"16px", color:"rgba(240,236,227,0.6)",
+                lineHeight:1.7, maxWidth:"480px", fontFamily:"'IBM Plex Sans',sans-serif",
+                margin:0 }}>{step.desc}</p>
             </div>
+
+            {/* Border top accent */}
+            <div style={{ position:"absolute", top:0, left:0, right:0, height:"2px",
+              background:`linear-gradient(90deg,transparent,rgba(232,96,10,${0.2 + cur * 0.25}),transparent)`,
+              transition:"background 600ms" }}/>
+
+          </div>
+
+          {/* Step dots + nav */}
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"center",
+            gap:12, marginTop:20 }}>
+            <button onClick={prev} data-cursor-small style={{
+              background:"none", border:"1px solid rgba(240,236,227,0.15)",
+              borderRadius:"50%", width:32, height:32, cursor:"pointer",
+              color:"rgba(240,236,227,0.4)", display:"flex", alignItems:"center",
+              justifyContent:"center", transition:"border-color 150ms,color 150ms" }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor="#e8600a"; e.currentTarget.style.color="#e8600a"; }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor="rgba(240,236,227,0.15)"; e.currentTarget.style.color="rgba(240,236,227,0.4)"; }}>
+              <ChevronLeft size={14} strokeWidth={2}/>
+            </button>
+
+            {STEPS.map((_,i) => (
+              <button key={i} data-cursor-small onClick={() => go(i, i > cur ? 1 : -1)} style={{
+                width: i === cur ? 28 : 8, height:8, borderRadius:4, border:"none",
+                background: i === cur ? "#e8600a" : "rgba(240,236,227,0.18)",
+                cursor:"pointer", padding:0,
+                transition:"width 300ms ease,background 300ms",
+              }}/>
+            ))}
+
+            <button onClick={next} data-cursor-small style={{
+              background:"none", border:"1px solid rgba(240,236,227,0.15)",
+              borderRadius:"50%", width:32, height:32, cursor:"pointer",
+              color:"rgba(240,236,227,0.4)", display:"flex", alignItems:"center",
+              justifyContent:"center", transition:"border-color 150ms,color 150ms" }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor="#e8600a"; e.currentTarget.style.color="#e8600a"; }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor="rgba(240,236,227,0.15)"; e.currentTarget.style.color="rgba(240,236,227,0.4)"; }}>
+              <ChevronRight size={14} strokeWidth={2}/>
+            </button>
+          </div>
+
+          {/* Step overview */}
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:8, marginTop:12 }}>
+            {STEPS.map((s,i) => (
+              <button key={i} data-cursor-small onClick={() => go(i, i > cur ? 1 : -1)} style={{
+                background: i === cur ? "rgba(232,96,10,0.1)" : "rgba(240,236,227,0.03)",
+                border:`1px solid ${i === cur ? "rgba(232,96,10,0.35)" : "rgba(240,236,227,0.07)"}`,
+                borderRadius:8, padding:"8px 10px", cursor:"pointer", textAlign:"left",
+                transition:"all 200ms" }}>
+                <div style={{ fontSize:"10px", fontWeight:700,
+                  color: i === cur ? "#e8600a" : "rgba(240,236,227,0.25)",
+                  fontFamily:"'Fira Code',monospace", marginBottom:3 }}>{s.nr}</div>
+                <div style={{ fontSize:"11px", fontWeight:600,
+                  color: i === cur ? "#f0ece3" : "rgba(240,236,227,0.35)",
+                  fontFamily:"'IBM Plex Sans',sans-serif", lineHeight:1.3 }}>{s.title}</div>
+              </button>
+            ))}
           </div>
         </SR>
       </div>
