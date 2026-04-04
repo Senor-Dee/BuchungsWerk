@@ -93,8 +93,6 @@ export function LiquidRadio({ options, value, onChange, size = 'md' }) {
             'inset 0 0 6px 4px rgba(232,96,10,0.08)',
             '0 2px 8px rgba(232,96,10,0.30)',
           ].join(','),
-          // Liquid-Glass-Verzerrungs-Filter
-          filter: 'url(#radio-glass)',
           zIndex: 0,
         }}
       />
