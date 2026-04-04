@@ -5,7 +5,7 @@
 import { useRef, useEffect } from 'react';
 import { motion, useMotionValue, useMotionTemplate, useAnimationFrame } from 'framer-motion';
 
-const CELL = 58;
+const CELL = 40;
 const SPEED = 0.5;
 
 export function InfiniteGrid() {
@@ -60,11 +60,11 @@ export function InfiniteGrid() {
       }} />
 
       {/* Dim-Layer – immer sichtbar, sehr subtil (Bone) */}
-      <div style={{ position: 'absolute', inset: 0, opacity: 0.07 }}>
+      <div style={{ position: 'absolute', inset: 0, opacity: 0.045 }}>
         <svg style={{ width: '100%', height: '100%' }}>
           <defs>
             <pattern ref={patDimRef} id="gp-dim" width={CELL} height={CELL} patternUnits="userSpaceOnUse">
-              <path d={`M ${CELL} 0 L 0 0 0 ${CELL}`} fill="none" stroke="#f0ece3" strokeWidth="1"/>
+              <path d={`M ${CELL} 0 L 0 0 0 ${CELL}`} fill="none" stroke="#f0ece3" strokeWidth="0.5"/>
             </pattern>
           </defs>
           <rect width="100%" height="100%" fill="url(#gp-dim)"/>
@@ -73,13 +73,13 @@ export function InfiniteGrid() {
 
       {/* Bright-Layer – sichtbar nur unter Cursor (Orange) */}
       <motion.div style={{
-        position: 'absolute', inset: 0, opacity: 0.6,
+        position: 'absolute', inset: 0, opacity: 0.45,
         maskImage, WebkitMaskImage: maskImage,
       }}>
         <svg style={{ width: '100%', height: '100%' }}>
           <defs>
             <pattern ref={patBrightRef} id="gp-bright" width={CELL} height={CELL} patternUnits="userSpaceOnUse">
-              <path d={`M ${CELL} 0 L 0 0 0 ${CELL}`} fill="none" stroke="#e8600a" strokeWidth="1.5"/>
+              <path d={`M ${CELL} 0 L 0 0 0 ${CELL}`} fill="none" stroke="#e8600a" strokeWidth="0.75"/>
             </pattern>
           </defs>
           <rect width="100%" height="100%" fill="url(#gp-bright)"/>
