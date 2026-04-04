@@ -928,7 +928,11 @@ class KiBuchungRequest(BaseModel):
     max_tokens: Optional[int] = 1000
 
 @app.post("/ki/buchung")
-async def ki_buchung(data: KiBuchungRequest):
+async def ki_buchung(data: KiBuchungRequest, request: Request, db: sqlite3.Connection = Depends(get_db)):
+    ip = request.client.host
+    if not _rl.check(f"ki:{ip}", 10, 60):
+        raise HTTPException(429, detail="Zu viele Anfragen. Bitte 1 Minute warten.")
+    _auth_user(request, db)
     api_key = os.environ.get("ANTHROPIC_API_KEY", "")
     if not api_key:
         raise HTTPException(500, "ANTHROPIC_API_KEY nicht gesetzt")
