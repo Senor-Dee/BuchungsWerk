@@ -7,8 +7,28 @@ export async function generateReport({ results, durationMs, iterations, reportDi
   const mdPath   = join(reportDir, `TEST_REPORT_${dateStr}.md`);
   const jsonPath = join(reportDir, `TEST_REPORT_${dateStr}.json`);
 
-  const { poolStress, engineMatrix } = results;
-  const allOK = poolStress.totalFailures === 0 && engineMatrix.totalFailures === 0;
+  const { poolStress, engineMatrix, language } = results;
+  const langOK = !language || language.totalFail === 0;
+  const allOK  = poolStress.totalFailures === 0 && engineMatrix.totalFailures === 0 && langOK;
+
+  function statusIcon(s) {
+    return s === 'PASS' ? '✅' : s === 'WARN' ? '⚠️' : s === 'CRITICAL' ? '🚨' : '❌';
+  }
+
+  function renderLangTable(rows) {
+    if (!rows || rows.length === 0) return '_Keine Ergebnisse._\n';
+    const lines = [];
+    lines.push('| Status | Check | Detail | Empfehlung |');
+    lines.push('|--------|-------|--------|------------|');
+    for (const r of rows) {
+      const icon   = statusIcon(r.status);
+      const detail = (r.detail || '').replace(/\|/g, '∣');
+      const fix    = (r.fix   || '—').replace(/\|/g, '∣');
+      const label  = (r.label || '').replace(/\|/g, '∣');
+      lines.push(`| ${icon} ${r.status} | ${label} | ${detail} | ${fix} |`);
+    }
+    return lines.join('\n') + '\n';
+  }
 
   const lines = [
     `# BuchungsWerk – Digitaler Tester Report`,
@@ -25,6 +45,7 @@ export async function generateReport({ results, durationMs, iterations, reportDi
     `|-------|------------|-------------|--------|--------|`,
     `| A Pool Stress Test | ${poolStress.totalTasks} | ${poolStress.totalIterations} | ${poolStress.totalFailures} | ${poolStress.totalFailures === 0 ? '✅' : '❌'} |`,
     `| B Engine Matrix    | ${engineMatrix.totalTests} | ${engineMatrix.totalTests} | ${engineMatrix.totalFailures} | ${engineMatrix.totalFailures === 0 ? '✅' : '❌'} |`,
+    `| C Sprachqualität   | ${language?.totalTests ?? '–'} | – | ${language?.totalFail ?? '–'} | ${langOK ? '✅' : '❌'} |`,
     ``,
     `---`,
     ``,
@@ -67,6 +88,44 @@ export async function generateReport({ results, durationMs, iterations, reportDi
       f.errors.forEach(e => lines.push(`- ${e}`));
       lines.push(``);
     });
+  }
+
+  lines.push(``);
+  lines.push(`---`);
+  lines.push(``);
+  lines.push(`## Track C – Sprachqualität`);
+  lines.push(``);
+
+  if (!language) {
+    lines.push(`_Track C nicht ausgeführt._`);
+  } else {
+    lines.push(`| Check | Status | Funde |`);
+    lines.push(`|-------|--------|-------|`);
+    const sec = language.sections || {};
+    const c1Icon = (sec.c1 || []).some(r => r.status === 'FAIL') ? '❌' : (sec.c1 || []).some(r => r.status === 'WARN') ? '⚠️' : '✅';
+    const c2Icon = (sec.c2 || []).some(r => r.status === 'FAIL') ? '❌' : (sec.c2 || []).some(r => r.status === 'WARN') ? '⚠️' : '✅';
+    const c3Icon = (sec.c3 || []).some(r => r.status === 'FAIL') ? '❌' : (sec.c3 || []).some(r => r.status === 'WARN') ? '⚠️' : '✅';
+    const c4Icon = (sec.c4 || []).some(r => r.status === 'FAIL') ? '❌' : (sec.c4 || []).some(r => r.status === 'WARN') ? '⚠️' : '✅';
+    lines.push(`| C-1 Struktur-Regex | ${c1Icon} | ${(sec.c1 || []).filter(r => r.status !== 'PASS').length} |`);
+    lines.push(`| C-2 Fachbegriff-Konsistenz | ${c2Icon} | ${(sec.c2 || []).filter(r => r.status !== 'PASS').length} |`);
+    lines.push(`| C-3 nspell Wörterbuch | ${c3Icon} | ${(sec.c3 || []).filter(r => r.status !== 'PASS').length} |`);
+    lines.push(`| C-4 Aufgabentexte | ${c4Icon} | ${(sec.c4 || []).filter(r => r.status !== 'PASS').length} |`);
+    lines.push(``);
+
+    if (language.totalFail > 0 || language.totalWarn > 0) {
+      lines.push(`### Details`);
+      lines.push(``);
+      lines.push(`#### C-1: Strukturelle Checks`);
+      lines.push(renderLangTable(sec.c1 || []));
+      lines.push(`#### C-2: BwR Fachbegriff-Konsistenz`);
+      lines.push(renderLangTable(sec.c2 || []));
+      lines.push(`#### C-3: Rechtschreibung (nspell)`);
+      lines.push(renderLangTable(sec.c3 || []));
+      lines.push(`#### C-4: Aufgabenpool-Texte`);
+      lines.push(renderLangTable(sec.c4 || []));
+    } else {
+      lines.push(`✅ Alle Sprachqualitäts-Checks bestanden (${language.totalPass} PASS).`);
+    }
   }
 
   lines.push(``);

@@ -7,16 +7,15 @@ export async function generateShadowReport({ results, durationMs, reportDir }) {
   const mdPath  = join(reportDir, `SHADOW_REPORT_${dateStr}.md`);
   const jsonPath = join(reportDir, `SHADOW_REPORT_${dateStr}.json`);
 
-  const { adversarial, security, language } = results;
+  const { adversarial, security } = results;
 
-  const sumA = adversarial  || { totalPass: 0, totalWarn: 0, totalFail: 0, totalCritical: 0, results: [] };
-  const sumB = security     || { totalPass: 0, totalWarn: 0, totalFail: 0, totalCritical: 0, results: [] };
-  const sumC = language     || { totalPass: 0, totalWarn: 0, totalFail: 0, totalCritical: 0, results: [] };
+  const sumA = adversarial || { totalPass: 0, totalWarn: 0, totalFail: 0, totalCritical: 0, results: [] };
+  const sumB = security    || { totalPass: 0, totalWarn: 0, totalFail: 0, totalCritical: 0, results: [] };
 
-  const totalPass     = sumA.totalPass     + sumB.totalPass     + sumC.totalPass;
-  const totalWarn     = sumA.totalWarn     + sumB.totalWarn     + sumC.totalWarn;
-  const totalFail     = sumA.totalFail     + sumB.totalFail     + sumC.totalFail;
-  const totalCritical = sumA.totalCritical + sumB.totalCritical + sumC.totalCritical;
+  const totalPass     = sumA.totalPass     + sumB.totalPass;
+  const totalWarn     = sumA.totalWarn     + sumB.totalWarn;
+  const totalFail     = sumA.totalFail     + sumB.totalFail;
+  const totalCritical = sumA.totalCritical + sumB.totalCritical;
 
   const gesamtBewertung =
     totalCritical > 0 ? '🔴 NICHT SICHER – Kritische Funde sofort beheben!' :
@@ -69,7 +68,7 @@ export async function generateShadowReport({ results, durationMs, reportDir }) {
     return lines.join('\n') + '\n';
   }
 
-  const allResults = [...sumA.results, ...sumB.results, ...sumC.results];
+  const allResults = [...sumA.results, ...sumB.results];
 
   const md = [
     `# Shadow Test Report – BuchungsWerk`,
@@ -85,7 +84,6 @@ export async function generateShadowReport({ results, durationMs, reportDir }) {
     `|-----------|---------|---------|---------|------------|`,
     `| A: BwR Adversarial | ${sumA.totalPass} | ${sumA.totalWarn} | ${sumA.totalFail} | ${sumA.totalCritical} |`,
     `| B: Security Scanner | ${sumB.totalPass} | ${sumB.totalWarn} | ${sumB.totalFail} | ${sumB.totalCritical} |`,
-    `| C: Sprachqualität | ${sumC.totalPass} | ${sumC.totalWarn} | ${sumC.totalFail} | ${sumC.totalCritical} |`,
     `| **GESAMT** | **${totalPass}** | **${totalWarn}** | **${totalFail}** | **${totalCritical}** |`,
     ``,
     `---`,
@@ -106,22 +104,6 @@ export async function generateShadowReport({ results, durationMs, reportDir }) {
     `## Teil B – Security Scanner`,
     ``,
     renderResultTable(sumB.results),
-    ``,
-    `---`,
-    ``,
-    `## Teil C – Sprachqualität`,
-    ``,
-    `### C-1: Strukturelle Checks`,
-    renderResultTable(sumC.sections?.c1 || []),
-    ``,
-    `### C-2: BwR Fachbegriff-Konsistenz`,
-    renderResultTable(sumC.sections?.c2 || []),
-    ``,
-    `### C-3: Rechtschreibung (nspell)`,
-    renderResultTable(sumC.sections?.c3 || []),
-    ``,
-    `### C-4: Aufgabenpool-Texte`,
-    renderResultTable(sumC.sections?.c4 || []),
     ``,
     `---`,
     ``,

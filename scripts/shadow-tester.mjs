@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 /**
  * BuchungsWerk Shadow Tester
- * Dreistufiges Sicherheits- und Qualitäts-System:
+ * Zweistufiges Sicherheits- und Adversarial-System:
  *   Teil A – BwR Adversarial (Engine mit ungültigen Eingaben testen)
  *   Teil B – Security Scanner (Dependencies, API-Keys, HTTP-Header, Rate-Limit)
- *   Teil C – Sprachqualität (Struktur, Fachbegriffe, nspell, Pool-Texte)
+ *
+ * Sprachqualität (Teil C) → Digital Tester (Track C)
  *
  * Usage:
  *   node scripts/shadow-tester.mjs
@@ -18,7 +19,6 @@
 
 import { runAdversarialTests } from './shadow/adversarial-engine.mjs';
 import { runSecurityScan }     from './shadow/security-scanner.mjs';
-import { runLanguageScan }     from './shadow/language-scanner.mjs';
 import { generateShadowReport } from './shadow/shadow-report-generator.mjs';
 import { mkdirSync }           from 'fs';
 import { join, dirname }       from 'path';
@@ -43,14 +43,10 @@ const adversarial = await runAdversarialTests();
 console.log('── Teil B: Security Scanner ──');
 const security = await runSecurityScan();
 
-// ── Teil C: Sprache ───────────────────────────────────────────────────────────
-console.log('── Teil C: Sprachqualitäts-Scanner ──');
-const language = await runLanguageScan();
-
 // ── Report ────────────────────────────────────────────────────────────────────
 const durationMs = Date.now() - startTime;
 const report     = await generateShadowReport({
-  results: { adversarial, security, language },
+  results: { adversarial, security },
   durationMs,
   reportDir: REPORT_DIR,
 });
@@ -59,7 +55,6 @@ const report     = await generateShadowReport({
 const allResults = [
   ...adversarial.results,
   ...security.results,
-  ...language.results,
 ];
 const totalCritical = allResults.filter(r => r.status === 'CRITICAL').length;
 const totalFail     = allResults.filter(r => r.status === 'FAIL').length;

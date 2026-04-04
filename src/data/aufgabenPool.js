@@ -3562,7 +3562,7 @@ ${sz.absender}`),
               { label: `Art der Abgrenzung: ${typ === "ara" ? "Aktive Rechnungsabgrenzung (ARA)" : "Passive Rechnungsabgrenzung (PRA)"}`, wert: null, einheit: "" },
             ],
             nrPunkte: 3,
-            erklaerung: `${gesamt} € ÷ ${monateBez} = ${perMonat} €/Monat. Anteil altes Jahr: ${monateAlt} × ${perMonat} = ${altBetrag} €. Anteil neues Jahr: ${monateNeu} × ${perMonat} = ${neuBetrag} €. → ${typ.toUpperCase()} bilden.`,
+            erklaerung: `${fmt(gesamt)} € ÷ ${monateBez} = ${fmt(perMonat)} €/Monat. Anteil altes Jahr: ${monateAlt} × ${fmt(perMonat)} = ${fmt(altBetrag)} €. Anteil neues Jahr: ${monateNeu} × ${fmt(perMonat)} = ${fmt(neuBetrag)} €. → ${typ.toUpperCase()} bilden.`,
           };
         },
       },

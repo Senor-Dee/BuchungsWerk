@@ -13,7 +13,7 @@
     "test:digital:quick": "node scripts/digital-tester.mjs --quick",
     "test:shadow": "node scripts/shadow-tester.mjs",
     "test:shadow:quick": "node scripts/shadow-tester.mjs --quick",
-    "test:shadow:lang": "node scripts/shadow/language-scanner.mjs"
+    "test:digital:lang": "node scripts/tester/language-scanner.mjs"
   },
   "dependencies": {
     "docx": "^8.5.0",

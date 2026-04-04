@@ -10,6 +10,7 @@
 
 import { runPoolStressTest }  from './tester/pool-stress.mjs';
 import { runEngineMatrix }    from './tester/engine-matrix.mjs';
+import { runLanguageScanner } from './tester/language-scanner.mjs';
 import { generateReport }     from './tester/report-generator.mjs';
 import { mkdirSync }          from 'fs';
 import { join, dirname }      from 'path';
@@ -43,12 +44,18 @@ results.engineMatrix = await runEngineMatrix({ rootDir: ROOT });
 const engineOK = results.engineMatrix.totalFailures === 0;
 console.log(`   ${engineOK ? '✅' : '❌'} ${results.engineMatrix.totalTests} Tests → ${results.engineMatrix.totalFailures} Fehler\n`);
 
+// ── Track C: Sprachqualität ───────────────────────────────────────────────────
+console.log('── Track C: Sprachqualität ──');
+results.language = await runLanguageScanner();
+const langOK = results.language.totalFail === 0;
+
 // ── Report generieren ─────────────────────────────────────────────────────────
 const durationMs = Date.now() - startTime;
 const report     = await generateReport({ results, durationMs, iterations: ITER, reportDir: REPORT_DIR });
 
+const allOK = poolOK && engineOK && langOK;
 console.log(`\n📋 Report: ${report.mdPath}`);
 console.log(`⏱️  Laufzeit: ${(durationMs / 1000).toFixed(1)}s`);
-console.log(`\n${poolOK && engineOK ? '✅ ALLE TESTS BESTANDEN' : '❌ FEHLER GEFUNDEN – Report prüfen!'}\n`);
+console.log(`\n${allOK ? '✅ ALLE TESTS BESTANDEN' : '❌ FEHLER GEFUNDEN – Report prüfen!'}\n`);
 
-process.exit(poolOK && engineOK ? 0 : 1);
+process.exit(allOK ? 0 : 1);
