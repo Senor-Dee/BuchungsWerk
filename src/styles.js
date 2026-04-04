@@ -29,4 +29,41 @@ export const S = {
   badgeDark: { background: "rgba(240,236,227,0.12)", color: "#f0ece3", borderRadius: "6px", padding: "2px 7px", fontWeight: 700 },
   // ── Zahlen-Font (Buchhaltung) ──
   mono:      { fontFamily: "'Fira Code', 'IBM Plex Mono', monospace" },
+
+  // ── Liquid Glass – neue Varianten (bestehende Buttons bleiben erhalten) ──
+  btnGlass: {
+    position: 'relative', overflow: 'hidden',
+    display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem',
+    padding: '11px 26px', borderRadius: '999px',
+    fontFamily: "'IBM Plex Sans', system-ui, sans-serif",
+    fontSize: '0.875rem', fontWeight: 600, letterSpacing: '0.02em',
+    border: '1px solid rgba(232,96,10,0.4)', background: 'rgba(232,96,10,0.14)',
+    color: '#e8600a', cursor: 'pointer',
+    transition: 'all 0.4s cubic-bezier(0.23,1,0.32,1)',
+    filter: 'url(#lg-btn)',
+  },
+  btnGlassSolid: {
+    position: 'relative', overflow: 'hidden',
+    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+    padding: '13px 36px', borderRadius: '999px',
+    fontFamily: "'IBM Plex Sans', system-ui, sans-serif",
+    fontSize: '0.95rem', fontWeight: 700,
+    border: 'none',
+    background: 'linear-gradient(180deg, #f07320 0%, #e8600a 55%, #c24f08 100%)',
+    color: '#f0ece3', cursor: 'pointer',
+    transition: 'all 0.4s cubic-bezier(0.23,1,0.32,1)',
+    boxShadow: '0 3px 0 rgba(0,0,0,0.5), 0 0 28px rgba(232,96,10,0.35)',
+  },
+
+  // ── Premium Glass Card (Top-Highlight-Linie orange) ──
+  cardGlass: {
+    background: 'rgba(28,20,10,0.58)',
+    backdropFilter: 'blur(24px) saturate(130%)', WebkitBackdropFilter: 'blur(24px) saturate(130%)',
+    border: '1px solid rgba(240,236,227,0.1)',
+    borderTop: '1px solid rgba(232,96,10,0.35)',
+    borderRadius: '14px', padding: '28px 24px', marginBottom: '16px',
+    textAlign: 'left',
+    boxShadow: '0 4px 32px rgba(0,0,0,0.45), inset 0 1px 0 rgba(232,96,10,0.08)',
+    position: 'relative', overflow: 'hidden',
+  },
 };

@@ -161,5 +161,46 @@
       })();
     </script>
     <script type="module" src="/src/main.jsx"></script>
+    <style>
+      /* ── Liquid Glass Button Hover ── */
+      [data-btn-glass]:hover {
+        background: rgba(232,96,10,0.26) !important;
+        box-shadow: 0 0 44px rgba(232,96,10,0.22), inset 0 1px 0 rgba(255,200,100,0.18);
+        transform: translateY(-1px);
+      }
+      [data-btn-glass-solid]:hover {
+        background: linear-gradient(180deg, #ff8530 0%, #f07320 55%, #d45e0a 100%) !important;
+        box-shadow: 0 0 60px rgba(232,96,10,0.45), 0 8px 28px rgba(232,96,10,0.2);
+        transform: translateY(-2px);
+      }
+
+      /* ── card-glass Pseudo-Glow ── */
+      .card-glass::after {
+        content: '';
+        position: absolute; inset: 0;
+        background: linear-gradient(145deg, rgba(232,96,10,0.04) 0%, transparent 55%);
+        pointer-events: none;
+        border-radius: inherit;
+      }
+
+      /* ── Animations ── */
+      @keyframes bwFloat {
+        0%, 100% { transform: translateY(0); }
+        50%       { transform: translateY(-12px); }
+      }
+      @keyframes bwPulse {
+        0%, 100% { opacity: 1;    transform: scale(1);   }
+        50%       { opacity: 0.4; transform: scale(0.6); }
+      }
+      @keyframes bwBlink {
+        0%, 100% { opacity: 1; }
+        50%       { opacity: 0; }
+      }
+      .bw-cursor {
+        display: inline-block; width: 1.5px; height: 0.9em;
+        background: #e8600a; vertical-align: text-bottom; margin-left: 2px;
+        animation: bwBlink 1s step-end infinite;
+      }
+    </style>
   </body>
 </html>

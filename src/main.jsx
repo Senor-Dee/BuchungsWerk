@@ -8,6 +8,27 @@ import Landing, { isLoggedIn, getUser, clearAuth, setAuth } from "./Landing.jsx"
 import StudentJoin from "./components/StudentJoin.jsx";
 import Impressum from "./pages/Impressum.jsx";
 import Datenschutz from "./pages/Datenschutz.jsx";
+import { InfiniteGrid } from "./components/ui/InfiniteGrid.jsx";
+
+// ── SVG Liquid-Glass-Filter (einmalig, global verfügbar) ──────────────────────
+function SvgFilters() {
+  return (
+    <svg style={{ position:'absolute', width:0, height:0, overflow:'hidden' }} aria-hidden="true">
+      <defs>
+        <filter id="lg-btn" x="-8%" y="-8%" width="116%" height="116%">
+          <feTurbulence type="fractalNoise" baseFrequency="0.018 0.022" numOctaves="2" seed="7" result="noise"/>
+          <feDisplacementMap in="SourceGraphic" in2="noise" scale="5" xChannelSelector="R" yChannelSelector="G" result="dist"/>
+          <feGaussianBlur in="dist" stdDeviation="0.4" result="soft"/>
+          <feComposite in="soft" in2="SourceGraphic" operator="atop"/>
+        </filter>
+        <filter id="lg-sm" x="-5%" y="-5%" width="110%" height="110%">
+          <feTurbulence type="fractalNoise" baseFrequency="0.025" numOctaves="2" seed="3" result="noise"/>
+          <feDisplacementMap in="SourceGraphic" in2="noise" scale="2.5" xChannelSelector="R" yChannelSelector="G"/>
+        </filter>
+      </defs>
+    </svg>
+  );
+}
 import { apiFetch, API_URL } from "./api.js";
 import {
   LogOut, User, Lock, Shield, Trash2, ChevronRight,
@@ -1008,6 +1029,8 @@ function App() {
 
   return (
     <>
+      <SvgFilters />
+      <InfiniteGrid />
       {loggedIn && <UserBadge user={user} onLogout={handleLogout} onUserUpdate={handleUserUpdate} />}
       <BuchungsWerk gastModus={gastSession} />
     </>
