@@ -13,7 +13,8 @@
     "test:digital:quick": "node scripts/digital-tester.mjs --quick",
     "test:shadow": "node scripts/shadow-tester.mjs",
     "test:shadow:quick": "node scripts/shadow-tester.mjs --quick",
-    "test:digital:lang": "node scripts/tester/language-scanner.mjs"
+    "test:digital:lang": "node scripts/tester/language-scanner.mjs",
+    "validate:protocol": "node \"C:\\Users\\a.gebert\\.claude\\communication\\validate-protocol.mjs\""
   },
   "dependencies": {
     "docx": "^8.5.0",
