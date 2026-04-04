@@ -17,6 +17,7 @@ import { SchaubildAnzeige, GeschaeftsfallKarte } from "../common/Schaubilder.jsx
 import { BuchungsSatz, TKonten, NebenrechnungBox, SchemaTabelle,
          AngebotsVergleichAufgabe, AngebotsVergleichLoesung,
          BELEG_LABEL } from "./Buchungskomponenten.jsx";
+import { LiquidRadio } from "../ui/LiquidRadio.jsx";
 
 export function TheorieKarte({ aufgabe, nr, showLoesung, klasse = 10 }) {
   const [open, setOpen] = useState(false);
@@ -365,15 +366,13 @@ export function KomplexKarte({ aufgabe, nr, showLoesung, globalMode, klasse = 10
               {isOpen && schritt.typ !== "angebotsvergleich" && schritt.typ !== "kalkulation" && schritt.typ !== "kalkulation_vk" && (
                 <div style={{ background: "rgba(34,197,94,0.05)", border: "1px solid rgba(74,222,128,0.2)", borderRadius: "10px", padding: "12px 14px" }}>
                   {/* View Toggle */}
-                  <div style={{ display: "flex", gap: "6px", marginBottom: "10px" }}>
-                    {[{ key: "buchungssatz", label: "Buchungssatz" }, { key: "tkonten", label: "T-Konten" }].map(opt => (
-                      <button key={opt.key} onClick={() => setLoeView(i, opt.key)}
-                        style={{ ...S.btnSecondary, padding: "3px 9px", fontSize: "11px",
-                          fontWeight: loeView === opt.key ? 800 : 500,
-                          background: loeView === opt.key ? "rgba(74,222,128,0.15)" : "transparent" }}>
-                        {opt.label}
-                      </button>
-                    ))}
+                  <div style={{ marginBottom: "10px" }}>
+                    <LiquidRadio
+                      options={[{ key:"buchungssatz", label:"Buchungssatz" }, { key:"tkonten", label:"T-Konten" }]}
+                      value={loeView}
+                      onChange={v => setLoeView(i, v)}
+                      size="sm"
+                    />
                   </div>
                   {loeView === "buchungssatz"
                     ? <BuchungsSatz soll={schritt.soll} haben={schritt.haben} />
@@ -449,72 +448,12 @@ export function KomplexKarte({ aufgabe, nr, showLoesung, globalMode, klasse = 10
   );
 }
 
-// ── Beleg / Geschäftsfall Slider ──────────────────────────────────────────────
+// ── Beleg / Geschäftsfall Slider – jetzt LiquidRadio ─────────────────────────
 export function BelegGFSlider({ value, onChange, compact = false }) {
   const opts = compact
     ? [{ key:"beleg", label:"Beleg", icon:FileText }, { key:"text", label:"GF", icon:MessageSquare }]
     : [{ key:"beleg", label:"Beleg", icon:FileText }, { key:"text", label:"Geschäftsfall", icon:MessageSquare }];
-  const isLeft = value === "beleg";
-  const W = compact ? 108 : 166;
-  const pillW = Math.floor(W / 2) - 3;
-  const leftRest = 2;
-  const rightRest = Math.ceil(W / 2) + 1;
-  const restPos = isLeft ? leftRest : rightRest;
-  const startXRef = useRef(0);
-  const isDraggingRef = useRef(false);
-  const [dragX, setDragX] = useState(null);
-
-  const onDown = e => {
-    startXRef.current = e.clientX;
-    isDraggingRef.current = false;
-    e.currentTarget.setPointerCapture(e.pointerId);
-  };
-  const onMove = e => {
-    const dx = e.clientX - startXRef.current;
-    if (Math.abs(dx) >= 4) isDraggingRef.current = true;
-    if (isDraggingRef.current) {
-      setDragX(Math.max(leftRest, Math.min(rightRest, restPos + dx)));
-    }
-  };
-  const onUp = e => {
-    if (isDraggingRef.current) {
-      const dx = e.clientX - startXRef.current;
-      const threshold = (rightRest - leftRest) * 0.4;
-      if (isLeft && dx > threshold) onChange("text");
-      else if (!isLeft && dx < -threshold) onChange("beleg");
-    }
-    isDraggingRef.current = false;
-    setDragX(null);
-  };
-
-  const pillLeft = dragX !== null ? dragX : restPos;
-  const useAnim = dragX === null;
-
-  return (
-    <div style={{ position:"relative", width:W, height:28, borderRadius:14, flexShrink:0,
-      background:"rgba(240,236,227,0.06)", border:"1.5px solid rgba(240,236,227,0.2)",
-      cursor:"grab", userSelect:"none", touchAction:"none" }}
-      onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
-      {/* sliding pill – folgt dem Finger, schnappt beim Loslassen */}
-      <div style={{ position:"absolute", top:2, left:pillLeft,
-        width:pillW, height:"calc(100% - 4px)",
-        background:"#e8600a", borderRadius:12,
-        transition: useAnim ? "left 200ms cubic-bezier(.4,0,.2,1)" : "none",
-        boxShadow:"0 1px 8px rgba(232,96,10,0.45)" }}/>
-      {/* labels */}
-      {opts.map((opt, i) => (
-        <div key={opt.key} style={{ position:"absolute", top:0, bottom:0,
-          left: i === 0 ? 0 : "50%", width:"50%",
-          display:"flex", alignItems:"center", justifyContent:"center",
-          gap:3, zIndex:1, pointerEvents:"none",
-          fontSize:10, fontWeight:700, fontFamily:"'IBM Plex Sans',sans-serif",
-          color: value === opt.key ? "#fff" : "rgba(240,236,227,0.38)",
-          transition:"color 200ms" }}>
-          <opt.icon size={10} strokeWidth={2.5}/>{opt.label}
-        </div>
-      ))}
-    </div>
-  );
+  return <LiquidRadio options={opts} value={value} onChange={onChange} size="sm" />;
 }
 
 export function AufgabeKarte({ aufgabe, nr, showLoesung, globalMode, klasse = 10, onAufgabeChange }) {
@@ -693,16 +632,12 @@ export function AufgabeKarte({ aufgabe, nr, showLoesung, globalMode, klasse = 10
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px", flexWrap: "wrap", gap: "8px" }}>
               {/* Ansicht-Toggle für Buchungslösungen */}
               {!isRechnung && aufgabe.soll && (
-                <div style={{ display: "flex", border: "1.5px solid rgba(74,222,128,0.3)", borderRadius: "8px", overflow: "hidden" }}>
-                  {[{ key: "buchungssatz", label: "Buchungssatz" }, { key: "tkonten", label: "T-Konten" }].map(opt => (
-                    <button key={opt.key} onClick={() => setLoesungsView(opt.key)}
-                      style={{ padding: "4px 12px", border: "none", cursor: "pointer", fontSize: "12px", fontWeight: loesungsView === opt.key ? 700 : 500,
-                        background: loesungsView === opt.key ? "#16a34a" : "rgba(240,236,227,0.06)",
-                        color: loesungsView === opt.key ? "#fff" : "rgba(240,236,227,0.6)" }}>
-                      {opt.label}
-                    </button>
-                  ))}
-                </div>
+                <LiquidRadio
+                  options={[{ key:"buchungssatz", label:"Buchungssatz" }, { key:"tkonten", label:"T-Konten" }]}
+                  value={loesungsView}
+                  onChange={setLoesungsView}
+                  size="sm"
+                />
               )}
               {isRechnung && <span style={{ fontSize: "11px", fontWeight: 700, color: "#e8600a", textTransform: "uppercase" }}>✦ Lösung (Schema)</span>}
               <span style={{ fontSize: "12px", color: "rgba(240,236,227,0.55)" }}>
