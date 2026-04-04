@@ -1048,7 +1048,13 @@ function App() {
   if (joinCode) return <StudentJoin initialCode={joinCode.toUpperCase()} />;
 
   // Kein Login erforderlich wenn Schüler über einen Session-Link kommt
-  if (!loggedIn && !gastSession) return <Landing onLogin={handleLogin} />;
+  if (!loggedIn && !gastSession) return (
+    <>
+      <SvgFilters />
+      <InfiniteGrid />
+      <Landing onLogin={handleLogin} />
+    </>
+  );
 
   return (
     <>
