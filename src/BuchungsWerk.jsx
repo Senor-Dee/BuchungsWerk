@@ -186,18 +186,18 @@ export default function BuchungsWerk({ gastModus = false }) {
           <div style={{ display:"flex", alignItems:"center", gap:6 }}>
             <Factory size={13} strokeWidth={1.5} style={{ color:"#e8600a" }}/>
             <span style={{ fontSize:11, fontWeight:700, color:"rgba(240,236,227,0.45)", letterSpacing:".07em", textTransform:"uppercase" }}>Simulation</span>
-            <button onClick={() => simResetFnRef.current?.()}
+            <button onClick={() => simResetFnRef.current?.()} className="bw-btn"
               style={{ marginLeft:6, padding:"5px 11px", background:"rgba(232,96,10,0.1)", border:"1px solid rgba(232,96,10,0.25)", borderRadius:7, color:"#e8600a", fontSize:11, fontWeight:700, cursor:"pointer" }}>
               ← Zur Session
             </button>
-            <button onClick={reset}
+            <button onClick={reset} className="bw-btn"
               style={{ padding:"5px 11px", background:"rgba(240,236,227,0.04)", border:"1px solid rgba(240,236,227,0.1)", borderRadius:7, color:"rgba(240,236,227,0.35)", fontSize:11, fontWeight:600, cursor:"pointer" }}>
               Verlassen ✕
             </button>
           </div>
         ) : gastModus ? (
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginLeft: 8 }}>
-            <button onClick={() => setKontenplanOffen(true)}
+            <button onClick={() => setKontenplanOffen(true)} className="bw-btn"
               style={{ display:"flex", alignItems:"center", gap:6, padding:"7px 12px", background:"rgba(232,96,10,0.1)", border:"1px solid rgba(232,96,10,0.25)", borderRadius:8, color:"#e8600a", fontSize:12, fontWeight:700, cursor:"pointer" }}>
               <BookMarked size={14} strokeWidth={1.5}/>Kontenplan
             </button>

@@ -5,12 +5,14 @@
 import { useRef, useEffect } from 'react';
 import { motion, useMotionValue, useMotionTemplate, useAnimationFrame } from 'framer-motion';
 
+
 const CELL = 40;
 const SPEED = 0.5;
 
 export function InfiniteGrid() {
   const patDimRef    = useRef(null);
   const patBrightRef = useRef(null);
+  const containerRef = useRef(null);
 
   const mouseX = useMotionValue(typeof window !== 'undefined' ? window.innerWidth / 2 : 600);
   const mouseY = useMotionValue(typeof window !== 'undefined' ? window.innerHeight / 2 : 400);
@@ -26,6 +28,18 @@ export function InfiniteGrid() {
     window.addEventListener('mousemove', onMove);
     return () => window.removeEventListener('mousemove', onMove);
   }, [mouseX, mouseY]);
+
+  // Scroll-Fade: Grid nur im Hero (oberstes Viewport-Drittel) sichtbar
+  useEffect(() => {
+    function onScroll() {
+      if (!containerRef.current) return;
+      const fadeEnd = window.innerHeight * 0.65;
+      const opacity = Math.max(0, 1 - window.scrollY / fadeEnd);
+      containerRef.current.style.opacity = opacity;
+    }
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
 
   // Grid-Scroll: direkt per setAttribute (kein Re-Render, maximale Performance)
   useAnimationFrame(() => {
@@ -43,7 +57,7 @@ export function InfiniteGrid() {
   const maskImage = useMotionTemplate`radial-gradient(320px circle at ${mouseX}px ${mouseY}px, black 0%, transparent 100%)`;
 
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 1, pointerEvents: 'none', overflow: 'hidden' }}>
+    <div ref={containerRef} style={{ position: 'fixed', top: 0, left: 0, right: 0, height: '100vh', zIndex: 1, pointerEvents: 'none', overflow: 'hidden' }}>
 
       {/* Orange Blobs */}
       <div style={{

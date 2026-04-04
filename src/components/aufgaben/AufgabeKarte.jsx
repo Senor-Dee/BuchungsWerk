@@ -152,7 +152,7 @@ export function TheorieKarte({ aufgabe, nr, showLoesung, klasse = 10 }) {
         <div style={{ display: "flex", alignItems: "center", background: "#141008", color: "#e8600a", borderRadius: "20px", padding: "3px 12px", fontSize: "12px", fontWeight: 800, flexShrink: 0 }}>
           {punkte} P
         </div>
-        <button onClick={() => setOpen(!open)} style={{ ...S.btnSecondary, padding: "8px 14px", fontSize: "12px", borderRadius: "10px", fontWeight: 700 }}>{open ? "▲ Lösung" : "▼ Lösung"}</button>
+        <button onClick={() => setOpen(!open)} className="bw-btn" style={{ ...S.btnSecondary, padding: "8px 14px", fontSize: "12px", borderRadius: "10px", fontWeight: 700 }}>{open ? "▲ Lösung" : "▼ Lösung"}</button>
       </div>
 
       <div style={{ padding: "16px" }}>
@@ -219,7 +219,7 @@ export function KomplexKarte({ aufgabe, nr, showLoesung, globalMode, klasse = 10
           onChange={v => setLocalMode(v)}
           compact
         />
-        <button onClick={() => setOpenAll(!openAll)}
+        <button onClick={() => setOpenAll(!openAll)} className="bw-btn"
           style={{ ...S.btnSecondary, padding: "4px 12px", fontSize: "12px" }}>
           {openAll ? "▲ Lösungen" : "▼ Lösungen"}
         </button>
@@ -544,7 +544,7 @@ export function AufgabeKarte({ aufgabe, nr, showLoesung, globalMode, klasse = 10
             <PenLine size={12} strokeWidth={1.5} color={isEdited?"#e8600a":"#94a3b8"}/>{isEdited ? <CheckSquare size={10} strokeWidth={1.5} color="#16a34a"/> : null}
           </button>
         )}
-        <button onClick={() => setOpen(!open)} style={{ ...S.btnSecondary, padding: "4px 10px", fontSize: "12px" }}>{open ? "▲" : "▼ Lösung"}</button>
+        <button onClick={() => setOpen(!open)} className="bw-btn" style={{ ...S.btnSecondary, padding: "4px 10px", fontSize: "12px" }}>{open ? "▲" : "▼ Lösung"}</button>
       </div>
 
       <div style={{ padding: "16px" }}>

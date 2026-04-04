@@ -17,7 +17,7 @@ import MaterialienModal from "../export/MaterialienModal.jsx";
 import H5PModal from "../quiz/H5PModal.jsx";
 import ExportModal from "../export/ExportModal.jsx";
 import PunktePanel from "../aufgaben/PunktePanel.jsx";
-import { AufgabeKarte, TheorieKarte, KomplexKarte } from "../aufgaben/AufgabeKarte.jsx";
+import { AufgabeKarte, TheorieKarte, KomplexKarte, BelegGFSlider } from "../aufgaben/AufgabeKarte.jsx";
 import { KOMPLEX_STEP_DEFS } from "../../data/stammdaten.js";
 
 const fmt_datum = iso => new Date(iso + "T00:00:00").toLocaleDateString("de-DE", { day: "2-digit", month: "long", year: "numeric" });
@@ -187,43 +187,26 @@ export default function SchrittAufgaben({ config, firma, initialAufgaben, onNeu,
           </div>
           <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
 
-            {/* ── Globaler Modus-Schalter (Pill-Slider) ── */}
-            <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-              <div style={{ fontSize: "10px", color: "#94a3b8", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", textAlign: "center" }}>Alle Aufgaben</div>
-              <div
-                onClick={() => setGlobalMode(globalMode === "beleg" ? "text" : "beleg")}
-                title={globalMode === "beleg" ? "Zum Geschäftsfall wechseln" : "Zum Beleg wechseln"}
-                style={{ position:"relative", display:"flex", background:"rgba(20,16,8,0.8)", border:"1.5px solid rgba(240,236,227,0.18)", borderRadius:"24px", padding:"3px", cursor:"pointer", userSelect:"none", width:"168px", flexShrink:0 }}>
-                {/* Gleitender Thumb */}
-                <div style={{
-                  position:"absolute", top:3,
-                  left: globalMode === "beleg" ? 3 : "calc(50% + 1px)",
-                  width:"calc(50% - 4px)", height:"calc(100% - 6px)",
-                  background:"linear-gradient(180deg,#f07320 0%,#e8600a 55%,#c24f08 100%)",
-                  borderRadius:"20px",
-                  transition:"left 0.22s cubic-bezier(.4,0,.2,1)",
-                  boxShadow:"0 2px 6px rgba(232,96,10,0.5), inset 0 1px 0 rgba(255,200,80,0.18)",
-                  pointerEvents:"none",
-                }}/>
-                <span style={{ position:"relative", zIndex:1, padding:"5px 0", color: globalMode === "beleg" ? "#f0ece3" : "rgba(240,236,227,0.4)", fontWeight:700, fontSize:"11px", letterSpacing:"0.03em", transition:"color 0.15s", flex:1, textAlign:"center" }}>Beleg</span>
-                <span style={{ position:"relative", zIndex:1, padding:"5px 0", color: globalMode === "text" ? "#f0ece3" : "rgba(240,236,227,0.4)", fontWeight:700, fontSize:"11px", letterSpacing:"0.03em", transition:"color 0.15s", flex:1, textAlign:"center" }}>GF</span>
-              </div>
+            {/* ── Globaler Modus-Schalter ── */}
+            <div style={{ display: "flex", flexDirection: "column", gap: "4px", alignItems: "center" }}>
+              <div style={{ fontSize: "10px", color: "rgba(240,236,227,0.38)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em" }}>Alle Aufgaben</div>
+              <BelegGFSlider value={globalMode} onChange={setGlobalMode} compact />
             </div>
 
-            <button onClick={() => setShowLoesungen(!showLoesungen)} style={S.btnSecondary}>{showLoesungen ? "Lösungen ausblenden" : "Alle Lösungen"}</button>
+            <button onClick={() => setShowLoesungen(!showLoesungen)} className="bw-btn" style={S.btnSecondary}>{showLoesungen ? "Lösungen ausblenden" : "Alle Lösungen"}</button>
             <button onClick={() => {
               try {
                 const ki = JSON.parse(localStorage.getItem("buchungswerk_ki_export") || "[]");
                 setKiHistorie(ki);
               } catch { setKiHistorie([]); }
               setExportOffen(true);
-            }} style={{ ...S.btnPrimary, display:"flex", alignItems:"center", gap:"7px" }}>
+            }} className="bw-btn bw-btn-primary" style={{ ...S.btnPrimary, display:"flex", alignItems:"center", gap:"7px" }}>
               <Download size={14} strokeWidth={1.5}/>Export
             </button>
-            <button onClick={() => setH5pOffen(true)} style={{ ...S.btnSecondary, display:"flex", alignItems:"center", gap:6, padding:"10px 16px", fontSize:"13px" }}><Monitor size={14} strokeWidth={1.5}/>H5P</button>
-            <button onClick={() => setMaterialienOffen(true)} style={{ ...S.btnSecondary, display:"flex", alignItems:"center", gap:6 }}><Library size={14} strokeWidth={1.5}/>Materialien</button>
-            <button onClick={onFirma} style={{ padding:"6px 14px", borderRadius:"8px", border:"1px solid rgba(240,236,227,0.15)", background:"rgba(240,236,227,0.05)", color:"rgba(240,236,227,0.45)", fontWeight:700, fontSize:12, cursor:"pointer", display:"flex", alignItems:"center", gap:5 }}>‹ Unternehmen</button>
-            <button onClick={onThemen} style={{ padding:"6px 14px", borderRadius:"8px", border:"1px solid rgba(240,236,227,0.15)", background:"rgba(240,236,227,0.05)", color:"rgba(240,236,227,0.45)", fontWeight:700, fontSize:12, cursor:"pointer", display:"flex", alignItems:"center", gap:5 }}>‹‹ Themen</button>
+            <button onClick={() => setH5pOffen(true)} className="bw-btn" style={{ ...S.btnSecondary, display:"flex", alignItems:"center", gap:6, padding:"10px 16px", fontSize:"13px" }}><Monitor size={14} strokeWidth={1.5}/>H5P</button>
+            <button onClick={() => setMaterialienOffen(true)} className="bw-btn" style={{ ...S.btnSecondary, display:"flex", alignItems:"center", gap:6 }}><Library size={14} strokeWidth={1.5}/>Materialien</button>
+            <button onClick={onFirma} className="bw-btn" style={{ padding:"6px 14px", borderRadius:"8px", border:"1px solid rgba(240,236,227,0.15)", background:"rgba(240,236,227,0.05)", color:"rgba(240,236,227,0.45)", fontWeight:700, fontSize:12, cursor:"pointer", display:"flex", alignItems:"center", gap:5 }}>‹ Unternehmen</button>
+            <button onClick={onThemen} className="bw-btn" style={{ padding:"6px 14px", borderRadius:"8px", border:"1px solid rgba(240,236,227,0.15)", background:"rgba(240,236,227,0.05)", color:"rgba(240,236,227,0.45)", fontWeight:700, fontSize:12, cursor:"pointer", display:"flex", alignItems:"center", gap:5 }}>‹‹ Themen</button>
             <button onClick={async () => {
               setSpeichernStatus("saving");
               const titel = `${config.typ}${config.pruefungsart ? " · " + config.pruefungsart : ""} · Kl. ${config.klasse} · ${firma.name}`;
@@ -240,7 +223,7 @@ export default function SchrittAufgaben({ config, firma, initialAufgaben, onNeu,
               setSpeichernStatus(res ? "ok" : "err");
               if (speichernTimerRef.current) clearTimeout(speichernTimerRef.current);
               speichernTimerRef.current = setTimeout(() => setSpeichernStatus(""), 3000);
-            }} style={{ ...S.btnPrimary, display:"flex", alignItems:"center", gap:6, ...(speichernStatus === "ok" && { background: "rgba(74,222,128,0.85)", boxShadow: "0 3px 0 rgba(0,0,0,0.5), 0 0 16px rgba(74,222,128,0.35)" }), ...(speichernStatus === "err" && { background: "rgba(239,68,68,0.9)" }), ...(speichernStatus === "saving" && { opacity: 0.7 }) }}>
+            }} className="bw-btn bw-btn-primary" style={{ ...S.btnPrimary, display:"flex", alignItems:"center", gap:6, ...(speichernStatus === "ok" && { background: "rgba(74,222,128,0.85)", boxShadow: "0 3px 0 rgba(0,0,0,0.5), 0 0 16px rgba(74,222,128,0.35)" }), ...(speichernStatus === "err" && { background: "rgba(239,68,68,0.9)" }), ...(speichernStatus === "saving" && { opacity: 0.7 }) }}>
               {speichernStatus === "saving" ? <><Save size={14} strokeWidth={1.5}/>…</> : speichernStatus === "ok" ? <><CheckSquare size={14} strokeWidth={1.5}/>Gespeichert</> : speichernStatus === "err" ? "✗ Fehler" : <><Save size={14} strokeWidth={1.5}/>Speichern</>}
             </button>
           </div>
@@ -329,21 +312,21 @@ export default function SchrittAufgaben({ config, firma, initialAufgaben, onNeu,
       )}
 
       <div style={{ display: "flex", gap: "10px", marginTop: "8px", flexWrap: "wrap", alignItems:"center" }}>
-        <button onClick={onFirma} style={{ padding:"8px 16px", borderRadius:"8px", border:"1.5px solid #334155", background:"transparent", color:"#94a3b8", fontWeight:700, fontSize:12, cursor:"pointer" }}>‹ Unternehmen</button>
-        <button onClick={onThemen} style={{ padding:"8px 16px", borderRadius:"8px", border:"1px solid rgba(240,236,227,0.15)", background:"rgba(240,236,227,0.05)", color:"rgba(240,236,227,0.45)", fontWeight:700, fontSize:12, cursor:"pointer" }}>‹‹ Themen</button>
-        <button onClick={onNeu} style={S.btnSecondary}>✕ Neu starten</button>
+        <button onClick={onFirma} className="bw-btn" style={{ padding:"8px 16px", borderRadius:"8px", border:"1.5px solid rgba(240,236,227,0.18)", background:"rgba(240,236,227,0.06)", color:"rgba(240,236,227,0.55)", fontWeight:700, fontSize:12, cursor:"pointer" }}>‹ Unternehmen</button>
+        <button onClick={onThemen} className="bw-btn" style={{ padding:"8px 16px", borderRadius:"8px", border:"1px solid rgba(240,236,227,0.15)", background:"rgba(240,236,227,0.05)", color:"rgba(240,236,227,0.45)", fontWeight:700, fontSize:12, cursor:"pointer" }}>‹‹ Themen</button>
+        <button onClick={onNeu} className="bw-btn" style={S.btnSecondary}>✕ Neu starten</button>
         <button onClick={() => {
           try {
             const ki = JSON.parse(localStorage.getItem("buchungswerk_ki_export") || "[]");
             setKiHistorie(ki);
           } catch { setKiHistorie([]); }
           setExportOffen(true);
-        }} style={{ ...S.btnPrimary, display:"flex", alignItems:"center", gap:"7px" }}>
+        }} className="bw-btn bw-btn-primary" style={{ ...S.btnPrimary, display:"flex", alignItems:"center", gap:"7px" }}>
           <FilePen size={15} strokeWidth={2}/>
           <Printer size={15} strokeWidth={2}/>
           Exportieren
         </button>
-        <button onClick={() => setH5pOffen(true)} style={{ ...S.btnPrimary, display:"flex", alignItems:"center", gap:"7px" }}>
+        <button onClick={() => setH5pOffen(true)} className="bw-btn bw-btn-primary" style={{ ...S.btnPrimary, display:"flex", alignItems:"center", gap:"7px" }}>
           <Monitor size={15} strokeWidth={2}/>
           H5P exportieren
         </button>

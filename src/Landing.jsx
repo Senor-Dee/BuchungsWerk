@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Anton Gebert <info@buchungswerk.org> - BuchungsWerk
 
 import React, { useState, useEffect, useRef } from "react";
+import { motion, useScroll, useTransform, AnimatePresence } from "framer-motion";
 import { API_URL } from "./api.js";
 import {
   Zap, FileText, GraduationCap, Mail, Lock, User, Eye, EyeOff,
@@ -22,6 +23,8 @@ const LANDING_CSS = `
   @keyframes lp-pulse    { 0%,100%{transform:scale(1);opacity:.6}100%{transform:scale(1.6);opacity:0} }
   @keyframes step-in-r   { from{opacity:0;transform:translateX(60px) scale(.97)}to{opacity:1;transform:translateX(0) scale(1)} }
   @keyframes step-in-l   { from{opacity:0;transform:translateX(-60px) scale(.97)}to{opacity:1;transform:translateX(0) scale(1)} }
+  @keyframes step-in-up  { from{opacity:0;transform:translateY(32px) scale(.97)}to{opacity:1;transform:translateY(0) scale(1)} }
+  @keyframes step-in-dn  { from{opacity:0;transform:translateY(-32px) scale(.97)}to{opacity:1;transform:translateY(0) scale(1)} }
   @keyframes prog-bar    { from{width:0%}to{width:100%} }
   @keyframes feat-in     { from{opacity:0;transform:translateY(52px) scale(.97)}to{opacity:1;transform:translateY(0) scale(1)} }
 
@@ -376,7 +379,7 @@ function StatsBar() {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// FIX 2 — FEATURES: Sticky scroll, öffnet sich automatisch beim Scrollen
+// FEATURES: iPad-Frame + scroll-driven Feature-Reveal
 // ══════════════════════════════════════════════════════════════════════════════
 const FEATURES = [
   { nr:"01", Icon:Zap,          title:"KI-Aufgaben in Sekunden",        sub:"Planspiel · Komplexaufgaben · Belege",
@@ -393,128 +396,245 @@ const FEATURES = [
     desc:"Mit einer Schullizenz erhalten alle Lehrkräfte Ihrer Schule Zugang. Eigene Aufgaben und Szenarien zentral speichern und im Kollegium teilen – für einheitlichen Unterricht ohne Mehraufwand.", tag:"Schule" },
 ];
 
-// Outer section height: each feature gets ~100vh of scroll range
-const FEAT_H = `${FEATURES.length * 100 + 20}vh`;
+// iPad Pro (Landscape) – Gold, kein Home-Button, minimal + realistisch
+function IPadFrame({ children, deviceW, deviceH }) {
+  const bezel  = 28;
+  const outerR = 22;
+  const innerR = 12;
+
+  return (
+    <div style={{
+      position: "relative",
+      width:  deviceW,
+      height: deviceH,
+      borderRadius: outerR,
+      // iPad Pro Gold (Champagne)
+      background: "linear-gradient(150deg, #ecddb8 0%, #d9c07a 25%, #ccaa50 50%, #d6bc72 75%, #ecddb8 100%)",
+      boxShadow: [
+        "0 0 0 1px rgba(255,240,190,0.65)",
+        "inset 0 0 0 0.5px rgba(100,75,15,0.25)",
+        "0 50px 120px rgba(0,0,0,0.65)",
+        "0 12px 40px rgba(0,0,0,0.45)",
+        "inset 0 2px 0 rgba(255,255,210,0.75)",
+        "inset 0 -1px 0 rgba(100,70,10,0.15)",
+      ].join(", "),
+      flexShrink: 0,
+    }}>
+
+      {/* Kamera: Oberkante zentriert (Landscape-Kamera iPad Pro 2022+) */}
+      <div style={{
+        position: "absolute",
+        top: Math.round(bezel * 0.45) - 4,
+        left: "50%", transform: "translateX(-50%)",
+        width: 7, height: 7, borderRadius: "50%",
+        background: "radial-gradient(circle at 35% 35%, #6b5c20, #0e0e0a)",
+        boxShadow: "0 0 0 1px rgba(80,60,10,0.5), 0 0 0 2.5px rgba(180,150,60,0.35)",
+      }} />
+
+      {/* USB-C: Unterkante zentriert */}
+      <div style={{
+        position: "absolute",
+        bottom: Math.round(bezel * 0.44),
+        left: "50%", transform: "translateX(-50%)",
+        width: Math.round(deviceW * 0.04), height: 3,
+        borderRadius: 2,
+        background: "rgba(80,60,10,0.22)",
+        boxShadow: "inset 0 1px 0 rgba(0,0,0,0.18)",
+      }} />
+
+      {/* Screen */}
+      <div style={{
+        position: "absolute",
+        top: bezel, left: bezel, right: bezel, bottom: bezel,
+        borderRadius: innerR,
+        background: "#0e0b07",
+        overflow: "hidden",
+        boxShadow: "inset 0 0 0 1px rgba(0,0,0,0.6), inset 0 2px 14px rgba(0,0,0,0.55)",
+      }}>
+        {children}
+      </div>
+    </div>
+  );
+}
 
 function FeaturesSection() {
   const sectionRef = useRef(null);
-  const [active, setActive]   = useState(0);
-  const [animKey, setAnimKey] = useState(0);
+  const [activeIdx, setActiveIdx] = useState(0);
+
+  // "start start / end end" → progress 0 = sticky startet, progress 1 = sticky endet
+  const { scrollYProgress } = useScroll({
+    target: sectionRef,
+    offset: ["start start", "end end"],
+  });
+
+  // Phase 1 (0–18 %): iPad klappt hoch  |  Phase 2 (18–88 %): Features  |  Phase 3 (88–100 %): klappt zurück
+  const rotateX = useTransform(scrollYProgress, [0,    0.18, 0.88, 1.0], [18, 0,  0, 18]);
+  const scale   = useTransform(scrollYProgress, [0,    0.18, 0.88, 1.0], [0.88, 1, 1, 0.88]);
+  const iPadOp  = useTransform(scrollYProgress, [0,    0.07, 0.93, 1.0], [0.2,  1, 1, 0.2]);
+
+  // Phase 2 (18–88 %): Features schalten durch
+  const featureRaw = useTransform(scrollYProgress, [0.18, 0.88], [0, FEATURES.length - 1]);
 
   useEffect(() => {
-    const onScroll = () => {
-      const el = sectionRef.current; if (!el) return;
-      const scrolled   = Math.max(0, -el.getBoundingClientRect().top);
-      const scrollable = el.offsetHeight - window.innerHeight;
-      const progress   = scrollable > 0 ? Math.min(1, scrolled / scrollable) : 0;
-      const next       = Math.min(FEATURES.length - 1, Math.floor(progress * FEATURES.length));
-      if (next !== active) { setActive(next); setAnimKey(k => k + 1); }
-    };
-    window.addEventListener("scroll", onScroll, { passive:true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, [active]);
+    const unsub = featureRaw.on("change", v => {
+      setActiveIdx(Math.round(Math.min(Math.max(v, 0), FEATURES.length - 1)));
+    });
+    return unsub;
+  }, [featureRaw]);
 
-  const { nr, Icon, title, sub, desc, tag } = FEATURES[active];
+  // iPad-Größe: Landscape-Format → mehr Breite, besseres Text-Layout
+  const deviceW = 580;
+  const deviceH = Math.round(deviceW * (834 / 1194)); // iPad Pro 11" landscape ≈ 406px
 
   return (
-    <section ref={sectionRef} id="features" data-cursor="features" style={{ height:FEAT_H, position:"relative" }}>
-      <div style={{ position:"sticky", top:0, height:"100vh", overflow:"hidden",
-        display:"flex", alignItems:"center", justifyContent:"center" }}>
+    <section ref={sectionRef} id="features"
+      style={{ position:"relative", height:"570vh",
+        borderTop:"1px solid rgba(240,236,227,0.07)" }}>
 
-        {/* Ghost number background */}
-        <div style={{ position:"absolute", right:"-0.03em", bottom:"-0.08em",
-          fontFamily:"'Bebas Neue',sans-serif",
-          fontSize:"clamp(200px,28vw,360px)", color:"rgba(240,236,227,0.022)",
-          lineHeight:1, pointerEvents:"none", userSelect:"none",
-          transition:"opacity 400ms" }}>{nr}</div>
+      {/* Top accent */}
+      <div style={{ position:"absolute", top:0, left:0, right:0, height:2,
+        background:"linear-gradient(90deg,transparent,rgba(232,96,10,0.55),transparent)",
+        zIndex:1, pointerEvents:"none" }}/>
 
-        {/* Top accent line */}
-        <div style={{ position:"absolute", top:0, left:0, right:0, height:2,
-          background:"linear-gradient(90deg,transparent,rgba(232,96,10,0.55),transparent)" }}/>
+      {/* Sticky viewport */}
+      <div style={{ position:"sticky", top:0, height:"100vh",
+        display:"flex", flexDirection:"column",
+        alignItems:"center", justifyContent:"flex-start",
+        paddingTop:"2.5vh", overflow:"hidden" }}>
 
-        {/* Animated content */}
-        <div key={animKey} style={{ maxWidth:900, width:"100%", padding:"0 32px",
-          animation:"feat-in 0.55s cubic-bezier(.4,0,.2,1) both" }}>
-
-          {/* Progress bar row */}
-          <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:52 }}>
-            <div style={{ fontSize:"11px", fontWeight:700, letterSpacing:"0.16em",
-              textTransform:"uppercase", color:"#e8600a",
-              fontFamily:"'IBM Plex Sans',sans-serif" }}>Funktionen</div>
-            <div style={{ display:"flex", gap:5, flex:1, maxWidth:180 }}>
-              {FEATURES.map((_,i) => (
-                <div key={i} style={{ height:2, flex:1, borderRadius:2,
-                  background: i <= active ? "#e8600a" : "rgba(240,236,227,0.1)",
-                  transition:"background 400ms" }}/>
-              ))}
-            </div>
-            <div style={{ fontFamily:"'Fira Code',monospace", fontSize:"11px",
-              color:"rgba(240,236,227,0.28)", marginLeft:"auto" }}>
-              {active + 1} / {FEATURES.length}
-            </div>
+        {/* Kompakte Überschrift */}
+        <div style={{ textAlign:"center", marginBottom:"1.5vh", zIndex:2, flexShrink:0 }}>
+          <div style={{ fontSize:"10px", fontWeight:700, letterSpacing:"0.18em",
+            textTransform:"uppercase", color:"#e8600a",
+            fontFamily:"'IBM Plex Sans',sans-serif", marginBottom:8 }}>
+            Funktionen
           </div>
+          <h2 style={{ fontFamily:"'Bebas Neue',sans-serif",
+            fontSize:"clamp(26px,3.2vw,44px)", color:"#f0ece3",
+            letterSpacing:"0.04em", lineHeight:0.95, margin:"0 0 6px" }}>
+            ALLES WAS DU <span style={{ color:"#e8600a" }}>BRAUCHST</span>
+          </h2>
+          <p style={{ fontFamily:"'IBM Plex Sans',sans-serif",
+            fontSize:"clamp(11px,1vw,13px)", color:"rgba(240,236,227,0.4)",
+            maxWidth:380, margin:"0 auto" }}>
+            Sechs leistungsstarke Werkzeuge — für jeden BwR-Unterricht.
+          </p>
+        </div>
 
-          {/* Two-column layout */}
-          <div style={{ display:"flex", gap:64, alignItems:"center" }}>
-
-            {/* Left: text */}
-            <div style={{ flex:1 }}>
-              <div style={{ display:"flex", alignItems:"center", gap:14, marginBottom:32 }}>
-                <div style={{ width:56, height:56, borderRadius:16,
-                  background:"rgba(232,96,10,0.1)", border:"1px solid rgba(232,96,10,0.3)",
-                  display:"flex", alignItems:"center", justifyContent:"center" }}>
-                  <Icon size={24} strokeWidth={1.5} color="#e8600a"/>
+        {/* ── Perspective auf Parent-div → echter Tilt-Effekt ── */}
+        <div style={{ perspective:"1800px", flexShrink:0, zIndex:2 }}>
+          <motion.div style={{ rotateX, scale, opacity: iPadOp }}>
+            <IPadFrame deviceW={deviceW} deviceH={deviceH}>
+              {/* Status-Bar */}
+              <div style={{ position:"absolute", top:0, left:0, right:0, height:20,
+                background:"rgba(14,11,7,0.9)",
+                display:"flex", alignItems:"center", justifyContent:"space-between",
+                padding:"0 12px", zIndex:10 }}>
+                <span style={{ fontSize:9, fontWeight:700, color:"rgba(240,236,227,0.6)",
+                  fontFamily:"'IBM Plex Sans',sans-serif" }}>9:41</span>
+                <div style={{ display:"flex", gap:5, alignItems:"center" }}>
+                  <div style={{ width:16, height:7, borderRadius:1.5,
+                    border:"1px solid rgba(240,236,227,0.45)", position:"relative" }}>
+                    <div style={{ position:"absolute", top:1, left:1, bottom:1, right:4,
+                      background:"rgba(240,236,227,0.55)", borderRadius:1 }} />
+                    <div style={{ position:"absolute", top:2, right:-4, width:2.5, height:3,
+                      background:"rgba(240,236,227,0.4)", borderRadius:"0 1.5px 1.5px 0" }} />
+                  </div>
                 </div>
-                <div style={{ padding:"3px 13px",
-                  background:"rgba(232,96,10,0.08)", border:"1px solid rgba(232,96,10,0.28)",
-                  borderRadius:20, fontSize:"10px", fontWeight:700, color:"#e8600a",
-                  letterSpacing:"0.12em", textTransform:"uppercase",
-                  fontFamily:"'IBM Plex Sans',sans-serif" }}>{tag}</div>
               </div>
 
-              <Lens id="feat-title" style={{ display:"block", margin:"0 0 18px" }}
-                normal={<h2 style={{ fontFamily:"'Bebas Neue',sans-serif",
-                  fontSize:"clamp(44px,6.5vw,84px)", color:"#f0ece3",
-                  letterSpacing:"0.04em", lineHeight:0.93, margin:0 }}>{title}</h2>}
-                swapped={<h2 style={{ fontFamily:"'Bebas Neue',sans-serif",
-                  fontSize:"clamp(44px,6.5vw,84px)", color:"#e8600a",
-                  letterSpacing:"0.04em", lineHeight:0.93, margin:0 }}>{title}</h2>}
-              />
+              {/* Feature-Content – Landscape 2-Spalten-Layout */}
+              <div style={{ position:"absolute", inset:0, paddingTop:20, overflow:"hidden" }}>
+                <AnimatePresence mode="wait">
+                  {(() => {
+                    const f = FEATURES[activeIdx];
+                    const Ic = f.Icon;
+                    return (
+                      <motion.div
+                        key={activeIdx}
+                        initial={{ opacity:0, x:24 }}
+                        animate={{ opacity:1, x:0 }}
+                        exit={{ opacity:0, x:-24 }}
+                        transition={{ duration:0.24, ease:"easeOut" }}
+                        style={{
+                          position:"absolute", inset:0,
+                          display:"flex", flexDirection:"row",
+                          background:"linear-gradient(170deg, #1a1208 0%, #141008 60%, #0e0b07 100%)",
+                          overflow:"hidden",
+                        }}
+                      >
+                        {/* ── LINKE SPALTE: Nummer · Icon · Tag ── */}
+                        <div style={{
+                          width:172, flexShrink:0,
+                          display:"flex", flexDirection:"column",
+                          alignItems:"center", justifyContent:"center",
+                          padding:"16px 16px 20px",
+                          borderRight:"1px solid rgba(240,236,227,0.06)",
+                          background:"rgba(232,96,10,0.025)",
+                        }}>
+                          <span style={{ fontSize:"10px", fontWeight:700, letterSpacing:"0.22em",
+                            color:"rgba(232,96,10,0.6)", fontFamily:"'IBM Plex Sans',sans-serif",
+                            marginBottom:16 }}>
+                            {f.nr} <span style={{ color:"rgba(240,236,227,0.22)" }}>/ 06</span>
+                          </span>
+                          <div style={{ width:70, height:70, borderRadius:22,
+                            background:"rgba(232,96,10,0.12)",
+                            border:"1px solid rgba(232,96,10,0.22)",
+                            display:"flex", alignItems:"center", justifyContent:"center",
+                            boxShadow:"0 0 32px rgba(232,96,10,0.18)",
+                            marginBottom:18 }}>
+                            <Ic size={34} strokeWidth={1.5} color="#e8600a" />
+                          </div>
+                          <span style={{ padding:"3px 12px", borderRadius:10,
+                            background:"rgba(232,96,10,0.12)", border:"1px solid rgba(232,96,10,0.22)",
+                            fontSize:"9px", fontWeight:700, color:"#e8600a",
+                            letterSpacing:"0.14em", textTransform:"uppercase",
+                            fontFamily:"'IBM Plex Sans',sans-serif" }}>
+                            {f.tag}
+                          </span>
+                        </div>
 
-              <div style={{ fontSize:"12px", color:"rgba(240,236,227,0.38)",
-                fontFamily:"'IBM Plex Sans',sans-serif",
-                letterSpacing:"0.06em", marginBottom:28 }}>{sub}</div>
+                        {/* ── RECHTE SPALTE: Text ── */}
+                        <div style={{
+                          flex:1, display:"flex", flexDirection:"column",
+                          justifyContent:"center",
+                          padding:"20px 26px 20px 22px",
+                        }}>
+                          <div style={{ fontFamily:"'Bebas Neue',sans-serif",
+                            fontSize:"27px", color:"#f0ece3",
+                            letterSpacing:"0.04em", lineHeight:1.05, marginBottom:9 }}>
+                            {f.title}
+                          </div>
+                          <div style={{ fontSize:"11px", fontWeight:600,
+                            color:"rgba(240,236,227,0.38)", letterSpacing:"0.06em",
+                            fontFamily:"'IBM Plex Sans',sans-serif", marginBottom:14 }}>
+                            {f.sub}
+                          </div>
+                          <div style={{ height:1, background:"rgba(240,236,227,0.08)", marginBottom:14 }} />
+                          <div style={{ fontSize:"13px", color:"rgba(240,236,227,0.76)",
+                            lineHeight:1.68, fontFamily:"'IBM Plex Sans',sans-serif" }}>
+                            {f.desc}
+                          </div>
+                        </div>
+                      </motion.div>
+                    );
+                  })()}
+                </AnimatePresence>
+              </div>
+            </IPadFrame>
+          </motion.div>
+        </div>
 
-              <p style={{ fontSize:"16px", color:"rgba(240,236,227,0.62)",
-                lineHeight:1.78, maxWidth:500, fontFamily:"'IBM Plex Sans',sans-serif",
-                margin:0 }}>{desc}</p>
-
-              {active < FEATURES.length - 1 && (
-                <div style={{ marginTop:44, display:"flex", alignItems:"center", gap:8,
-                  fontSize:"11px", color:"rgba(240,236,227,0.2)", letterSpacing:"0.12em",
-                  textTransform:"uppercase", fontFamily:"'IBM Plex Sans',sans-serif" }}>
-                  <div style={{ width:18, height:18, borderRadius:"50%",
-                    border:"1px solid rgba(240,236,227,0.18)",
-                    display:"flex", alignItems:"center", justifyContent:"center",
-                    fontSize:9 }}>↓</div>
-                  Scrollen für nächste Funktion
-                </div>
-              )}
-            </div>
-
-            {/* Right: icon orb */}
-            <div style={{ flexShrink:0, width:"clamp(140px,18vw,220px)",
-              aspectRatio:"1", position:"relative",
-              display:"flex", alignItems:"center", justifyContent:"center" }}>
-              <div style={{ position:"absolute", inset:0, borderRadius:"50%",
-                background:"radial-gradient(circle,rgba(232,96,10,0.14) 0%,transparent 70%)",
-                border:"1px solid rgba(232,96,10,0.12)" }}/>
-              <div style={{ position:"absolute", inset:"18%", borderRadius:"50%",
-                border:"1px dashed rgba(232,96,10,0.1)" }}/>
-              <Icon size="clamp(56px,8vw,88px)" strokeWidth={0.75}
-                color="rgba(232,96,10,0.45)"/>
-            </div>
-          </div>
+        {/* Dot-Indikatoren */}
+        <div style={{ display:"flex", gap:8, marginTop:"1vh", zIndex:2 }}>
+          {FEATURES.map((_, i) => (
+            <div key={i} style={{
+              width: i === activeIdx ? 22 : 7,
+              height: 7, borderRadius: 4,
+              background: i === activeIdx ? "#e8600a" : "rgba(240,236,227,0.18)",
+              transition:"all 260ms ease",
+            }} />
+          ))}
         </div>
       </div>
     </section>
@@ -533,7 +653,7 @@ const STEPS = [
 
 function HowItWorksSection() {
   const [cur,    setCur]    = useState(0);
-  const [dir,    setDir]    = useState(1);  // 1 = right, -1 = left
+  const [dir,    setDir]    = useState(1);  // 1 = nach unten (nächster), -1 = nach oben (vorheriger)
   const [animKey, setAnimKey] = useState(0);
 
   const go = (next, d = 1) => { setDir(d); setCur(next); setAnimKey(k => k + 1); };
@@ -571,106 +691,107 @@ function HowItWorksSection() {
         </SR>
 
         <SR delay={120} zoom>
-          {/* Carousel */}
-          <div style={{ position:"relative", overflow:"hidden", borderRadius:16,
-            border:"1px solid rgba(240,236,227,0.09)",
-            background:"rgba(28,20,10,0.5)", minHeight:280 }}>
+          <div style={{ display:"flex", gap:0, alignItems:"stretch" }}>
 
-            {/* Left click zone */}
-            <div data-cursor-left onClick={prev} style={{
-              position:"absolute", left:0, top:0, width:"50%", height:"100%",
-              zIndex:3, cursor:"pointer" }}/>
-            {/* Right click zone */}
-            <div data-cursor-right onClick={next} style={{
-              position:"absolute", right:0, top:0, width:"50%", height:"100%",
-              zIndex:3, cursor:"pointer" }}/>
-
-            {/* Step content */}
-            <div key={animKey} style={{
-              padding:"52px 60px",
-              animation:`${dir > 0 ? "step-in-r" : "step-in-l"} 0.55s cubic-bezier(.4,0,.2,1) both`,
-            }}>
-              {/* Step counter */}
-              <div style={{ display:"flex", alignItems:"center", gap:14, marginBottom:24 }}>
-                <div style={{ width:44, height:44, borderRadius:"50%",
-                  background:"linear-gradient(180deg,#f07320,#c24f08)",
-                  display:"flex", alignItems:"center", justifyContent:"center",
-                  boxShadow:"0 0 20px rgba(232,96,10,0.45)", flexShrink:0 }}>
-                  <span style={{ fontFamily:"'Fira Code',monospace",
-                    fontSize:"13px", fontWeight:700, color:"#fff" }}>{step.nr}</span>
-                </div>
-                <step.Icon size={20} strokeWidth={1.5} color="rgba(240,236,227,0.4)"/>
-                <span style={{ fontFamily:"'Fira Code',monospace", fontSize:"12px",
-                  color:"rgba(240,236,227,0.2)", letterSpacing:"0.1em" }}>
-                  {cur + 1} / {STEPS.length}
-                </span>
-              </div>
-
-              <div style={{ fontFamily:"'Bebas Neue',sans-serif",
-                fontSize:"clamp(28px,4vw,48px)", color:"#f0ece3",
-                letterSpacing:"0.04em", marginBottom:16, lineHeight:1 }}>{step.title}</div>
-
-              <p style={{ fontSize:"16px", color:"rgba(240,236,227,0.6)",
-                lineHeight:1.7, maxWidth:"480px", fontFamily:"'IBM Plex Sans',sans-serif",
-                margin:0 }}>{step.desc}</p>
+            {/* LINKS: Vertikale Schritt-Liste */}
+            <div style={{ display:"flex", flexDirection:"column", width:200, flexShrink:0, paddingTop:8, paddingBottom:8 }}>
+              {STEPS.map((s, i) => (
+                <button key={i} data-cursor-small onClick={() => go(i, i > cur ? 1 : -1)} style={{
+                  display:"flex", alignItems:"center", gap:14,
+                  padding:"20px 24px 20px 20px",
+                  flex:1,
+                  background:"none", cursor:"pointer",
+                  borderTop:"none", borderRight:"none", borderBottom:"none",
+                  borderLeft:`2px solid ${i === cur ? "#e8600a" : "rgba(240,236,227,0.09)"}`,
+                  opacity: i === cur ? 1 : 0.42,
+                  transition:"opacity 300ms, border-left-color 300ms",
+                  textAlign:"left",
+                }}>
+                  {/* Nummer-Kreis */}
+                  <div style={{
+                    width:36, height:36, borderRadius:"50%", flexShrink:0,
+                    background: i === cur ? "linear-gradient(180deg,#f07320,#c24f08)" : "rgba(240,236,227,0.07)",
+                    display:"flex", alignItems:"center", justifyContent:"center",
+                    boxShadow: i === cur ? "0 0 18px rgba(232,96,10,0.4)" : "none",
+                    transition:"background 300ms, box-shadow 300ms",
+                  }}>
+                    <span style={{ fontFamily:"'Fira Code',monospace", fontSize:"11px", fontWeight:700,
+                      color: i === cur ? "#fff" : "rgba(240,236,227,0.3)" }}>{s.nr}</span>
+                  </div>
+                  {/* Icon */}
+                  <s.Icon size={16} strokeWidth={1.5}
+                    color={i === cur ? "#e8600a" : "rgba(240,236,227,0.28)"}
+                    style={{ transition:"color 300ms" }} />
+                </button>
+              ))}
             </div>
 
-            {/* Border top accent */}
-            <div style={{ position:"absolute", top:0, left:0, right:0, height:"2px",
-              background:`linear-gradient(90deg,transparent,rgba(232,96,10,${0.2 + cur * 0.25}),transparent)`,
-              transition:"background 600ms" }}/>
+            {/* RECHTS: Animierter Inhalt */}
+            <div style={{ flex:1, position:"relative", overflow:"hidden", borderRadius:16,
+              border:"1px solid rgba(240,236,227,0.09)",
+              background:"rgba(28,20,10,0.5)", minHeight:280 }}>
 
-          </div>
+              <div key={animKey} style={{
+                padding:"52px 52px",
+                animation:`${dir > 0 ? "step-in-up" : "step-in-dn"} 0.50s cubic-bezier(.4,0,.2,1) both`,
+              }}>
+                {/* Icon + Titel */}
+                <div style={{ display:"flex", alignItems:"center", gap:14, marginBottom:24 }}>
+                  <div style={{ width:44, height:44, borderRadius:"50%",
+                    background:"linear-gradient(180deg,#f07320,#c24f08)",
+                    display:"flex", alignItems:"center", justifyContent:"center",
+                    boxShadow:"0 0 20px rgba(232,96,10,0.45)", flexShrink:0 }}>
+                    <step.Icon size={20} strokeWidth={1.5} color="#fff" />
+                  </div>
+                  <span style={{ fontFamily:"'Fira Code',monospace", fontSize:"12px",
+                    color:"rgba(240,236,227,0.22)", letterSpacing:"0.1em" }}>
+                    {cur + 1} / {STEPS.length}
+                  </span>
+                </div>
 
-          {/* Step dots + nav */}
-          <div style={{ display:"flex", alignItems:"center", justifyContent:"center",
-            gap:12, marginTop:20 }}>
-            <button onClick={prev} data-cursor-small style={{
-              background:"none", border:"1px solid rgba(240,236,227,0.15)",
-              borderRadius:"50%", width:32, height:32, cursor:"pointer",
-              color:"rgba(240,236,227,0.4)", display:"flex", alignItems:"center",
-              justifyContent:"center", transition:"border-color 150ms,color 150ms" }}
-            onMouseEnter={e => { e.currentTarget.style.borderColor="#e8600a"; e.currentTarget.style.color="#e8600a"; }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor="rgba(240,236,227,0.15)"; e.currentTarget.style.color="rgba(240,236,227,0.4)"; }}>
-              <ChevronLeft size={14} strokeWidth={2}/>
-            </button>
+                <div style={{ fontFamily:"'Bebas Neue',sans-serif",
+                  fontSize:"clamp(28px,4vw,48px)", color:"#f0ece3",
+                  letterSpacing:"0.04em", marginBottom:16, lineHeight:1 }}>{step.title}</div>
 
-            {STEPS.map((_,i) => (
-              <button key={i} data-cursor-small onClick={() => go(i, i > cur ? 1 : -1)} style={{
-                width: i === cur ? 28 : 8, height:8, borderRadius:4, border:"none",
-                background: i === cur ? "#e8600a" : "rgba(240,236,227,0.18)",
-                cursor:"pointer", padding:0,
-                transition:"width 300ms ease,background 300ms",
-              }}/>
-            ))}
+                <p style={{ fontSize:"16px", color:"rgba(240,236,227,0.6)",
+                  lineHeight:1.7, maxWidth:"480px", fontFamily:"'IBM Plex Sans',sans-serif",
+                  margin:0 }}>{step.desc}</p>
+              </div>
 
-            <button onClick={next} data-cursor-small style={{
-              background:"none", border:"1px solid rgba(240,236,227,0.15)",
-              borderRadius:"50%", width:32, height:32, cursor:"pointer",
-              color:"rgba(240,236,227,0.4)", display:"flex", alignItems:"center",
-              justifyContent:"center", transition:"border-color 150ms,color 150ms" }}
-            onMouseEnter={e => { e.currentTarget.style.borderColor="#e8600a"; e.currentTarget.style.color="#e8600a"; }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor="rgba(240,236,227,0.15)"; e.currentTarget.style.color="rgba(240,236,227,0.4)"; }}>
-              <ChevronRight size={14} strokeWidth={2}/>
-            </button>
-          </div>
+              {/* Obere Orange-Akzentlinie */}
+              <div style={{ position:"absolute", top:0, left:0, right:0, height:"2px",
+                background:`linear-gradient(90deg,transparent,rgba(232,96,10,${0.2 + cur * 0.25}),transparent)`,
+                transition:"background 600ms" }}/>
 
-          {/* Step overview */}
-          <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:8, marginTop:12 }}>
-            {STEPS.map((s,i) => (
-              <button key={i} data-cursor-small onClick={() => go(i, i > cur ? 1 : -1)} style={{
-                background: i === cur ? "rgba(232,96,10,0.1)" : "rgba(240,236,227,0.03)",
-                border:`1px solid ${i === cur ? "rgba(232,96,10,0.35)" : "rgba(240,236,227,0.07)"}`,
-                borderRadius:8, padding:"8px 10px", cursor:"pointer", textAlign:"left",
-                transition:"all 200ms" }}>
-                <div style={{ fontSize:"10px", fontWeight:700,
-                  color: i === cur ? "#e8600a" : "rgba(240,236,227,0.25)",
-                  fontFamily:"'Fira Code',monospace", marginBottom:3 }}>{s.nr}</div>
-                <div style={{ fontSize:"11px", fontWeight:600,
-                  color: i === cur ? "#f0ece3" : "rgba(240,236,227,0.35)",
-                  fontFamily:"'IBM Plex Sans',sans-serif", lineHeight:1.3 }}>{s.title}</div>
-              </button>
-            ))}
+              {/* Pfeil-Navigation unten rechts */}
+              <div style={{ position:"absolute", bottom:20, right:20,
+                display:"flex", flexDirection:"column", gap:6 }}>
+                <button onClick={prev} data-cursor-small style={{
+                  background:"none",
+                  borderTop:"none", borderLeft:"none", borderRight:"none",
+                  borderBottom:"1px solid rgba(240,236,227,0.15)",
+                  borderRadius:"50%", width:32, height:32, cursor:"pointer",
+                  color:"rgba(240,236,227,0.4)", display:"flex", alignItems:"center",
+                  justifyContent:"center", transition:"border-color 150ms,color 150ms",
+                  border:"1px solid rgba(240,236,227,0.15)",
+                }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor="#e8600a"; e.currentTarget.style.color="#e8600a"; }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor="rgba(240,236,227,0.15)"; e.currentTarget.style.color="rgba(240,236,227,0.4)"; }}>
+                  <ChevronLeft size={14} strokeWidth={2} style={{ transform:"rotate(90deg)" }}/>
+                </button>
+                <button onClick={next} data-cursor-small style={{
+                  background:"none", border:"1px solid rgba(240,236,227,0.15)",
+                  borderRadius:"50%", width:32, height:32, cursor:"pointer",
+                  color:"rgba(240,236,227,0.4)", display:"flex", alignItems:"center",
+                  justifyContent:"center", transition:"border-color 150ms,color 150ms",
+                }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor="#e8600a"; e.currentTarget.style.color="#e8600a"; }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor="rgba(240,236,227,0.15)"; e.currentTarget.style.color="rgba(240,236,227,0.4)"; }}>
+                  <ChevronRight size={14} strokeWidth={2} style={{ transform:"rotate(90deg)" }}/>
+                </button>
+              </div>
+
+            </div>
           </div>
         </SR>
       </div>

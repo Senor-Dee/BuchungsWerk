@@ -1082,7 +1082,7 @@ export function SchrittTyp({ onWeiter, onBelegEditor, onEigeneBelege, onSimulati
               .flatMap(([id, c]) => Array(c).fill(id));
           });
           onWeiter({ typ, pruefungsart, klasse, datum, anzahl: totalAnzahl || 5, maxPunkte: typ === "Prüfung" ? maxPunkte : null, selectedThemen: themenMap, werkstoffId, komplexOpts: {...komplexOpts, werkstoffId}, verkaufOpts, forderungOpts, abschlussOpts, pctOpts });
-        }} disabled={!canProceed} style={{ ...S.btnPrimary, width: "100%", padding: "16px", fontSize: "16px", borderRadius: "14px",
+        }} disabled={!canProceed} className="bw-btn bw-btn-primary" style={{ ...S.btnPrimary, width: "100%", padding: "16px", fontSize: "16px", borderRadius: "14px",
             opacity: canProceed ? 1 : 0.35, cursor: canProceed ? "pointer" : "not-allowed",
             background: canProceed ? "#0f172a" : "#94a3b8",
             boxShadow: canProceed ? "0 4px 16px rgba(15,23,42,0.35)" : "none" }}>

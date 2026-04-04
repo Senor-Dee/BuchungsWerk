@@ -10,9 +10,59 @@ import Impressum from "./pages/Impressum.jsx";
 import Datenschutz from "./pages/Datenschutz.jsx";
 import { InfiniteGrid } from "./components/ui/InfiniteGrid.jsx";
 
+// ── Globale Button-Hover CSS ──────────────────────────────────────────────────
+const GLOBAL_BTN_CSS = `
+  /* ── Universal: alle Buttons bekommen Übergangseffekte ── */
+  button {
+    transition: box-shadow 160ms ease, transform 100ms ease, border-color 160ms ease !important;
+  }
+  button:hover:not(:disabled) {
+    box-shadow: 0 0 14px rgba(232,96,10,0.22), inset 0 1px 0 rgba(255,200,80,0.08) !important;
+    border-color: rgba(232,96,10,0.45) !important;
+  }
+  button:active:not(:disabled) { transform: translateY(1px) !important; }
+  button:disabled { opacity: 0.35 !important; cursor: not-allowed !important; }
+
+  /* ── bw-btn: identische Optik wie LiquidRadio-Track + Pill auf Hover ── */
+  .bw-btn {
+    background: rgba(240,236,227,0.07) !important;
+    border: 1px solid rgba(240,236,227,0.15) !important;
+    box-shadow: inset 2px 2px 0.5px -2px rgba(255,255,255,0.28), inset -2px -2px 0.5px -2px rgba(255,255,255,0.12), 0 1px 3px rgba(0,0,0,0.30) !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    transition: all 220ms cubic-bezier(0.16,1,0.3,1) !important;
+  }
+  .bw-btn:hover:not(:disabled) {
+    background: rgba(232,96,10,0.22) !important;
+    border-color: rgba(232,96,10,0.55) !important;
+    color: #ffffff !important;
+    box-shadow: 0 0 0 1px rgba(232,96,10,0.55), inset 2px 2px 0.5px -2px rgba(255,255,255,0.35), inset -2px -2px 0.5px -2px rgba(255,255,255,0.20), inset 0 0 6px 4px rgba(232,96,10,0.08), 0 2px 8px rgba(232,96,10,0.30) !important;
+  }
+  .bw-btn:active:not(:disabled) { transform: translateY(1px) !important; }
+  .bw-btn:disabled { opacity: 0.35 !important; cursor: not-allowed !important; }
+
+  /* ── bw-btn-primary: Orange-Gradient, überschreibt bw-btn ── */
+  .bw-btn-primary {
+    background: linear-gradient(180deg, #f07320 0%, #e8600a 55%, #c24f08 100%) !important;
+    border: 1px solid rgba(255,170,60,0.25) !important;
+    box-shadow: 0 3px 0 rgba(0,0,0,0.5), 0 0 18px rgba(232,96,10,0.35), inset 0 1px 0 rgba(255,200,80,0.18) !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    transition: transform 150ms ease, box-shadow 150ms ease !important;
+  }
+  .bw-btn-primary:hover:not(:disabled) {
+    transform: translateY(-1px) !important;
+    box-shadow: 0 5px 0 rgba(0,0,0,0.5), 0 0 28px rgba(232,96,10,0.55), inset 0 1px 0 rgba(255,200,80,0.22) !important;
+  }
+  .bw-btn-primary:active:not(:disabled) { transform: translateY(1px) !important; }
+  .bw-btn-primary:disabled { opacity: 0.35 !important; cursor: not-allowed !important; }
+`;
+
 // ── SVG Liquid-Glass-Filter (einmalig, global verfügbar) ──────────────────────
 function SvgFilters() {
   return (
+    <>
+    <style dangerouslySetInnerHTML={{ __html: GLOBAL_BTN_CSS }} />
     <svg style={{ position:'absolute', width:0, height:0, overflow:'hidden' }} aria-hidden="true">
       <defs>
         <filter id="lg-btn" x="-8%" y="-8%" width="116%" height="116%">
@@ -50,6 +100,7 @@ function SvgFilters() {
         </filter>
       </defs>
     </svg>
+    </>
   );
 }
 import { apiFetch, API_URL } from "./api.js";
@@ -1059,7 +1110,6 @@ function App() {
   return (
     <>
       <SvgFilters />
-      <InfiniteGrid />
       {loggedIn && <UserBadge user={user} onLogout={handleLogout} onUserUpdate={handleUserUpdate} />}
       <BuchungsWerk gastModus={gastSession} />
     </>

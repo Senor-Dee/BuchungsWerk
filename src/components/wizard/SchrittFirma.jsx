@@ -36,8 +36,8 @@ export function SchrittFirma({ config, onWeiter, onZurueck }) {
           ))}
         </div>
         <div style={{ display: "flex", gap: "10px" }}>
-          <button onClick={onZurueck} style={S.btnSecondary}>← Zurück</button>
-          <button onClick={() => selected && onWeiter(UNTERNEHMEN.find(u => u.id === selected))} disabled={!selected}
+          <button onClick={onZurueck} className="bw-btn" style={S.btnSecondary}>← Zurück</button>
+          <button onClick={() => selected && onWeiter(UNTERNEHMEN.find(u => u.id === selected))} disabled={!selected} className="bw-btn bw-btn-primary"
             style={{ ...S.btnPrimary, flex: 1, opacity: selected ? 1 : 0.4, cursor: selected ? "pointer" : "not-allowed",
               boxShadow: selected ? "0 4px 16px rgba(15,23,42,0.3)" : "none" }}>
             Aufgaben generieren →
