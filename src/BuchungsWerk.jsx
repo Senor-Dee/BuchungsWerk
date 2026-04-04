@@ -270,6 +270,14 @@ export default function BuchungsWerk({ gastModus = false }) {
           ))}
         </div>
       )}
+      {/* ── Mini-Footer ── */}
+      <div style={{ textAlign:"center", padding:"18px 24px 8px", fontSize:11,
+        color:"rgba(240,236,227,0.18)", borderTop:"1px solid rgba(240,236,227,0.04)",
+        marginTop:8, display:"flex", justifyContent:"center", gap:20, flexWrap:"wrap" }}>
+        <a href="/impressum"   style={{ color:"inherit", textDecoration:"none" }}>Impressum</a>
+        <a href="/datenschutz" style={{ color:"inherit", textDecoration:"none" }}>Datenschutz</a>
+        <span>© 2026 Anton Gebert · AGPL-3.0</span>
+      </div>
     </div>
     </SettingsContext.Provider>
   );

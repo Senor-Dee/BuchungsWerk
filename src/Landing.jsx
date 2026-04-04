@@ -747,9 +747,9 @@ function Footer({ onLegal }) {
         BUCHUNGS<span style={{ color:"rgba(232,96,10,0.6)" }}>WERK</span>
       </div>
       <div style={{ fontSize:"11px", color:"rgba(240,236,227,0.25)", display:"flex", gap:20, flexWrap:"wrap" }}>
-        {[["Impressum","impressum"],["Datenschutz","datenschutz"],["Kontakt","kontakt"]].map(([l,k]) => (
-          <span key={k} onClick={() => onLegal(k)} style={{ cursor:"pointer" }} className="lp-nav-link">{l}</span>
-        ))}
+        <a href="/impressum" style={{ color:"inherit", textDecoration:"none" }} className="lp-nav-link">Impressum</a>
+        <a href="/datenschutz" style={{ color:"inherit", textDecoration:"none" }} className="lp-nav-link">Datenschutz</a>
+        <span onClick={() => onLegal("kontakt")} style={{ cursor:"pointer" }} className="lp-nav-link">Kontakt</span>
       </div>
       <div style={{ fontSize:"11px", color:"rgba(240,236,227,0.2)" }}>© 2026 Anton Gebert · AGPL-3.0</div>
     </footer>

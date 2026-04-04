@@ -6,6 +6,8 @@ import ReactDOM from "react-dom/client";
 import BuchungsWerk from "./BuchungsWerk.jsx";
 import Landing, { isLoggedIn, getUser, clearAuth, setAuth } from "./Landing.jsx";
 import StudentJoin from "./components/StudentJoin.jsx";
+import Impressum from "./pages/Impressum.jsx";
+import Datenschutz from "./pages/Datenschutz.jsx";
 import { apiFetch, API_URL } from "./api.js";
 import {
   LogOut, User, Lock, Shield, Trash2, ChevronRight,
@@ -992,6 +994,11 @@ function App() {
   const handleLogin = u => { setUser(u); setLoggedIn(true); };
   const handleLogout = () => { clearAuth(); setUser(null); setLoggedIn(false); };
   const handleUserUpdate = u => { setUser(u); };
+
+  // Statische Seiten: /impressum und /datenschutz (kein Login nötig)
+  const path = window.location.pathname;
+  if (path === "/impressum") return <Impressum />;
+  if (path === "/datenschutz") return <Datenschutz />;
 
   // Schüler tritt einem Live-Quiz bei – kein Login nötig
   if (joinCode) return <StudentJoin initialCode={joinCode.toUpperCase()} />;
