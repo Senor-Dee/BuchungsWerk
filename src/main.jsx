@@ -1014,44 +1014,85 @@ function UserBadge({ user, onLogout, onUserUpdate }) {
               from { opacity:0; transform:translateY(-8px) scale(0.96); }
               to   { opacity:1; transform:translateY(0) scale(1); }
             }
+            @keyframes bw-scrim {
+              from { opacity:0; }
+              to   { opacity:1; }
+            }
           `}</style>
+
+          {/* Blur-Scrim hinter dem Dropdown */}
+          <div style={{
+            position: "fixed", inset: 0, zIndex: 490, pointerEvents: "none",
+            backdropFilter: "blur(5px) saturate(110%) brightness(0.92)",
+            WebkitBackdropFilter: "blur(5px) saturate(110%) brightness(0.92)",
+            background: "rgba(0,0,0,0.08)",
+            animation: "bw-scrim 0.15s ease",
+          }} />
+
+          {/* 3-Layer Liquid-Glass Dropdown */}
           <div style={{
             position: "absolute", top: "54px", right: 0,
-            background: "rgba(12,8,2,0.98)",
-            backdropFilter: "blur(24px)", WebkitBackdropFilter: "blur(24px)",
-            border: "1px solid rgba(240,236,227,0.12)",
+            borderRadius: "14px",
+            border: "1px solid rgba(255,255,255,0.10)",
             borderTop: "2px solid #e8600a",
-            borderRadius: "14px", padding: "8px",
-            boxShadow: "0 12px 40px rgba(0,0,0,0.65), 0 0 0 1px rgba(232,96,10,0.06)",
-            minWidth: "210px",
+            boxShadow: [
+              "0 24px 60px rgba(0,0,0,0.82)",
+              "0 4px 16px rgba(0,0,0,0.55)",
+              "0 0 0 1px rgba(255,255,255,0.04)",
+            ].join(", "),
+            minWidth: "220px",
+            overflow: "hidden",
             animation: "bw-dropdown 0.22s cubic-bezier(0.16,1,0.3,1) forwards",
           }}>
-            {/* User info */}
-            <div style={{ padding: "6px 12px 10px", borderBottom: "1px solid rgba(240,236,227,0.08)", marginBottom: "6px" }}>
-              <div style={{ fontSize: "13px", fontWeight: 700, color: "#f0ece3",
-                fontFamily: "'IBM Plex Sans', sans-serif" }}>
-                {user?.vorname} {user?.nachname}
-                {user?.is_admin && <Crown size={11} strokeWidth={2} style={{ color: "#e8600a", marginLeft: 5, verticalAlign: "middle" }}/>}
-              </div>
-              <div style={{ fontSize: "11px", color: "rgba(240,236,227,0.3)", marginTop: 1 }}>{user?.email}</div>
-              {user?.schule && (
-                <div style={{ fontSize: "11px", color: "rgba(240,236,227,0.25)", marginTop: 1,
-                  display: "flex", alignItems: "center", gap: 4 }}>
-                  <School size={10} strokeWidth={2}/>{user.schule}
+            {/* Layer 1: backdrop + gradient + SVG glass-distort */}
+            <div style={{
+              position: "absolute", inset: 0, borderRadius: "14px",
+              backdropFilter: "blur(40px) saturate(230%) brightness(1.10)",
+              WebkitBackdropFilter: "blur(40px) saturate(230%) brightness(1.10)",
+              background: "linear-gradient(160deg, rgba(32,22,10,0.97) 0%, rgba(14,10,4,0.95) 60%, rgba(20,14,6,0.97) 100%)",
+              filter: "url(#bw-glass-filter)",
+              zIndex: 0,
+            }} />
+            {/* Layer 2: edge highlights */}
+            <div style={{
+              position: "absolute", inset: 0, borderRadius: "14px", zIndex: 1, pointerEvents: "none",
+              boxShadow: [
+                "inset 0 1px 0 rgba(255,255,255,0.18)",
+                "inset 0 -1px 0 rgba(0,0,0,0.45)",
+                "inset 1px 0 0 rgba(255,255,255,0.08)",
+                "inset -1px 0 0 rgba(255,255,255,0.08)",
+                "inset 0 2px 10px rgba(255,255,255,0.05)",
+              ].join(", "),
+            }} />
+            {/* Layer 3: content */}
+            <div style={{ position: "relative", zIndex: 2, padding: "8px" }}>
+              {/* User info */}
+              <div style={{ padding: "6px 12px 10px", borderBottom: "1px solid rgba(240,236,227,0.08)", marginBottom: "6px" }}>
+                <div style={{ fontSize: "13px", fontWeight: 700, color: "#f0ece3",
+                  fontFamily: "'IBM Plex Sans', sans-serif" }}>
+                  {user?.vorname} {user?.nachname}
+                  {user?.is_admin && <Crown size={11} strokeWidth={2} style={{ color: "#e8600a", marginLeft: 5, verticalAlign: "middle" }}/>}
                 </div>
-              )}
+                <div style={{ fontSize: "11px", color: "rgba(240,236,227,0.3)", marginTop: 1 }}>{user?.email}</div>
+                {user?.schule && (
+                  <div style={{ fontSize: "11px", color: "rgba(240,236,227,0.25)", marginTop: 1,
+                    display: "flex", alignItems: "center", gap: 4 }}>
+                    <School size={10} strokeWidth={2}/>{user.schule}
+                  </div>
+                )}
+              </div>
+
+              {menuItem(<TrendingUp size={14} strokeWidth={1.5}/>, "Fortschritt", () => window.dispatchEvent(new CustomEvent("bw:mastery")))}
+              {menuItem(<SlidersHorizontal size={14} strokeWidth={1.5}/>, "Einstellungen", () => window.dispatchEvent(new CustomEvent("bw:settings")))}
+
+              <div style={{ borderTop: "1px solid rgba(240,236,227,0.07)", marginTop: "6px", paddingTop: "6px" }}/>
+              {menuItem(<Settings size={14} strokeWidth={1.5}/>, "Profil bearbeiten", () => { setProfileTab("profil"); setShowProfile(true); })}
+              {menuItem(<Lock size={14} strokeWidth={1.5}/>, "Passwort ändern", () => { setProfileTab("passwort"); setShowProfile(true); })}
+              {user?.is_admin && menuItem(<Crown size={14} strokeWidth={1.5}/>, "Registrierungen (Admin)", () => setShowAdmin(true))}
+
+              <div style={{ borderTop: "1px solid rgba(240,236,227,0.07)", marginTop: "6px", paddingTop: "6px" }}/>
+              {menuItem(<LogOut size={14} strokeWidth={1.5}/>, "Abmelden", onLogout, true)}
             </div>
-
-            {menuItem(<TrendingUp size={14} strokeWidth={1.5}/>, "Fortschritt", () => window.dispatchEvent(new CustomEvent("bw:mastery")))}
-            {menuItem(<SlidersHorizontal size={14} strokeWidth={1.5}/>, "Einstellungen", () => window.dispatchEvent(new CustomEvent("bw:settings")))}
-
-            <div style={{ borderTop: "1px solid rgba(240,236,227,0.07)", marginTop: "6px", paddingTop: "6px" }}/>
-            {menuItem(<Settings size={14} strokeWidth={1.5}/>, "Profil bearbeiten", () => { setProfileTab("profil"); setShowProfile(true); })}
-            {menuItem(<Lock size={14} strokeWidth={1.5}/>, "Passwort ändern", () => { setProfileTab("passwort"); setShowProfile(true); })}
-            {user?.is_admin && menuItem(<Crown size={14} strokeWidth={1.5}/>, "Registrierungen (Admin)", () => setShowAdmin(true))}
-
-            <div style={{ borderTop: "1px solid rgba(240,236,227,0.07)", marginTop: "6px", paddingTop: "6px" }}/>
-            {menuItem(<LogOut size={14} strokeWidth={1.5}/>, "Abmelden", onLogout, true)}
           </div>
           </>
         )}

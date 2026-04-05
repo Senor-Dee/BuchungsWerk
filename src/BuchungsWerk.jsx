@@ -142,7 +142,7 @@ export default function BuchungsWerk({ gastModus = false }) {
       {bibliothekPickerOffen && (
         <>
           <div style={{ position:"fixed", inset:0, zIndex:150,
-            background:"rgba(0,0,0,0.22)", backdropFilter:"blur(5px) saturate(110%) brightness(0.92)", WebkitBackdropFilter:"blur(5px) saturate(110%) brightness(0.92)",
+            background:"rgba(0,0,0,0.20)", backdropFilter:"blur(10px) saturate(115%) brightness(0.88)", WebkitBackdropFilter:"blur(10px) saturate(115%) brightness(0.88)",
             animation:"bw-backdrop 0.18s ease" }}
             onClick={() => setBibliothekPickerOffen(false)} />
           <div style={{ position:"fixed", bottom:72, left:8, right:8, zIndex:151,
