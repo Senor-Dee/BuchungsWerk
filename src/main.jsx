@@ -1020,15 +1020,7 @@ function UserBadge({ user, onLogout, onUserUpdate }) {
             }
           `}</style>
 
-          {/* Blur-Scrim hinter dem Dropdown – nur Content-Bereich (Topbar bei z:200 bleibt scharf) */}
-          <div style={{
-            position: "fixed", top: 62, bottom: 56, left: 0, right: 0,
-            zIndex: 490, pointerEvents: "none",
-            backdropFilter: "blur(5px) saturate(110%) brightness(0.92)",
-            WebkitBackdropFilter: "blur(5px) saturate(110%) brightness(0.92)",
-            background: "rgba(0,0,0,0.08)",
-            animation: "bw-scrim 0.15s ease",
-          }} />
+          {/* Kein Blur-Scrim für UserBadge – Dropdown hat eigenen Glass-Effect */}
 
           {/* 3-Layer Liquid-Glass Dropdown */}
           <div style={{
