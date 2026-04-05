@@ -52,6 +52,7 @@ export default function BuchungsWerk({ gastModus = false }) {
   const aufgabenForQuizRef = useRef([]);
   const [configVersion, setConfigVersion] = useState(0);
   const [initialAufgaben, setInitialAufgaben] = useState(null);
+  const [hoveredNav, setHoveredNav] = useState(null);
 
   const reset = () => { setSchritt(1); setConfig(null); setFirma(null); setInitialAufgaben(null); setIsVonURL(false); };
 
@@ -104,10 +105,14 @@ export default function BuchungsWerk({ gastModus = false }) {
           from { opacity:0; }
           to   { opacity:1; }
         }
-        .bw-nav-btn {
-          transition: color 0.15s, transform 0.2s cubic-bezier(0.34,1.56,0.64,1) !important;
+        @keyframes bw-nav-expand {
+          from { opacity:0; transform:translateX(-50%) translateY(8px) scale(0.93); }
+          to   { opacity:1; transform:translateX(-50%) translateY(0) scale(1); }
         }
-        .bw-nav-btn:hover { transform: translateY(-3px) !important; }
+        .bw-nav-btn {
+          transition: all 0.18s cubic-bezier(0.23,1,0.32,1) !important;
+        }
+        .bw-nav-btn:hover { transform: translateY(-2px) !important; }
         .bw-picker-btn {
           transition: background 0.15s, border-color 0.15s, transform 0.18s cubic-bezier(0.34,1.56,0.64,1) !important;
         }
@@ -252,41 +257,160 @@ export default function BuchungsWerk({ gastModus = false }) {
       </div>
 
       {/* ── Mini-Footer – vor der BottomBar, damit sie nicht dahinter verschwindet ── */}
-      <div style={{ textAlign:"center", padding:"16px 24px 80px", fontSize:11,
-        color:"rgba(240,236,227,0.18)", borderTop:"1px solid rgba(240,236,227,0.04)",
-        display:"flex", justifyContent:"center", gap:20, flexWrap:"wrap" }}>
-        <a href="/impressum"   style={{ color:"inherit", textDecoration:"none" }}>Impressum</a>
-        <a href="/datenschutz" style={{ color:"inherit", textDecoration:"none" }}>Datenschutz</a>
-        <span>© 2026 Anton Gebert · AGPL-3.0</span>
+      <div style={{ textAlign:"center", padding:"16px 24px 80px", fontSize:11, color:"rgba(240,236,227,0.18)", borderTop:"1px solid rgba(240,236,227,0.04)" }}>
+        © 2026 Anton Gebert · AGPL-3.0
       </div>
 
-      {/* ── BOTTOM-BAR – position:fixed, echter Liquid-Glass-Effekt ──────────── */}
+      {/* ── BOTTOM-BAR – Liquid-Glass 3-Layer + Hover-Expand ──────────────────── */}
       {!gastModus && (
-        <div style={{
-          position:"fixed", bottom:0, left:0, right:0,
-          height:56, zIndex:100,
-          display:"flex", alignItems:"center", justifyContent:"space-around", padding:"0 8px",
-          background:"rgba(14,10,4,0.52)",
-          backdropFilter:"blur(36px) saturate(220%) brightness(1.08)",
-          WebkitBackdropFilter:"blur(36px) saturate(220%) brightness(1.08)",
-          borderTop:"1px solid rgba(255,255,255,0.07)",
-          boxShadow:"0 -1px 0 rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.055)",
-        }}>
-          {[
-            { icon: BookOpen,      label:"Bibliothek",    action: () => setBibliothekPickerOffen(v => !v), active: bibliothekPickerOffen },
-            { icon: GraduationCap, label:"AP-Übung",      action: () => setApUebungOffen(true) },
-            { icon: Users,         label:"Klassenzimmer", action: () => { setKlasseZimmerAufgaben(aufgabenForQuizRef.current || []); setKlasseZimmerOffen(true); } },
-            { icon: BookMarked,    label:"Kontenplan",    action: () => setKontenplanOffen(true) },
-          ].map(({ icon, label, action, active }) => (
-            <button key={label} onClick={action} className="bw-nav-btn"
-              style={{ background:"transparent", border:"none", cursor:"pointer", display:"flex", flexDirection:"column", alignItems:"center", gap:3, padding:"6px 14px", borderRadius:10, color: active?"#e8600a":"rgba(240,236,227,0.38)" }}
-              onMouseEnter={e => { if (!active) e.currentTarget.style.color="#e8600a"; }}
-              onMouseLeave={e => { if (!active) e.currentTarget.style.color="rgba(240,236,227,0.38)"; }}>
-              {React.createElement(icon, { size: 21, strokeWidth: 1.5 })}
-              <span style={{ fontSize:9, fontWeight:700, letterSpacing:".05em", textTransform:"uppercase", whiteSpace:"nowrap" }}>{label}</span>
-            </button>
-          ))}
-        </div>
+        <>
+          {/* SVG glass-distort filter (einmalig im DOM) */}
+          <svg style={{ position:"absolute", width:0, height:0, overflow:"hidden", pointerEvents:"none" }}>
+            <defs>
+              <filter id="bw-glass-filter" x="-10%" y="-10%" width="120%" height="120%" colorInterpolationFilters="sRGB">
+                <feTurbulence type="fractalNoise" baseFrequency="0.018 0.042" numOctaves="1" seed="5" result="turb"/>
+                <feDisplacementMap in="SourceGraphic" in2="turb" scale="7" xChannelSelector="R" yChannelSelector="G"/>
+              </filter>
+            </defs>
+          </svg>
+
+          <div style={{
+            position:"fixed", bottom:0, left:0, right:0,
+            height:56, zIndex:100,
+            display:"flex", alignItems:"center", padding:"0 4px",
+            background:"rgba(14,10,4,0.62)",
+            backdropFilter:"blur(40px) saturate(230%) brightness(1.12)",
+            WebkitBackdropFilter:"blur(40px) saturate(230%) brightness(1.12)",
+            borderTop:"1px solid rgba(255,255,255,0.09)",
+            boxShadow:[
+              "0 -1px 0 rgba(0,0,0,0.60)",
+              "inset 0 1px 0 rgba(255,255,255,0.07)",
+              "inset 0 -1px 0 rgba(0,0,0,0.18)",
+            ].join(", "),
+          }}>
+            {/* ── Nav items ── */}
+            {[
+              { icon: BookOpen,      label:"Bibliothek",    active: bibliothekPickerOffen,
+                action: () => setBibliothekPickerOffen(v => !v),
+                expandItems: [
+                  { icon: BookOpen,   label:"Materialien",   sub:"Aufgabensets laden",      action: () => { setBibliothekPickerOffen(false); setMaterialienStartOffen(true); } },
+                  { icon: FolderOpen, label:"Eigene Belege", sub:"Selbst erstellte Belege", action: () => { setBibliothekPickerOffen(false); setEigeneBelegeOffen(true); } },
+                ],
+              },
+              { icon: GraduationCap, label:"AP-Übung",      action: () => setApUebungOffen(true),
+                desc:"Abiturprüfungs-Training" },
+              { icon: Users,         label:"Klassenzimmer",
+                action: () => { setKlasseZimmerAufgaben(aufgabenForQuizRef.current || []); setKlasseZimmerOffen(true); },
+                desc:"Schüler-Übungsraum" },
+              { icon: BookMarked,    label:"Kontenplan",    action: () => setKontenplanOffen(true),
+                desc:"SKR04 · Konten" },
+            ].map(({ icon: Icon, label, action, active, expandItems, desc }) => {
+              const isHovered = hoveredNav === label;
+              return (
+                <div key={label} style={{ position:"relative", flex:1 }}
+                  onMouseEnter={() => setHoveredNav(label)}
+                  onMouseLeave={() => setHoveredNav(null)}>
+
+                  {/* ── Hover expand panel ── */}
+                  {isHovered && (
+                    <div style={{
+                      position:"absolute", bottom:"calc(100% + 8px)", left:"50%",
+                      zIndex:201, pointerEvents:"auto",
+                      minWidth: expandItems ? 182 : 136,
+                      borderRadius:12,
+                      border:"1px solid rgba(255,255,255,0.10)",
+                      borderTop:"1px solid rgba(255,255,255,0.15)",
+                      boxShadow:[
+                        "0 16px 48px rgba(0,0,0,0.78)",
+                        "inset 0 1px 0 rgba(255,255,255,0.10)",
+                        "inset 0 -1px 0 rgba(0,0,0,0.28)",
+                      ].join(", "),
+                      animation:"bw-nav-expand 0.22s cubic-bezier(0.34,1.56,0.64,1)",
+                      overflow:"hidden",
+                    }}>
+                      {/* Layer 1: backdrop + SVG glass-distort */}
+                      <div style={{
+                        position:"absolute", inset:0, borderRadius:12,
+                        backdropFilter:"blur(36px) saturate(210%) brightness(1.06)",
+                        WebkitBackdropFilter:"blur(36px) saturate(210%) brightness(1.06)",
+                        background:"rgba(12,8,2,0.91)",
+                        filter:"url(#bw-glass-filter)",
+                        zIndex:0,
+                      }} />
+                      {/* Layer 2: inset edge highlights */}
+                      <div style={{
+                        position:"absolute", inset:0, borderRadius:12, zIndex:1, pointerEvents:"none",
+                        boxShadow:"inset 2px 2px 4px rgba(255,255,255,0.05), inset -2px -2px 4px rgba(255,255,255,0.03)",
+                      }} />
+                      {/* Layer 3: content */}
+                      <div style={{ position:"relative", zIndex:2, padding: expandItems ? "8px" : "10px 14px" }}>
+                        {expandItems ? (
+                          <>
+                            <div style={{ fontSize:9, fontWeight:700, color:"rgba(240,236,227,0.28)", letterSpacing:".09em", textTransform:"uppercase", marginBottom:6, paddingLeft:2 }}>{label}</div>
+                            {expandItems.map(({ icon: EI, label: el, sub: es, action: ea }) => (
+                              <button key={el} onClick={() => { setHoveredNav(null); ea(); }}
+                                style={{ display:"flex", alignItems:"center", gap:10, padding:"7px 8px", borderRadius:8, width:"100%",
+                                  background:"rgba(240,236,227,0.04)", border:"1px solid rgba(240,236,227,0.07)",
+                                  cursor:"pointer", color:"#f0ece3", marginBottom:4, textAlign:"left", boxSizing:"border-box" }}
+                                onMouseEnter={e => { e.currentTarget.style.background="rgba(232,96,10,0.14)"; e.currentTarget.style.borderColor="rgba(232,96,10,0.32)"; }}
+                                onMouseLeave={e => { e.currentTarget.style.background="rgba(240,236,227,0.04)"; e.currentTarget.style.borderColor="rgba(240,236,227,0.07)"; }}>
+                                <div style={{ width:28, height:28, borderRadius:7, background:"rgba(232,96,10,0.12)", border:"1px solid rgba(232,96,10,0.22)", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+                                  <EI size={14} strokeWidth={1.5} style={{ color:"#e8600a" }}/>
+                                </div>
+                                <div>
+                                  <div style={{ fontSize:11, fontWeight:700 }}>{el}</div>
+                                  <div style={{ fontSize:9, color:"rgba(240,236,227,0.38)", marginTop:1 }}>{es}</div>
+                                </div>
+                              </button>
+                            ))}
+                          </>
+                        ) : (
+                          <div style={{ textAlign:"center" }}>
+                            <div style={{ fontSize:12, fontWeight:700, color:"#f0ece3", marginBottom:3 }}>{label}</div>
+                            <div style={{ fontSize:10, color:"rgba(240,236,227,0.42)" }}>{desc}</div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── Nav button ── */}
+                  <button onClick={action} className="bw-nav-btn"
+                    style={{
+                      width:"100%", cursor:"pointer",
+                      display:"flex", flexDirection:"column", alignItems:"center", gap:3,
+                      padding:"6px 10px", borderRadius:10,
+                      color: active ? "#e8600a" : isHovered ? "#f0ece3" : "rgba(240,236,227,0.38)",
+                      background: active
+                        ? "rgba(232,96,10,0.13)"
+                        : isHovered ? "rgba(232,96,10,0.08)" : "transparent",
+                      border: active
+                        ? "1px solid rgba(232,96,10,0.26)"
+                        : isHovered ? "1px solid rgba(255,255,255,0.08)" : "1px solid transparent",
+                      boxShadow: (active || isHovered)
+                        ? "inset 0 1px 0 rgba(255,255,255,0.11), inset 0 -1px 0 rgba(0,0,0,0.20), 0 2px 10px rgba(0,0,0,0.32), 0 0 0 1px rgba(255,255,255,0.03)"
+                        : "none",
+                    }}>
+                    <Icon size={20} strokeWidth={1.5}/>
+                    <span style={{ fontSize:9, fontWeight:700, letterSpacing:".05em", textTransform:"uppercase", whiteSpace:"nowrap" }}>{label}</span>
+                  </button>
+                </div>
+              );
+            })}
+
+            {/* ── Impressum / Datenschutz (rechts) ── */}
+            <div style={{ flexShrink:0, paddingLeft:10, paddingRight:8, borderLeft:"1px solid rgba(240,236,227,0.07)", display:"flex", flexDirection:"column", alignItems:"center", gap:5 }}>
+              {[["Impressum","/impressum"],["Datenschutz","/datenschutz"]].map(([text, href]) => (
+                <a key={text} href={href}
+                  style={{ fontSize:8, color:"rgba(240,236,227,0.22)", textDecoration:"none", fontWeight:700, letterSpacing:".07em", textTransform:"uppercase", whiteSpace:"nowrap", transition:"color 0.15s", cursor:"pointer" }}
+                  onMouseEnter={e => e.currentTarget.style.color="rgba(240,236,227,0.65)"}
+                  onMouseLeave={e => e.currentTarget.style.color="rgba(240,236,227,0.22)"}>
+                  {text}
+                </a>
+              ))}
+            </div>
+          </div>
+        </>
       )}
     </div>
     </SettingsContext.Provider>
