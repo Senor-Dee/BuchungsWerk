@@ -142,7 +142,7 @@ export default function BuchungsWerk({ gastModus = false }) {
       {/* Bibliothek-Picker — animiertes Bottom-Sheet */}
       {bibliothekPickerOffen && (
         <>
-          <div style={{ position:"fixed", inset:0, zIndex:150,
+          <div style={{ position:"fixed", top:62, bottom:56, left:0, right:0, zIndex:150,
             background:"rgba(0,0,0,0.38)", backdropFilter:"blur(18px) saturate(120%) brightness(0.82)", WebkitBackdropFilter:"blur(18px) saturate(120%) brightness(0.82)",
             animation:"bw-backdrop 0.18s ease" }}
             onClick={() => setBibliothekPickerOffen(false)} />
