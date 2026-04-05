@@ -37,14 +37,29 @@ function SupportButton() {
 
   return (
     <>
-      {/* Floating Button */}
+      {/* Floating Button – Liquid Glass */}
       <button onClick={() => setOffen(true)}
-        style={{ position: "fixed", bottom: "72px", right: "24px", zIndex: 900,
-          width: "52px", height: "52px", borderRadius: "50%", border: "none",
-          background: "#141008", color: "#e8600a", fontSize: "22px", cursor: "pointer",
-          boxShadow: "0 4px 16px rgba(0,0,0,0.35)", display: "flex", alignItems: "center", justifyContent: "center" }}
-        title="Feedback / Support">
-        <MessageSquare size={22} strokeWidth={1.5}/>
+        style={{
+          position: "fixed", bottom: 72, right: 20, zIndex: 900,
+          width: 48, height: 48, borderRadius: "50%", cursor: "pointer",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          background: "rgba(14,10,4,0.58)",
+          backdropFilter: "blur(28px) saturate(200%) brightness(1.1)",
+          WebkitBackdropFilter: "blur(28px) saturate(200%) brightness(1.1)",
+          border: "1px solid rgba(232,96,10,0.45)",
+          boxShadow: [
+            "0 4px 20px rgba(0,0,0,0.55)",
+            "0 0 0 1px rgba(232,96,10,0.10)",
+            "inset 0 1px 0 rgba(255,160,60,0.12)",
+            "0 0 18px rgba(232,96,10,0.22)",
+          ].join(", "),
+          color: "#e8600a",
+          transition: "all 200ms cubic-bezier(0.23,1,0.32,1)",
+        }}
+        title="Feedback / Support"
+        onMouseEnter={e => { e.currentTarget.style.transform="scale(1.1)"; e.currentTarget.style.boxShadow="0 6px 28px rgba(0,0,0,0.6), 0 0 0 1px rgba(232,96,10,0.20), inset 0 1px 0 rgba(255,160,60,0.16), 0 0 26px rgba(232,96,10,0.35)"; }}
+        onMouseLeave={e => { e.currentTarget.style.transform="scale(1)"; e.currentTarget.style.boxShadow="0 4px 20px rgba(0,0,0,0.55), 0 0 0 1px rgba(232,96,10,0.10), inset 0 1px 0 rgba(255,160,60,0.12), 0 0 18px rgba(232,96,10,0.22)"; }}>
+        <MessageSquare size={20} strokeWidth={1.5}/>
       </button>
 
       {/* Modal */}

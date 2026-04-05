@@ -243,7 +243,7 @@ export default function BuchungsWerk({ gastModus = false }) {
       </div>
 
       {/* ── CONTENT ─────────────────────────────────────────────────────────── */}
-      <div style={S.container}>
+      <div style={{ ...S.container, paddingBottom: 16 }}>
         {!gastModus && <SupportButton />}
         {schritt === 1 && <SchrittTyp onWeiter={cfg => { setConfig(cfg); if (skipFirma) { setSkipFirma(false); setSchritt(3); if (!gastModus) setStreak(aktualisiereStreak()); } else setSchritt(2); }} onBelegEditor={() => setBelegEditorOffen(true)} onEigeneBelege={() => setEigeneBelegeOffen(true)} onSimulation={() => setSchritt(4)} initialConfig={skipFirma ? config : null} />}
         {schritt === 2 && <SchrittFirma config={config} onWeiter={f => { setFirma(f); setSchritt(3); if (!gastModus) setStreak(aktualisiereStreak()); }} onZurueck={() => setSchritt(1)} />}
@@ -251,9 +251,27 @@ export default function BuchungsWerk({ gastModus = false }) {
         {schritt === 4 && <ErrorBoundary><SimulationModus onZurueck={reset} onVonURLDetected={() => setIsVonURL(true)} onRegisterReset={fn => { simResetFnRef.current = fn; }} /></ErrorBoundary>}
       </div>
 
-      {/* ── BOTTOM-BAR (nur für eingeloggte Lehrer) ─────────────────────────── */}
+      {/* ── Mini-Footer – vor der BottomBar, damit sie nicht dahinter verschwindet ── */}
+      <div style={{ textAlign:"center", padding:"16px 24px 80px", fontSize:11,
+        color:"rgba(240,236,227,0.18)", borderTop:"1px solid rgba(240,236,227,0.04)",
+        display:"flex", justifyContent:"center", gap:20, flexWrap:"wrap" }}>
+        <a href="/impressum"   style={{ color:"inherit", textDecoration:"none" }}>Impressum</a>
+        <a href="/datenschutz" style={{ color:"inherit", textDecoration:"none" }}>Datenschutz</a>
+        <span>© 2026 Anton Gebert · AGPL-3.0</span>
+      </div>
+
+      {/* ── BOTTOM-BAR – position:fixed, echter Liquid-Glass-Effekt ──────────── */}
       {!gastModus && (
-        <div style={{ borderTop:"1px solid rgba(240,236,227,0.1)", background:"rgba(14,10,4,0.9)", backdropFilter:"blur(20px)", WebkitBackdropFilter:"blur(20px)", padding:"0 8px", height:56, display:"flex", alignItems:"center", justifyContent:"space-around", position:"sticky", bottom:0, zIndex:100, flexShrink:0 }}>
+        <div style={{
+          position:"fixed", bottom:0, left:0, right:0,
+          height:56, zIndex:100,
+          display:"flex", alignItems:"center", justifyContent:"space-around", padding:"0 8px",
+          background:"rgba(14,10,4,0.52)",
+          backdropFilter:"blur(36px) saturate(220%) brightness(1.08)",
+          WebkitBackdropFilter:"blur(36px) saturate(220%) brightness(1.08)",
+          borderTop:"1px solid rgba(255,255,255,0.07)",
+          boxShadow:"0 -1px 0 rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.055)",
+        }}>
           {[
             { icon: BookOpen,      label:"Bibliothek",    action: () => setBibliothekPickerOffen(v => !v), active: bibliothekPickerOffen },
             { icon: GraduationCap, label:"AP-Übung",      action: () => setApUebungOffen(true) },
@@ -261,23 +279,15 @@ export default function BuchungsWerk({ gastModus = false }) {
             { icon: BookMarked,    label:"Kontenplan",    action: () => setKontenplanOffen(true) },
           ].map(({ icon, label, action, active }) => (
             <button key={label} onClick={action} className="bw-nav-btn"
-              style={{ background:"transparent", border:"none", cursor:"pointer", display:"flex", flexDirection:"column", alignItems:"center", gap:3, padding:"6px 14px", borderRadius:10, color: active?"#e8600a":"#475569" }}
+              style={{ background:"transparent", border:"none", cursor:"pointer", display:"flex", flexDirection:"column", alignItems:"center", gap:3, padding:"6px 14px", borderRadius:10, color: active?"#e8600a":"rgba(240,236,227,0.38)" }}
               onMouseEnter={e => { if (!active) e.currentTarget.style.color="#e8600a"; }}
-              onMouseLeave={e => { if (!active) e.currentTarget.style.color="#475569"; }}>
+              onMouseLeave={e => { if (!active) e.currentTarget.style.color="rgba(240,236,227,0.38)"; }}>
               {React.createElement(icon, { size: 21, strokeWidth: 1.5 })}
               <span style={{ fontSize:9, fontWeight:700, letterSpacing:".05em", textTransform:"uppercase", whiteSpace:"nowrap" }}>{label}</span>
             </button>
           ))}
         </div>
       )}
-      {/* ── Mini-Footer ── */}
-      <div style={{ textAlign:"center", padding:"18px 24px 8px", fontSize:11,
-        color:"rgba(240,236,227,0.18)", borderTop:"1px solid rgba(240,236,227,0.04)",
-        marginTop:8, display:"flex", justifyContent:"center", gap:20, flexWrap:"wrap" }}>
-        <a href="/impressum"   style={{ color:"inherit", textDecoration:"none" }}>Impressum</a>
-        <a href="/datenschutz" style={{ color:"inherit", textDecoration:"none" }}>Datenschutz</a>
-        <span>© 2026 Anton Gebert · AGPL-3.0</span>
-      </div>
     </div>
     </SettingsContext.Provider>
   );
