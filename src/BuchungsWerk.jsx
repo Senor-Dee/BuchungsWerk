@@ -54,6 +54,7 @@ export default function BuchungsWerk({ gastModus = false }) {
   const [configVersion, setConfigVersion] = useState(0);
   const [initialAufgaben, setInitialAufgaben] = useState(null);
   const [hoveredNav, setHoveredNav] = useState(null);
+  const [dropdownOffen, setDropdownOffen] = useState(false);
   const hoverTimerRef = useRef(null);
 
   const reset = () => { setSchritt(1); setConfig(null); setFirma(null); setInitialAufgaben(null); setIsVonURL(false); };
@@ -74,15 +75,18 @@ export default function BuchungsWerk({ gastModus = false }) {
 
   const isSimulation = schritt === 4;
 
-  // Custom Events: UserBadge (main.jsx) kann Mastery + Einstellungen öffnen
+  // Custom Events: UserBadge (main.jsx) kann Mastery + Einstellungen öffnen + Dropdown-Blur
   useEffect(() => {
     const openMastery   = () => setMasteryOffen(true);
     const openSettings  = () => setEinstellungenOffen(true);
+    const onDropdown    = (e) => setDropdownOffen(e.detail?.open ?? false);
     window.addEventListener("bw:mastery",   openMastery);
     window.addEventListener("bw:settings",  openSettings);
+    window.addEventListener("bw:dropdown",  onDropdown);
     return () => {
       window.removeEventListener("bw:mastery",  openMastery);
       window.removeEventListener("bw:settings", openSettings);
+      window.removeEventListener("bw:dropdown", onDropdown);
     };
   }, []);
 
@@ -134,20 +138,6 @@ export default function BuchungsWerk({ gastModus = false }) {
           background: rgba(232,96,10,0.13) !important;
           border-color: rgba(232,96,10,0.4) !important;
           transform: translateY(-2px) !important;
-        }
-        /* Direkter filter auf Content – kein backdrop-filter Compound-Problem */
-        .bw-step-content {
-          transition: filter 0.18s ease;
-          will-change: filter;
-        }
-        .bw-step-content.blur-l1 {
-          filter: blur(3px) brightness(0.80);
-        }
-        .bw-step-content.blur-l2 {
-          filter: blur(6px) brightness(0.68);
-        }
-        body.bw-dropdown-open .bw-step-content {
-          filter: blur(3px) brightness(0.80);
         }
       `}</style>
 
@@ -278,8 +268,14 @@ export default function BuchungsWerk({ gastModus = false }) {
       {/* ── CONTENT ─────────────────────────────────────────────────────────── */}
       {!gastModus && <SupportButton />}
       <div style={{ ...S.container, paddingBottom: 16 }}>
-        {/* bw-step-content bekommt direkten CSS-filter (kein backdrop-filter) */}
-        <div className={`bw-step-content${bibliothekPickerOffen ? " blur-l2" : hoveredNav !== null ? " blur-l1" : ""}`}>
+        <div style={{
+          transition: "filter 0.22s ease",
+          filter: bibliothekPickerOffen
+            ? "blur(7px) brightness(0.65)"
+            : dropdownOffen || hoveredNav !== null
+            ? "blur(3px) brightness(0.78)"
+            : "none",
+        }}>
           {schritt === 1 && <SchrittTyp onWeiter={cfg => { setConfig(cfg); if (skipFirma) { setSkipFirma(false); setSchritt(3); if (!gastModus) setStreak(aktualisiereStreak()); } else setSchritt(2); }} onBelegEditor={() => setBelegEditorOffen(true)} onEigeneBelege={() => setEigeneBelegeOffen(true)} onSimulation={() => setSchritt(4)} initialConfig={skipFirma ? config : null} />}
           {schritt === 2 && <SchrittFirma config={config} onWeiter={f => { setFirma(f); setSchritt(3); if (!gastModus) setStreak(aktualisiereStreak()); }} onZurueck={() => setSchritt(1)} />}
           {schritt === 3 && <ErrorBoundary><SchrittAufgaben key={configVersion} config={config} firma={firma} initialAufgaben={initialAufgaben} onNeu={reset} onMaterialLaden={materialLaden} onThemen={zuThemen} onFirma={zuFirma} aufgabenRef={aufgabenForQuizRef} /></ErrorBoundary>}

@@ -962,11 +962,9 @@ function UserBadge({ user, onLogout, onUserUpdate }) {
     return () => document.removeEventListener("mousedown", handler);
   }, [open]);
 
-  // Body-Klasse setzen → CSS-filter auf .bw-step-content (kein backdrop-filter Compound)
+  // Blur-Event an BuchungsWerk – setzt filter direkt auf Content-Wrapper
   useEffect(() => {
-    if (open) document.body.classList.add("bw-dropdown-open");
-    else document.body.classList.remove("bw-dropdown-open");
-    return () => document.body.classList.remove("bw-dropdown-open");
+    window.dispatchEvent(new CustomEvent("bw:dropdown", { detail: { open } }));
   }, [open]);
 
   const menuItem = (icon, label, onClick, danger) => (
