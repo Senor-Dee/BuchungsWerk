@@ -516,8 +516,8 @@ function FeaturesSection() {
   const scale      = useTransform(scrollYProgress, [0,    0.15, 0.85, 1.0], [0.80, 1,    1,    0.80]);
   const iPadOp     = useTransform(scrollYProgress, [0,    0.06, 0.94, 1.0], [0,    1,    1,    0   ]);
   // translateY: hebt iPad in Clip-Fenster, dann scrollt langsam nach oben → Bottom sichtbar
-  // iPad 543px, Clip 390px → Mitte bei y=-76, Bottom bei y=-153
-  const iPadY      = useTransform(scrollYProgress, [0,    0.15, 0.85, 1.0], [30,  -76, -153,  -153 ]);
+  // iPad 543px, Clip 390px → Mitte bei y=-76, Bottom-Bezel bei y=-190 (vor Mask-Fade bei 93%)
+  const iPadY      = useTransform(scrollYProgress, [0,    0.15, 0.85, 1.0], [30,  -76, -190,  -190 ]);
 
   // Feature-Index aus Scroll
   const featureRaw = useTransform(scrollYProgress, [0.18, 0.82], [0, FEATURES.length - 1]);
