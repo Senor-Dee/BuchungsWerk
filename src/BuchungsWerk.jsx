@@ -4,7 +4,8 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Factory, BookOpen, GraduationCap, BookMarked,
          Users, FolderOpen,
-         Zap, Star, Trophy, Flame, Sprout } from "lucide-react";
+         Zap, Star, Trophy, Flame, Sprout,
+         ListChecks, Dices, Play, BarChart2, Building2, TrendingUp } from "lucide-react";
 import { useStreak } from "./hooks/useStreak.js";
 import { useLevel } from "./hooks/useLevel.js";
 import { S } from "./styles.js";
@@ -98,6 +99,17 @@ export default function BuchungsWerk({ gastModus = false }) {
       {materialienStartOffen && <MaterialienModal onSchliessen={() => setMaterialienStartOffen(false)} onLaden={materialLaden} />}
       {apUebungOffen && <APUebungModal onSchliessen={() => setApUebungOffen(false)} />}
 
+      {/* ── Globaler Blur-Scrim – erscheint sobald ein Submenü offen ist ── */}
+      {hoveredNav !== null && (
+        <div style={{
+          position:"fixed", inset:0, zIndex:99, pointerEvents:"none",
+          backdropFilter:"blur(14px) saturate(120%) brightness(0.82)",
+          WebkitBackdropFilter:"blur(14px) saturate(120%) brightness(0.82)",
+          background:"rgba(0,0,0,0.18)",
+          animation:"bw-backdrop 0.15s ease",
+        }} />
+      )}
+
       {/* CSS Animations */}
       <style>{`
         @keyframes bw-picker-up {
@@ -130,8 +142,8 @@ export default function BuchungsWerk({ gastModus = false }) {
       {bibliothekPickerOffen && (
         <>
           <div style={{ position:"fixed", inset:0, zIndex:150,
-            background:"rgba(0,0,0,0.35)", backdropFilter:"blur(3px)", WebkitBackdropFilter:"blur(3px)",
-            animation:"bw-backdrop 0.2s ease" }}
+            background:"rgba(0,0,0,0.30)", backdropFilter:"blur(14px) saturate(120%) brightness(0.82)", WebkitBackdropFilter:"blur(14px) saturate(120%) brightness(0.82)",
+            animation:"bw-backdrop 0.18s ease" }}
             onClick={() => setBibliothekPickerOffen(false)} />
           <div style={{ position:"fixed", bottom:72, left:8, right:8, zIndex:151,
             animation:"bw-picker-up 0.32s cubic-bezier(0.34,1.56,0.64,1)",
@@ -298,13 +310,26 @@ export default function BuchungsWerk({ gastModus = false }) {
                   { icon: FolderOpen, label:"Eigene Belege", sub:"Selbst erstellte Belege", action: () => { setBibliothekPickerOffen(false); setEigeneBelegeOffen(true); } },
                 ],
               },
-              { icon: GraduationCap, label:"Quali-Übung",   action: () => setApUebungOffen(true),
-                desc:"Abschluss-Training" },
-              { icon: Users,         label:"Klassenzimmer",
+              { icon: GraduationCap, label:"Abschluss", action: () => setApUebungOffen(true),
+                expandItems: [
+                  { icon: ListChecks, label:"Pflichtaufgaben", sub:"Aufg. 1–5: Buchführung bis Jahresabschluss", action: () => setApUebungOffen(true) },
+                  { icon: Dices,      label:"Wahlteil",        sub:"Aufg. 6 – KLR · 7 – Forderung · 8 – Einkauf", action: () => setApUebungOffen(true) },
+                ],
+              },
+              { icon: Users, label:"Klassenzimmer",
                 action: () => { setKlasseZimmerAufgaben(aufgabenForQuizRef.current || []); setKlasseZimmerOffen(true); },
-                desc:"Schüler-Übungsraum" },
-              { icon: BookMarked,    label:"Kontenplan",    action: () => setKontenplanOffen(true),
-                desc:"SKR04 · Konten" },
+                expandItems: [
+                  { icon: Play,      label:"Quiz starten", sub:"Live-Übung für die Klasse",      action: () => { setKlasseZimmerAufgaben(aufgabenForQuizRef.current || []); setKlasseZimmerOffen(true); } },
+                  { icon: BarChart2, label:"Auswertung",   sub:"Ergebnisse & Bestenliste anzeigen", action: () => { setKlasseZimmerAufgaben(aufgabenForQuizRef.current || []); setKlasseZimmerOffen(true); } },
+                ],
+              },
+              { icon: BookMarked, label:"Kontenplan", action: () => setKontenplanOffen(true),
+                expandItems: [
+                  { icon: Building2,  label:"Bestandskonten", sub:"Klasse 0–4: Aktiva & Passiva",   action: () => setKontenplanOffen(true) },
+                  { icon: TrendingUp, label:"Erfolgskonten",  sub:"Klasse 5–8: Aufwand & Ertrag",   action: () => setKontenplanOffen(true) },
+                  { icon: BookMarked, label:"Alle SKR04",     sub:"Vollständiger Kontenplan",        action: () => setKontenplanOffen(true) },
+                ],
+              },
             ].map(({ icon: Icon, label, action, active, expandItems, desc }) => {
               const isHovered = hoveredNav === label;
               return (
@@ -322,7 +347,7 @@ export default function BuchungsWerk({ gastModus = false }) {
                         position:"absolute", bottom:"calc(100% + 8px)", left:"50%",
                         transform:"translateX(-50%)",
                         zIndex:201, pointerEvents:"auto",
-                        minWidth: expandItems ? 184 : 140,
+                        minWidth: expandItems ? 210 : 140,
                         borderRadius:12,
                         border:"1px solid rgba(255,255,255,0.10)",
                         borderTop:"1.5px solid rgba(255,255,255,0.20)",
