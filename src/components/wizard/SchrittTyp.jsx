@@ -188,17 +188,58 @@ export function SchrittTyp({ onWeiter, onBelegEditor, onEigeneBelege, onSimulati
             <button key={t} onClick={onClick}
               onMouseEnter={() => setHoveredCard(t)}
               onMouseLeave={() => setHoveredCard(null)}
-              style={{ flex: 1, padding: "14px 10px", cursor: "pointer", textAlign: "center",
-                borderRadius: "14px", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)",
-                border: `2px solid ${sel ? "#e8600a" : hov ? "rgba(240,236,227,0.28)" : "rgba(240,236,227,0.12)"}`,
-                background: sel ? "rgba(232,96,10,0.12)" : hov ? "rgba(40,30,15,0.8)" : "rgba(30,22,10,0.5)",
-                color: sel ? "#e8600a" : hov ? "#f0ece3" : "rgba(240,236,227,0.6)",
-                boxShadow: sel ? "0 4px 20px rgba(232,96,10,0.25)" : hov ? "0 2px 10px rgba(0,0,0,0.25)" : "none",
-                transform: hov ? "translateY(-1px)" : "none",
-                transition: "all 0.18s" }}>
-              <div style={{ marginBottom: "7px", display:"flex", justifyContent:"center" }}>{React.createElement(icon, { size: 22, strokeWidth: 1.5 })}</div>
-              <div style={{ fontWeight: 700, fontSize: "13px", marginBottom: "2px" }}>{t}</div>
-              <div style={{ fontSize: "10px", opacity: 0.6 }}>{desc}</div>
+              style={{
+                flex: 1, padding: 0, cursor: "pointer", textAlign: "center",
+                borderRadius: "14px", position: "relative", overflow: "hidden",
+                border: sel ? "1.5px solid rgba(232,96,10,0.65)" : hov ? "1.5px solid rgba(240,236,227,0.20)" : "1.5px solid rgba(240,236,227,0.09)",
+                boxShadow: sel
+                  ? "0 0 0 1px rgba(232,96,10,0.20), 0 10px 36px rgba(232,96,10,0.28), 0 3px 10px rgba(0,0,0,0.55)"
+                  : hov
+                  ? "0 0 0 1px rgba(255,255,255,0.04), 0 10px 32px rgba(0,0,0,0.60), 0 2px 8px rgba(0,0,0,0.45)"
+                  : "0 4px 16px rgba(0,0,0,0.45), 0 1px 4px rgba(0,0,0,0.30)",
+                color: sel ? "#e8600a" : hov ? "#f0ece3" : "rgba(240,236,227,0.60)",
+                transform: hov ? "translateY(-3px) scale(1.015)" : sel ? "translateY(-1px)" : "none",
+                transition: "all 0.22s cubic-bezier(0.23,1,0.32,1)",
+              }}>
+              {/* Layer 1: Bend – backdrop-filter + SVG glass-distort */}
+              <div style={{
+                position:"absolute", inset:0,
+                backdropFilter: sel || hov ? "blur(28px) saturate(240%) brightness(1.10)" : "blur(18px) saturate(200%) brightness(1.05)",
+                WebkitBackdropFilter: sel || hov ? "blur(28px) saturate(240%) brightness(1.10)" : "blur(18px) saturate(200%) brightness(1.05)",
+                background: sel ? "rgba(232,96,10,0.15)" : hov ? "rgba(32,22,8,0.80)" : "rgba(20,14,4,0.65)",
+                filter:"url(#bw-glass-filter)",
+                zIndex:0,
+              }} />
+              {/* Layer 2: Edge highlights */}
+              <div style={{
+                position:"absolute", inset:0, zIndex:1, pointerEvents:"none",
+                boxShadow: sel ? [
+                  "inset 0 1px 0 rgba(255,160,60,0.30)",
+                  "inset 0 -1px 0 rgba(0,0,0,0.42)",
+                  "inset 1px 0 0 rgba(255,160,60,0.14)",
+                  "inset -1px 0 0 rgba(255,160,60,0.14)",
+                  "inset 0 2px 8px rgba(255,130,30,0.10)",
+                ].join(", ") : hov ? [
+                  "inset 0 1px 0 rgba(255,255,255,0.22)",
+                  "inset 0 -1px 0 rgba(0,0,0,0.40)",
+                  "inset 1px 0 0 rgba(255,255,255,0.09)",
+                  "inset -1px 0 0 rgba(255,255,255,0.09)",
+                  "inset 0 2px 8px rgba(255,255,255,0.06)",
+                ].join(", ") : [
+                  "inset 0 1px 0 rgba(255,255,255,0.12)",
+                  "inset 0 -1px 0 rgba(0,0,0,0.30)",
+                  "inset 1px 0 0 rgba(255,255,255,0.05)",
+                  "inset -1px 0 0 rgba(255,255,255,0.05)",
+                ].join(", "),
+              }} />
+              {/* Layer 3: Content */}
+              <div style={{ position:"relative", zIndex:2, padding:"16px 10px" }}>
+                <div style={{ marginBottom:"8px", display:"flex", justifyContent:"center" }}>
+                  {React.createElement(icon, { size: 24, strokeWidth: 1.5 })}
+                </div>
+                <div style={{ fontWeight:800, fontSize:"13px", marginBottom:"3px", letterSpacing:"-.01em" }}>{t}</div>
+                <div style={{ fontSize:"10px", opacity:0.55, fontWeight:500 }}>{desc}</div>
+              </div>
             </button>
           );
         })}

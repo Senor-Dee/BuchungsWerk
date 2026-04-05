@@ -53,8 +53,11 @@ export default function BuchungsWerk({ gastModus = false }) {
   const [configVersion, setConfigVersion] = useState(0);
   const [initialAufgaben, setInitialAufgaben] = useState(null);
   const [hoveredNav, setHoveredNav] = useState(null);
+  const hoverTimerRef = useRef(null);
 
   const reset = () => { setSchritt(1); setConfig(null); setFirma(null); setInitialAufgaben(null); setIsVonURL(false); };
+  const navEnter = (label) => { clearTimeout(hoverTimerRef.current); setHoveredNav(label); };
+  const navLeave = () => { hoverTimerRef.current = setTimeout(() => setHoveredNav(null), 80); };
 
   const materialLaden = ({ config: c, firma: f, aufgaben: a }) => {
     setConfig(c);
@@ -256,10 +259,8 @@ export default function BuchungsWerk({ gastModus = false }) {
         {schritt === 4 && <ErrorBoundary><SimulationModus onZurueck={reset} onVonURLDetected={() => setIsVonURL(true)} onRegisterReset={fn => { simResetFnRef.current = fn; }} /></ErrorBoundary>}
       </div>
 
-      {/* ── Mini-Footer – vor der BottomBar, damit sie nicht dahinter verschwindet ── */}
-      <div style={{ textAlign:"center", padding:"16px 24px 80px", fontSize:11, color:"rgba(240,236,227,0.18)", borderTop:"1px solid rgba(240,236,227,0.04)" }}>
-        © 2026 Anton Gebert · AGPL-3.0
-      </div>
+      {/* Spacer für fixe Bottom-Bar */}
+      <div style={{ height: 80 }} />
 
       {/* ── BOTTOM-BAR – Liquid-Glass 3-Layer + Hover-Expand ──────────────────── */}
       {!gastModus && (
@@ -297,8 +298,8 @@ export default function BuchungsWerk({ gastModus = false }) {
                   { icon: FolderOpen, label:"Eigene Belege", sub:"Selbst erstellte Belege", action: () => { setBibliothekPickerOffen(false); setEigeneBelegeOffen(true); } },
                 ],
               },
-              { icon: GraduationCap, label:"AP-Übung",      action: () => setApUebungOffen(true),
-                desc:"Abiturprüfungs-Training" },
+              { icon: GraduationCap, label:"Quali-Übung",   action: () => setApUebungOffen(true),
+                desc:"Abschluss-Training" },
               { icon: Users,         label:"Klassenzimmer",
                 action: () => { setKlasseZimmerAufgaben(aufgabenForQuizRef.current || []); setKlasseZimmerOffen(true); },
                 desc:"Schüler-Übungsraum" },
@@ -308,42 +309,55 @@ export default function BuchungsWerk({ gastModus = false }) {
               const isHovered = hoveredNav === label;
               return (
                 <div key={label} style={{ position:"relative", flex:1 }}
-                  onMouseEnter={() => setHoveredNav(label)}
-                  onMouseLeave={() => setHoveredNav(null)}>
+                  onMouseEnter={() => navEnter(label)}
+                  onMouseLeave={() => navLeave()}>
 
                   {/* ── Hover expand panel ── */}
                   {isHovered && (
-                    <div style={{
-                      position:"absolute", bottom:"calc(100% + 8px)", left:"50%",
-                      zIndex:201, pointerEvents:"auto",
-                      minWidth: expandItems ? 182 : 136,
-                      borderRadius:12,
-                      border:"1px solid rgba(255,255,255,0.10)",
-                      borderTop:"1px solid rgba(255,255,255,0.15)",
-                      boxShadow:[
-                        "0 16px 48px rgba(0,0,0,0.78)",
-                        "inset 0 1px 0 rgba(255,255,255,0.10)",
-                        "inset 0 -1px 0 rgba(0,0,0,0.28)",
-                      ].join(", "),
-                      animation:"bw-nav-expand 0.22s cubic-bezier(0.34,1.56,0.64,1)",
-                      overflow:"hidden",
-                    }}>
-                      {/* Layer 1: backdrop + SVG glass-distort */}
+                    <>
+                      {/* Transparente Brücke schließt 8px-Lücke, verhindert mouseLeave */}
+                      <div style={{ position:"absolute", bottom:"100%", left:0, right:0, height:8, zIndex:200 }} />
+
                       <div style={{
-                        position:"absolute", inset:0, borderRadius:12,
-                        backdropFilter:"blur(36px) saturate(210%) brightness(1.06)",
-                        WebkitBackdropFilter:"blur(36px) saturate(210%) brightness(1.06)",
-                        background:"rgba(12,8,2,0.91)",
-                        filter:"url(#bw-glass-filter)",
-                        zIndex:0,
-                      }} />
-                      {/* Layer 2: inset edge highlights */}
-                      <div style={{
-                        position:"absolute", inset:0, borderRadius:12, zIndex:1, pointerEvents:"none",
-                        boxShadow:"inset 2px 2px 4px rgba(255,255,255,0.05), inset -2px -2px 4px rgba(255,255,255,0.03)",
-                      }} />
-                      {/* Layer 3: content */}
-                      <div style={{ position:"relative", zIndex:2, padding: expandItems ? "8px" : "10px 14px" }}>
+                        position:"absolute", bottom:"calc(100% + 8px)", left:"50%",
+                        transform:"translateX(-50%)",
+                        zIndex:201, pointerEvents:"auto",
+                        minWidth: expandItems ? 184 : 140,
+                        borderRadius:12,
+                        border:"1px solid rgba(255,255,255,0.10)",
+                        borderTop:"1.5px solid rgba(255,255,255,0.20)",
+                        boxShadow:[
+                          "0 24px 56px rgba(0,0,0,0.85)",
+                          "0 4px 16px rgba(0,0,0,0.55)",
+                          "0 0 0 1px rgba(255,255,255,0.04)",
+                        ].join(", "),
+                        animation:"bw-nav-expand 0.22s cubic-bezier(0.34,1.56,0.64,1)",
+                        overflow:"hidden",
+                      }}
+                      onMouseEnter={() => navEnter(label)}
+                      onMouseLeave={() => navLeave()}>
+                        {/* Layer 1: backdrop + gradient + SVG distort */}
+                        <div style={{
+                          position:"absolute", inset:0, borderRadius:12,
+                          backdropFilter:"blur(40px) saturate(230%) brightness(1.10)",
+                          WebkitBackdropFilter:"blur(40px) saturate(230%) brightness(1.10)",
+                          background:"linear-gradient(160deg, rgba(32,22,10,0.97) 0%, rgba(14,10,4,0.95) 60%, rgba(20,14,6,0.97) 100%)",
+                          filter:"url(#bw-glass-filter)",
+                          zIndex:0,
+                        }} />
+                        {/* Layer 2: edge highlights */}
+                        <div style={{
+                          position:"absolute", inset:0, borderRadius:12, zIndex:1, pointerEvents:"none",
+                          boxShadow:[
+                            "inset 0 1px 0 rgba(255,255,255,0.18)",
+                            "inset 0 -1px 0 rgba(0,0,0,0.50)",
+                            "inset 1px 0 0 rgba(255,255,255,0.08)",
+                            "inset -1px 0 0 rgba(255,255,255,0.08)",
+                            "inset 0 2px 10px rgba(255,255,255,0.05)",
+                          ].join(", "),
+                        }} />
+                        {/* Layer 3: content */}
+                        <div style={{ position:"relative", zIndex:2, padding: expandItems ? "8px" : "10px 14px" }}>
                         {expandItems ? (
                           <>
                             <div style={{ fontSize:9, fontWeight:700, color:"rgba(240,236,227,0.28)", letterSpacing:".09em", textTransform:"uppercase", marginBottom:6, paddingLeft:2 }}>{label}</div>
@@ -370,8 +384,9 @@ export default function BuchungsWerk({ gastModus = false }) {
                             <div style={{ fontSize:10, color:"rgba(240,236,227,0.42)" }}>{desc}</div>
                           </div>
                         )}
+                        </div>
                       </div>
-                    </div>
+                    </>
                   )}
 
                   {/* ── Nav button ── */}
@@ -398,16 +413,22 @@ export default function BuchungsWerk({ gastModus = false }) {
               );
             })}
 
-            {/* ── Impressum / Datenschutz (rechts) ── */}
-            <div style={{ flexShrink:0, paddingLeft:10, paddingRight:8, borderLeft:"1px solid rgba(240,236,227,0.07)", display:"flex", flexDirection:"column", alignItems:"center", gap:5 }}>
-              {[["Impressum","/impressum"],["Datenschutz","/datenschutz"]].map(([text, href]) => (
-                <a key={text} href={href}
-                  style={{ fontSize:8, color:"rgba(240,236,227,0.22)", textDecoration:"none", fontWeight:700, letterSpacing:".07em", textTransform:"uppercase", whiteSpace:"nowrap", transition:"color 0.15s", cursor:"pointer" }}
-                  onMouseEnter={e => e.currentTarget.style.color="rgba(240,236,227,0.65)"}
-                  onMouseLeave={e => e.currentTarget.style.color="rgba(240,236,227,0.22)"}>
-                  {text}
-                </a>
-              ))}
+            {/* ── Legal + Copyright (rechts) ── */}
+            <div style={{ flexShrink:0, paddingLeft:10, paddingRight:8, borderLeft:"1px solid rgba(240,236,227,0.07)", display:"flex", flexDirection:"column", alignItems:"center", gap:4 }}>
+              <div style={{ display:"flex", alignItems:"center", gap:5 }}>
+                {[["Impressum","/impressum"],["Datenschutz","/datenschutz"]].map(([text, href], i) => (
+                  <React.Fragment key={text}>
+                    {i > 0 && <span style={{ fontSize:6, color:"rgba(240,236,227,0.18)", lineHeight:1 }}>·</span>}
+                    <a href={href}
+                      style={{ fontSize:8, color:"rgba(240,236,227,0.28)", textDecoration:"none", fontWeight:700, letterSpacing:".07em", textTransform:"uppercase", whiteSpace:"nowrap", transition:"color 0.15s", cursor:"pointer" }}
+                      onMouseEnter={e => e.currentTarget.style.color="rgba(240,236,227,0.65)"}
+                      onMouseLeave={e => e.currentTarget.style.color="rgba(240,236,227,0.28)"}>
+                      {text}
+                    </a>
+                  </React.Fragment>
+                ))}
+              </div>
+              <div style={{ fontSize:8, color:"rgba(240,236,227,0.18)", fontWeight:500, whiteSpace:"nowrap" }}>© 2026 Anton Gebert</div>
             </div>
           </div>
         </>
