@@ -396,30 +396,22 @@ const FEATURES = [
     desc:"Mit einer Schullizenz erhalten alle Lehrkräfte Ihrer Schule Zugang. Eigene Aufgaben und Szenarien zentral speichern und im Kollegium teilen – für einheitlichen Unterricht ohne Mehraufwand.", tag:"Schule" },
 ];
 
-// iPad Pro (Landscape) – Space Black (App-Farben), Apple Pencil, Speaker, kein Home-Button
+// iPad Pro Portrait – Space Black (App-Farben), kein Stift, kein Home-Button
 function IPadFrame({ children, deviceW, deviceH }) {
-  const bezel  = 26;
+  const bezelTop    = 16;
+  const bezelSide   = 22;
+  const bezelBottom = 14;
   const outerR = 20;
-  const innerR = 10;
+  const innerR = 13;
 
-  // Speaker-Grill: 4 Schlitze auf den Kurzseiten (links + rechts in Landscape)
-  const SLOTS   = 4;
-  const SLOT_W  = 2;
-  const SLOT_H  = 9;
-  const SLOT_GAP = 3.5;
-  function SpeakerGrille() {
-    return (
-      <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:SLOT_GAP }}>
-        {Array.from({ length: SLOTS }).map((_, i) => (
-          <div key={i} style={{
-            width: SLOT_W, height: SLOT_H, borderRadius: 1,
-            background: "rgba(0,0,0,0.55)",
-            boxShadow: "inset 0 0.5px 0 rgba(0,0,0,0.5), 0 0 0 0.5px rgba(255,255,255,0.05)",
-          }} />
-        ))}
-      </div>
-    );
-  }
+  const btnStyle = {
+    position: "absolute",
+    right: -2.5,
+    width: 3,
+    borderRadius: "0 3px 3px 0",
+    background: "linear-gradient(90deg, #2a2520 0%, #3c342a 55%, #2e2820 100%)",
+    boxShadow: "1.5px 0 0 rgba(255,255,255,0.07), -1px 0 2px rgba(0,0,0,0.6)",
+  };
 
   return (
     <div style={{
@@ -427,97 +419,66 @@ function IPadFrame({ children, deviceW, deviceH }) {
       width:  deviceW,
       height: deviceH,
       borderRadius: outerR,
-      // Warm Space Black – passend zu App-Farben (#141008)
-      background: "linear-gradient(145deg, #343028 0%, #26221a 30%, #1e1a13 55%, #26221a 75%, #343028 100%)",
+      background: "linear-gradient(158deg, #3a342a 0%, #28231a 28%, #1e1a13 52%, #272218 76%, #38312a 100%)",
       boxShadow: [
-        "0 0 0 1px rgba(255,255,255,0.10)",
-        "inset 0 0 0 0.5px rgba(0,0,0,0.6)",
-        "0 50px 120px rgba(0,0,0,0.80)",
-        "0 14px 44px rgba(0,0,0,0.60)",
-        "inset 0 1.5px 0 rgba(255,255,255,0.14)",
-        "inset 0 -1px 0 rgba(0,0,0,0.7)",
+        "0 0 0 1px rgba(255,255,255,0.11)",
+        "inset 0 0 0 0.5px rgba(0,0,0,0.65)",
+        "0 70px 160px rgba(0,0,0,0.90)",
+        "0 24px 64px rgba(0,0,0,0.60)",
+        "inset 0 1.5px 0 rgba(255,255,255,0.17)",
+        "inset 0 -1px 0 rgba(0,0,0,0.8)",
       ].join(", "),
       flexShrink: 0,
     }}>
 
-      {/* Apple Pencil – liegt auf der Oberkante auf */}
+      {/* Kamera – Oberkante zentriert (Face ID Seite) */}
       <div style={{
         position: "absolute",
-        top: -12, left: "9%", width: "70%", height: 11,
-        borderRadius: 5.5,
-        background: "linear-gradient(180deg, #f2f2f2 0%, #e2e2e2 45%, #c8c8c8 100%)",
-        boxShadow: [
-          "0 3px 9px rgba(0,0,0,0.50)",
-          "inset 0 1px 0 rgba(255,255,255,0.88)",
-          "inset 0 -0.5px 0 rgba(0,0,0,0.12)",
-          "0 0 0 0.5px rgba(0,0,0,0.20)",
-        ].join(", "),
-        zIndex: 10,
-      }}>
-        {/* Metall-Spitze rechts */}
-        <div style={{
-          position: "absolute", right: -8, top: 1.5, bottom: 1.5, width: 14,
-          borderRadius: "0 5px 5px 0",
-          background: "linear-gradient(180deg, #d5d5d5 0%, #ababab 100%)",
-          boxShadow: "0 0 0 0.5px rgba(0,0,0,0.22)",
-        }} />
-        {/* Dezente Trennlinie (Flat-Edge-Seite) */}
-        <div style={{
-          position: "absolute", left: "13%", top: 2, height: 7,
-          width: 1.5, borderRadius: 1, background: "rgba(0,0,0,0.14)",
-        }} />
-        {/* Mittige Naht */}
-        <div style={{
-          position: "absolute", left: "51%", top: 2, bottom: 2,
-          width: 0.5, background: "rgba(0,0,0,0.08)",
-        }} />
-      </div>
-
-      {/* Kamera: Oberkante zentriert */}
-      <div style={{
-        position: "absolute",
-        top: Math.round(bezel * 0.45) - 4,
+        top: Math.round(bezelTop * 0.46) - 3,
         left: "50%", transform: "translateX(-50%)",
-        width: 7, height: 7, borderRadius: "50%",
-        background: "radial-gradient(circle at 35% 35%, #2a2828, #0c0c0a)",
-        boxShadow: "0 0 0 1px rgba(0,0,0,0.65), 0 0 0 2.5px rgba(70,65,55,0.35)",
+        width: 8, height: 8, borderRadius: "50%",
+        background: "radial-gradient(circle at 35% 35%, #2e2c2a, #0c0c0a)",
+        boxShadow: "0 0 0 1.5px rgba(0,0,0,0.75), 0 0 0 3px rgba(55,50,42,0.45)",
       }} />
 
-      {/* Speaker LINKS – zentriert vertikal */}
-      <div style={{
-        position: "absolute", left: Math.round(bezel * 0.38), top: 0, bottom: 0,
-        display: "flex", alignItems: "center", justifyContent: "center",
-      }}>
-        <SpeakerGrille />
-      </div>
+      {/* Power-Taste – rechte Seite, oben */}
+      <div style={{ ...btnStyle, top: "21%", height: 32 }} />
 
-      {/* Speaker RECHTS – zentriert vertikal */}
-      <div style={{
-        position: "absolute", right: Math.round(bezel * 0.38), top: 0, bottom: 0,
-        display: "flex", alignItems: "center", justifyContent: "center",
-      }}>
-        <SpeakerGrille />
-      </div>
+      {/* Lautstärke + – rechte Seite */}
+      <div style={{ ...btnStyle, top: "37%", height: 36 }} />
 
-      {/* USB-C: Unterkante zentriert */}
+      {/* Lautstärke – – rechte Seite */}
+      <div style={{ ...btnStyle, top: "51%", height: 36 }} />
+
+      {/* USB-C – Unterkante zentriert */}
       <div style={{
         position: "absolute",
-        bottom: Math.round(bezel * 0.44),
+        bottom: Math.round(bezelBottom * 0.44),
         left: "50%", transform: "translateX(-50%)",
-        width: Math.round(deviceW * 0.04), height: 3,
+        width: Math.round(deviceW * 0.09), height: 3.5,
         borderRadius: 2,
-        background: "rgba(0,0,0,0.45)",
-        boxShadow: "inset 0 1px 0 rgba(0,0,0,0.35)",
+        background: "rgba(0,0,0,0.52)",
+        boxShadow: "inset 0 1px 0 rgba(0,0,0,0.5), 0 0 0 0.5px rgba(75,68,52,0.32)",
       }} />
+
+      {/* Lautsprecher links – Unterkante */}
+      <div style={{ position:"absolute", bottom: Math.round(bezelBottom * 0.42) - 0.5, left:"20%", display:"flex", gap:3 }}>
+        {[0,1,2,3].map(i => <div key={i} style={{ width:2, height:3.5, borderRadius:1, background:"rgba(0,0,0,0.52)", boxShadow:"0 0 0 0.5px rgba(75,68,52,0.24)" }} />)}
+      </div>
+
+      {/* Lautsprecher rechts – Unterkante */}
+      <div style={{ position:"absolute", bottom: Math.round(bezelBottom * 0.42) - 0.5, right:"20%", display:"flex", gap:3 }}>
+        {[0,1,2,3].map(i => <div key={i} style={{ width:2, height:3.5, borderRadius:1, background:"rgba(0,0,0,0.52)", boxShadow:"0 0 0 0.5px rgba(75,68,52,0.24)" }} />)}
+      </div>
 
       {/* Screen */}
       <div style={{
         position: "absolute",
-        top: bezel, left: bezel, right: bezel, bottom: bezel,
+        top: bezelTop, left: bezelSide, right: bezelSide, bottom: bezelBottom,
         borderRadius: innerR,
         background: "#0e0b07",
         overflow: "hidden",
-        boxShadow: "inset 0 0 0 1px rgba(0,0,0,0.7), inset 0 2px 14px rgba(0,0,0,0.6)",
+        boxShadow: "inset 0 0 0 1px rgba(0,0,0,0.78), inset 0 2px 18px rgba(0,0,0,0.7)",
       }}>
         {children}
       </div>
@@ -543,20 +504,22 @@ function FeaturesSection() {
     return () => clearInterval(id);
   }, []);
 
-  // "start start / end end" → progress 0 = sticky startet, progress 1 = sticky endet
   const { scrollYProgress } = useScroll({
     target: sectionRef,
     offset: ["start start", "end end"],
   });
 
-  // Phase 1 (0–18 %): iPad klappt hoch  |  Phase 2 (18–88 %): Features  |  Phase 3 (88–100 %): klappt zurück
-  const rotateX = useTransform(scrollYProgress, [0,    0.18, 0.88, 1.0], [18, 0,  0, 18]);
-  const scale   = useTransform(scrollYProgress, [0,    0.18, 0.88, 1.0], [0.88, 1, 1, 0.88]);
-  const iPadOp  = useTransform(scrollYProgress, [0,    0.07, 0.93, 1.0], [0.2,  1, 1, 0.2]);
+  // Phase 1 (0–15 %): iPad hebt sich aus der Fläche hoch
+  // Phase 2 (15–85 %): Features cyclen, iPad scrollt nach oben → Bottom wird sichtbar
+  // Phase 3 (85–100 %): iPad legt sich wieder hin
+  const rotateX    = useTransform(scrollYProgress, [0,    0.15, 0.85, 1.0], [65,   0,    0,    65  ]);
+  const scale      = useTransform(scrollYProgress, [0,    0.15, 0.85, 1.0], [0.80, 1,    1,    0.80]);
+  const iPadOp     = useTransform(scrollYProgress, [0,    0.06, 0.94, 1.0], [0,    1,    1,    0   ]);
+  // translateY: hebt iPad in Clip-Fenster, dann scrollt langsam nach oben → Bottom sichtbar
+  const iPadY      = useTransform(scrollYProgress, [0,    0.15, 0.85, 1.0], [30,  -50, -120,  -120 ]);
 
-  // Phase 2 (18–88 %): Features schalten durch
-  const featureRaw = useTransform(scrollYProgress, [0.18, 0.88], [0, FEATURES.length - 1]);
-
+  // Feature-Index aus Scroll
+  const featureRaw = useTransform(scrollYProgress, [0.18, 0.82], [0, FEATURES.length - 1]);
   useEffect(() => {
     const unsub = featureRaw.on("change", v => {
       setActiveIdx(Math.round(Math.min(Math.max(v, 0), FEATURES.length - 1)));
@@ -564,13 +527,15 @@ function FeaturesSection() {
     return unsub;
   }, [featureRaw]);
 
-  // iPad-Größe: Landscape-Format → mehr Breite, besseres Text-Layout
-  const deviceW = 580;
-  const deviceH = Math.round(deviceW * (834 / 1194)); // iPad Pro 11" landscape ≈ 406px
+  // Portrait-Dimensionen: iPad Pro 11" Hochformat
+  const deviceW = 320;
+  const deviceH = 460;
+  // Clip-Fenster: zeigt nur Mittelteil des iPads – enthüllt mit Scroll den Bottom
+  const CLIP_H  = 340;
 
   return (
     <section ref={sectionRef} id="features"
-      style={{ position:"relative", height:"570vh",
+      style={{ position:"relative", height:"600vh",
         borderTop:"1px solid rgba(240,236,227,0.07)" }}>
 
       {/* Top accent */}
@@ -579,58 +544,74 @@ function FeaturesSection() {
         zIndex:1, pointerEvents:"none" }}/>
 
       {/* Sticky viewport */}
-      <div style={{ position:"sticky", top:0, height:"100vh",
+      <div data-cursor="features" style={{ position:"sticky", top:0, height:"100vh",
         display:"flex", flexDirection:"column",
         alignItems:"center", justifyContent:"flex-start",
-        paddingTop:"2.5vh", overflow:"hidden" }}>
+        paddingTop:"3.5vh", overflow:"hidden" }}>
 
-        {/* Kompakte Überschrift */}
-        <div style={{ textAlign:"center", marginBottom:"1.5vh", zIndex:2, flexShrink:0 }}>
+        {/* Überschrift – immer sichtbar über dem iPad */}
+        <div style={{ textAlign:"center", marginBottom:"2.5vh", zIndex:2, flexShrink:0 }}>
           <div style={{ fontSize:"10px", fontWeight:700, letterSpacing:"0.18em",
             textTransform:"uppercase", color:"#e8600a",
             fontFamily:"'IBM Plex Sans',sans-serif", marginBottom:8 }}>
             Funktionen
           </div>
           <h2 style={{ fontFamily:"'Bebas Neue',sans-serif",
-            fontSize:"clamp(26px,3.2vw,44px)", color:"#f0ece3",
+            fontSize:"clamp(28px,3.4vw,46px)", color:"#f0ece3",
             letterSpacing:"0.04em", lineHeight:0.95, margin:"0 0 6px" }}>
             ALLES WAS DU <span style={{ color:"#e8600a" }}>BRAUCHST</span>
           </h2>
           <p style={{ fontFamily:"'IBM Plex Sans',sans-serif",
             fontSize:"clamp(11px,1vw,13px)", color:"rgba(240,236,227,0.4)",
-            maxWidth:380, margin:"0 auto" }}>
+            maxWidth:360, margin:"0 auto" }}>
             Sechs leistungsstarke Werkzeuge — für jeden BwR-Unterricht.
           </p>
         </div>
 
-        {/* ── Perspective auf Parent-div → echter Tilt-Effekt ── */}
-        <div style={{ perspective:"1800px", flexShrink:0, zIndex:2 }}>
-          <motion.div style={{ rotateX, scale, opacity: iPadOp }}>
+        {/* Clip-Fenster + Perspective: zeigt nur Ausschnitt des iPads */}
+        <div style={{
+          perspective: "900px",
+          perspectiveOrigin: "50% 35%",
+          overflow: "hidden",
+          height: `${CLIP_H}px`,
+          width: `${deviceW}px`,
+          flexShrink: 0,
+          zIndex: 2,
+        }}>
+          <motion.div style={{ rotateX, scale, opacity: iPadOp, y: iPadY, flexShrink: 0 }}>
             <IPadFrame deviceW={deviceW} deviceH={deviceH}>
+
               {/* Status-Bar */}
-              <div style={{ position:"absolute", top:0, left:0, right:0, height:20,
-                background:"rgba(14,11,7,0.9)",
+              <div style={{ position:"absolute", top:0, left:0, right:0, height:22,
+                background:"rgba(14,11,7,0.92)",
                 display:"flex", alignItems:"center", justifyContent:"space-between",
-                padding:"0 12px", zIndex:10 }}>
-                <span style={{ fontSize:9, fontWeight:700, color:"rgba(240,236,227,0.6)",
+                padding:"0 14px", zIndex:10 }}>
+                <span style={{ fontSize:10, fontWeight:700, color:"rgba(240,236,227,0.65)",
                   fontFamily:"'IBM Plex Sans',sans-serif" }}>{clock}</span>
-                <div style={{ display:"flex", gap:5, alignItems:"center" }}>
-                  <div style={{ width:16, height:7, borderRadius:1.5,
-                    border:"1px solid rgba(240,236,227,0.45)", position:"relative" }}>
-                    <div style={{ position:"absolute", top:1, left:1, bottom:1, right:4,
+                <div style={{ display:"flex", gap:4, alignItems:"center" }}>
+                  {/* Wifi */}
+                  <svg width="14" height="10" viewBox="0 0 14 10" fill="none">
+                    <path d="M7 8.5a.75.75 0 100 1.5.75.75 0 000-1.5z" fill="rgba(240,236,227,0.55)"/>
+                    <path d="M4.5 6.2C5.2 5.5 6 5.1 7 5.1s1.8.4 2.5 1.1" stroke="rgba(240,236,227,0.55)" strokeWidth="1" strokeLinecap="round" fill="none"/>
+                    <path d="M2.5 4.1A6.4 6.4 0 017 2.5a6.4 6.4 0 014.5 1.6" stroke="rgba(240,236,227,0.4)" strokeWidth="1" strokeLinecap="round" fill="none"/>
+                    <path d="M.5 2A9.3 9.3 0 017 0a9.3 9.3 0 016.5 2" stroke="rgba(240,236,227,0.25)" strokeWidth="1" strokeLinecap="round" fill="none"/>
+                  </svg>
+                  {/* Batterie */}
+                  <div style={{ width:18, height:9, borderRadius:2, border:"1px solid rgba(240,236,227,0.45)", position:"relative" }}>
+                    <div style={{ position:"absolute", top:1.5, left:1, bottom:1.5, right:5,
                       background:"rgba(240,236,227,0.55)", borderRadius:1 }} />
-                    <div style={{ position:"absolute", top:2, right:-4, width:2.5, height:3,
+                    <div style={{ position:"absolute", top:2.5, right:-3.5, width:2.5, height:4,
                       background:"rgba(240,236,227,0.4)", borderRadius:"0 1.5px 1.5px 0" }} />
                   </div>
                 </div>
               </div>
 
-              {/* Feature-Content – Landscape 2-Spalten-Layout */}
-              <div style={{ position:"absolute", inset:0, paddingTop:20, overflow:"hidden" }}>
+              {/* Feature-Content – Portrait Single-Column */}
+              <div style={{ position:"absolute", inset:0, paddingTop:22, overflow:"hidden" }}>
 
-                {/* Vertikale Dots – rechter Rand im Screen */}
+                {/* Vertikale Progress-Dots – rechter Rand */}
                 <div style={{
-                  position: "absolute", right: 11, top: "50%",
+                  position: "absolute", right: 10, top: "50%",
                   transform: "translateY(-50%)",
                   display: "flex", flexDirection: "column", gap: 7,
                   zIndex: 5, pointerEvents: "none",
@@ -638,9 +619,9 @@ function FeaturesSection() {
                   {FEATURES.map((_, i) => (
                     <div key={i} style={{
                       width: 5,
-                      height: i === activeIdx ? 22 : 5,
+                      height: i === activeIdx ? 24 : 5,
                       borderRadius: 3,
-                      background: i === activeIdx ? "#e8600a" : "rgba(240,236,227,0.22)",
+                      background: i === activeIdx ? "#e8600a" : "rgba(240,236,227,0.20)",
                       transition: "height 280ms ease, background 280ms ease",
                     }} />
                   ))}
@@ -653,75 +634,73 @@ function FeaturesSection() {
                     return (
                       <motion.div
                         key={activeIdx}
-                        initial={{ opacity:0, x:24 }}
-                        animate={{ opacity:1, x:0 }}
-                        exit={{ opacity:0, x:-24 }}
-                        transition={{ duration:0.24, ease:"easeOut" }}
+                        initial={{ opacity:0, y:20 }}
+                        animate={{ opacity:1, y:0 }}
+                        exit={{ opacity:0, y:-20 }}
+                        transition={{ duration:0.26, ease:"easeOut" }}
                         style={{
                           position:"absolute", inset:0,
-                          display:"flex", flexDirection:"row",
-                          background:"linear-gradient(170deg, #1a1208 0%, #141008 60%, #0e0b07 100%)",
+                          display:"flex", flexDirection:"column",
+                          alignItems:"center", justifyContent:"center",
+                          background:"linear-gradient(170deg, #1a1208 0%, #141008 55%, #0e0b07 100%)",
+                          padding:"16px 22px 20px",
+                          textAlign:"center",
                           overflow:"hidden",
                         }}
                       >
-                        {/* ── LINKE SPALTE: Nummer · Icon · Tag ── */}
-                        <div style={{
-                          width:172, flexShrink:0,
-                          display:"flex", flexDirection:"column",
-                          alignItems:"center", justifyContent:"center",
-                          padding:"16px 16px 20px",
-                          borderRight:"1px solid rgba(240,236,227,0.06)",
-                          background:"rgba(232,96,10,0.025)",
-                        }}>
-                          <span style={{ fontSize:"10px", fontWeight:700, letterSpacing:"0.22em",
-                            color:"rgba(232,96,10,0.6)", fontFamily:"'IBM Plex Sans',sans-serif",
-                            marginBottom:16 }}>
-                            {f.nr} <span style={{ color:"rgba(240,236,227,0.22)" }}>/ 06</span>
+                        {/* Nummer + Tag */}
+                        <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:16 }}>
+                          <span style={{ fontSize:"10px", fontWeight:700, letterSpacing:"0.2em",
+                            color:"rgba(232,96,10,0.65)", fontFamily:"'IBM Plex Sans',sans-serif" }}>
+                            {f.nr}<span style={{ color:"rgba(240,236,227,0.22)" }}> / 06</span>
                           </span>
-                          <div style={{ width:70, height:70, borderRadius:22,
-                            background:"rgba(232,96,10,0.12)",
-                            border:"1px solid rgba(232,96,10,0.22)",
-                            display:"flex", alignItems:"center", justifyContent:"center",
-                            boxShadow:"0 0 32px rgba(232,96,10,0.18)",
-                            marginBottom:18 }}>
-                            <Ic size={34} strokeWidth={1.5} color="#e8600a" />
-                          </div>
-                          <span style={{ padding:"3px 12px", borderRadius:10,
+                          <span style={{ padding:"3px 10px", borderRadius:8,
                             background:"rgba(232,96,10,0.12)", border:"1px solid rgba(232,96,10,0.22)",
                             fontSize:"9px", fontWeight:700, color:"#e8600a",
-                            letterSpacing:"0.14em", textTransform:"uppercase",
+                            letterSpacing:"0.12em", textTransform:"uppercase",
                             fontFamily:"'IBM Plex Sans',sans-serif" }}>
                             {f.tag}
                           </span>
                         </div>
 
-                        {/* ── RECHTE SPALTE: Text ── */}
-                        <div style={{
-                          flex:1, display:"flex", flexDirection:"column",
-                          justifyContent:"center",
-                          padding:"20px 26px 20px 22px",
-                        }}>
-                          <div style={{ fontFamily:"'Bebas Neue',sans-serif",
-                            fontSize:"27px", color:"#f0ece3",
-                            letterSpacing:"0.04em", lineHeight:1.05, marginBottom:9 }}>
-                            {f.title}
-                          </div>
-                          <div style={{ fontSize:"11px", fontWeight:600,
-                            color:"rgba(240,236,227,0.38)", letterSpacing:"0.06em",
-                            fontFamily:"'IBM Plex Sans',sans-serif", marginBottom:14 }}>
-                            {f.sub}
-                          </div>
-                          <div style={{ height:1, background:"rgba(240,236,227,0.08)", marginBottom:14 }} />
-                          <div style={{ fontSize:"13px", color:"rgba(240,236,227,0.76)",
-                            lineHeight:1.68, fontFamily:"'IBM Plex Sans',sans-serif" }}>
-                            {f.desc}
-                          </div>
+                        {/* Icon */}
+                        <div style={{ width:62, height:62, borderRadius:20,
+                          background:"rgba(232,96,10,0.11)", border:"1px solid rgba(232,96,10,0.22)",
+                          display:"flex", alignItems:"center", justifyContent:"center",
+                          boxShadow:"0 0 28px rgba(232,96,10,0.18), inset 0 1px 0 rgba(255,160,60,0.08)",
+                          marginBottom:16 }}>
+                          <Ic size={30} strokeWidth={1.5} color="#e8600a" />
+                        </div>
+
+                        {/* Titel */}
+                        <div style={{ fontFamily:"'Bebas Neue',sans-serif",
+                          fontSize:"22px", color:"#f0ece3",
+                          letterSpacing:"0.04em", lineHeight:1.1, marginBottom:6 }}>
+                          {f.title}
+                        </div>
+
+                        {/* Subtitle */}
+                        <div style={{ fontSize:"10px", fontWeight:600,
+                          color:"rgba(240,236,227,0.35)", letterSpacing:"0.06em",
+                          fontFamily:"'IBM Plex Sans',sans-serif", marginBottom:14 }}>
+                          {f.sub}
+                        </div>
+
+                        {/* Divider */}
+                        <div style={{ width:"80%", height:1, background:"rgba(240,236,227,0.07)", marginBottom:14 }} />
+
+                        {/* Beschreibung */}
+                        <div style={{ fontSize:"11.5px", color:"rgba(240,236,227,0.72)",
+                          lineHeight:1.65, fontFamily:"'IBM Plex Sans',sans-serif",
+                          maxWidth:230 }}>
+                          {f.desc}
                         </div>
                       </motion.div>
                     );
                   })()}
                 </AnimatePresence>
               </div>
+
             </IPadFrame>
           </motion.div>
         </div>
