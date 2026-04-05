@@ -74,7 +74,7 @@ export default function BuchungsWerk({ gastModus = false }) {
   };
 
   const reset = () => { setSchritt(1); setConfig(null); setFirma(null); setInitialAufgaben(null); setIsVonURL(false); };
-  const navEnter = (label) => { clearTimeout(hoverTimerRef.current); setHoveredNav(label); blurSourcesRef.current.nav = 1; updateBlur(); };
+  const navEnter = (label, level = 1) => { clearTimeout(hoverTimerRef.current); setHoveredNav(label); blurSourcesRef.current.nav = level; updateBlur(); };
   const navLeave = () => { hoverTimerRef.current = setTimeout(() => { setHoveredNav(null); blurSourcesRef.current.nav = 0; updateBlur(); }, 80); };
 
   const materialLaden = ({ config: c, firma: f, aufgaben: a }) => {
@@ -380,8 +380,8 @@ export default function BuchungsWerk({ gastModus = false }) {
                         animation:"bw-nav-expand 0.22s cubic-bezier(0.34,1.56,0.64,1)",
                         overflow:"hidden",
                       }}
-                      onMouseEnter={() => navEnter(label)}
-                      onMouseLeave={() => navLeave()}>
+                      onMouseEnter={() => navEnter(label, 2)}
+                      onMouseLeave={() => navEnter(label, 1)}>
                         {/* Layer 1: backdrop + gradient + SVG distort */}
                         <div style={{
                           position:"absolute", inset:0, borderRadius:12,
