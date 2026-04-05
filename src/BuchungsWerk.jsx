@@ -54,12 +54,25 @@ export default function BuchungsWerk({ gastModus = false }) {
   const [configVersion, setConfigVersion] = useState(0);
   const [initialAufgaben, setInitialAufgaben] = useState(null);
   const [hoveredNav, setHoveredNav] = useState(null);
-  const [dropdownOffen, setDropdownOffen] = useState(false);
   const hoverTimerRef = useRef(null);
+  const contentBlurRef = useRef(null);
+
+  // Direktes DOM-Update – kein React render, kein State, kein CSS-Konflikt
+  const applyBlur = (level) => {
+    if (!contentBlurRef.current) return;
+    const el = contentBlurRef.current;
+    if (level === 2) {
+      el.style.filter = "blur(8px) brightness(0.60)";
+    } else if (level === 1) {
+      el.style.filter = "blur(4px) brightness(0.72)";
+    } else {
+      el.style.filter = "";
+    }
+  };
 
   const reset = () => { setSchritt(1); setConfig(null); setFirma(null); setInitialAufgaben(null); setIsVonURL(false); };
-  const navEnter = (label) => { clearTimeout(hoverTimerRef.current); setHoveredNav(label); };
-  const navLeave = () => { hoverTimerRef.current = setTimeout(() => setHoveredNav(null), 80); };
+  const navEnter = (label) => { clearTimeout(hoverTimerRef.current); setHoveredNav(label); applyBlur(1); };
+  const navLeave = () => { hoverTimerRef.current = setTimeout(() => { setHoveredNav(null); applyBlur(0); }, 80); };
 
   const materialLaden = ({ config: c, firma: f, aufgaben: a }) => {
     setConfig(c);
@@ -79,7 +92,7 @@ export default function BuchungsWerk({ gastModus = false }) {
   useEffect(() => {
     const openMastery   = () => setMasteryOffen(true);
     const openSettings  = () => setEinstellungenOffen(true);
-    const onDropdown    = (e) => setDropdownOffen(e.detail?.open ?? false);
+    const onDropdown    = (e) => applyBlur(e.detail?.open ? 1 : 0);
     window.addEventListener("bw:mastery",   openMastery);
     window.addEventListener("bw:settings",  openSettings);
     window.addEventListener("bw:dropdown",  onDropdown);
@@ -147,7 +160,7 @@ export default function BuchungsWerk({ gastModus = false }) {
           <div style={{ position:"fixed", top:62, bottom:56, left:0, right:0, zIndex:150,
             background:"rgba(0,0,0,0.15)",
             animation:"bw-backdrop 0.18s ease" }}
-            onClick={() => setBibliothekPickerOffen(false)} />
+            onClick={() => { setBibliothekPickerOffen(false); applyBlur(0); }} />
           <div style={{ position:"fixed", bottom:72, left:8, right:8, zIndex:151,
             animation:"bw-picker-up 0.32s cubic-bezier(0.34,1.56,0.64,1)",
             background:"rgba(12,8,2,0.98)", backdropFilter:"blur(28px)", WebkitBackdropFilter:"blur(28px)",
@@ -155,8 +168,8 @@ export default function BuchungsWerk({ gastModus = false }) {
             borderRadius:16, padding:"10px",
             display:"flex", gap:8, boxShadow:"0 -12px 48px rgba(0,0,0,0.75), 0 0 0 1px rgba(232,96,10,0.08)" }}>
             {[
-              { icon: BookOpen,   label:"Materialien",   sub:"Geteilte Aufgabensets laden",    action: () => { setBibliothekPickerOffen(false); setMaterialienStartOffen(true); } },
-              { icon: FolderOpen, label:"Eigene Belege", sub:"Selbst erstellte Belege öffnen", action: () => { setBibliothekPickerOffen(false); setEigeneBelegeOffen(true); } },
+              { icon: BookOpen,   label:"Materialien",   sub:"Geteilte Aufgabensets laden",    action: () => { applyBlur(0); setBibliothekPickerOffen(false); setMaterialienStartOffen(true); } },
+              { icon: FolderOpen, label:"Eigene Belege", sub:"Selbst erstellte Belege öffnen", action: () => { applyBlur(0); setBibliothekPickerOffen(false); setEigeneBelegeOffen(true); } },
             ].map(({ icon: Icon, label, sub, action }) => (
               <button key={label} onClick={action} className="bw-picker-btn"
                 style={{ flex:1, display:"flex", alignItems:"center", gap:12, padding:"12px 18px", borderRadius:12,
@@ -268,14 +281,7 @@ export default function BuchungsWerk({ gastModus = false }) {
       {/* ── CONTENT ─────────────────────────────────────────────────────────── */}
       {!gastModus && <SupportButton />}
       <div style={{ ...S.container, paddingBottom: 16 }}>
-        <div style={{
-          transition: "filter 0.22s ease",
-          filter: bibliothekPickerOffen
-            ? "blur(7px) brightness(0.65)"
-            : dropdownOffen || hoveredNav !== null
-            ? "blur(3px) brightness(0.78)"
-            : "none",
-        }}>
+        <div ref={contentBlurRef} style={{ transition: "filter 0.22s ease" }}>
           {schritt === 1 && <SchrittTyp onWeiter={cfg => { setConfig(cfg); if (skipFirma) { setSkipFirma(false); setSchritt(3); if (!gastModus) setStreak(aktualisiereStreak()); } else setSchritt(2); }} onBelegEditor={() => setBelegEditorOffen(true)} onEigeneBelege={() => setEigeneBelegeOffen(true)} onSimulation={() => setSchritt(4)} initialConfig={skipFirma ? config : null} />}
           {schritt === 2 && <SchrittFirma config={config} onWeiter={f => { setFirma(f); setSchritt(3); if (!gastModus) setStreak(aktualisiereStreak()); }} onZurueck={() => setSchritt(1)} />}
           {schritt === 3 && <ErrorBoundary><SchrittAufgaben key={configVersion} config={config} firma={firma} initialAufgaben={initialAufgaben} onNeu={reset} onMaterialLaden={materialLaden} onThemen={zuThemen} onFirma={zuFirma} aufgabenRef={aufgabenForQuizRef} /></ErrorBoundary>}
@@ -316,7 +322,7 @@ export default function BuchungsWerk({ gastModus = false }) {
             {/* ── Nav items ── */}
             {[
               { icon: BookOpen,      label:"Bibliothek",    active: bibliothekPickerOffen,
-                action: () => setBibliothekPickerOffen(v => !v),
+                action: () => setBibliothekPickerOffen(v => { applyBlur(v ? 0 : 2); return !v; }),
                 expandItems: [
                   { icon: BookOpen,   label:"Materialien",   sub:"Aufgabensets laden",      action: () => { setBibliothekPickerOffen(false); setMaterialienStartOffen(true); } },
                   { icon: FolderOpen, label:"Eigene Belege", sub:"Selbst erstellte Belege", action: () => { setBibliothekPickerOffen(false); setEigeneBelegeOffen(true); } },
