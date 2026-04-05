@@ -516,7 +516,8 @@ function FeaturesSection() {
   const scale      = useTransform(scrollYProgress, [0,    0.15, 0.85, 1.0], [0.80, 1,    1,    0.80]);
   const iPadOp     = useTransform(scrollYProgress, [0,    0.06, 0.94, 1.0], [0,    1,    1,    0   ]);
   // translateY: hebt iPad in Clip-Fenster, dann scrollt langsam nach oben → Bottom sichtbar
-  const iPadY      = useTransform(scrollYProgress, [0,    0.15, 0.85, 1.0], [30,  -50, -120,  -120 ]);
+  // iPad 543px, Clip 390px → Mitte bei y=-76, Bottom bei y=-153
+  const iPadY      = useTransform(scrollYProgress, [0,    0.15, 0.85, 1.0], [30,  -76, -153,  -153 ]);
 
   // Feature-Index aus Scroll
   const featureRaw = useTransform(scrollYProgress, [0.18, 0.82], [0, FEATURES.length - 1]);
@@ -528,10 +529,10 @@ function FeaturesSection() {
   }, [featureRaw]);
 
   // Portrait-Dimensionen: iPad Pro 11" Hochformat
-  const deviceW = 320;
-  const deviceH = 460;
+  const deviceW = 380;
+  const deviceH = 543;
   // Clip-Fenster: zeigt nur Mittelteil des iPads – enthüllt mit Scroll den Bottom
-  const CLIP_H  = 340;
+  const CLIP_H  = 390;
 
   return (
     <section ref={sectionRef} id="features"
@@ -547,10 +548,10 @@ function FeaturesSection() {
       <div data-cursor="features" style={{ position:"sticky", top:0, height:"100vh",
         display:"flex", flexDirection:"column",
         alignItems:"center", justifyContent:"flex-start",
-        paddingTop:"3.5vh", overflow:"hidden" }}>
+        paddingTop: 80, overflow:"hidden" }}>
 
         {/* Überschrift – immer sichtbar über dem iPad */}
-        <div style={{ textAlign:"center", marginBottom:"2.5vh", zIndex:2, flexShrink:0 }}>
+        <div style={{ textAlign:"center", marginBottom:18, zIndex:2, flexShrink:0 }}>
           <div style={{ fontSize:"10px", fontWeight:700, letterSpacing:"0.18em",
             textTransform:"uppercase", color:"#e8600a",
             fontFamily:"'IBM Plex Sans',sans-serif", marginBottom:8 }}>
@@ -568,16 +569,20 @@ function FeaturesSection() {
           </p>
         </div>
 
-        {/* Clip-Fenster + Perspective: zeigt nur Ausschnitt des iPads */}
+        {/* Clip-Fenster: volle Breite + CSS-Maske → kein sichtbares Rechteck */}
         <div style={{
-          perspective: "900px",
-          perspectiveOrigin: "50% 35%",
-          overflow: "hidden",
+          width: "100%",
           height: `${CLIP_H}px`,
-          width: `${deviceW}px`,
+          overflow: "hidden",
           flexShrink: 0,
           zIndex: 2,
+          display: "flex",
+          justifyContent: "center",
+          WebkitMaskImage: "linear-gradient(to bottom, transparent 0%, black 9%, black 93%, transparent 100%)",
+          maskImage: "linear-gradient(to bottom, transparent 0%, black 9%, black 93%, transparent 100%)",
         }}>
+          {/* Perspective-Wrapper direkt um das bewegte iPad */}
+          <div style={{ perspective: "900px", perspectiveOrigin: "50% 35%", flexShrink: 0 }}>
           <motion.div style={{ rotateX, scale, opacity: iPadOp, y: iPadY, flexShrink: 0 }}>
             <IPadFrame deviceW={deviceW} deviceH={deviceH}>
 
@@ -703,7 +708,8 @@ function FeaturesSection() {
 
             </IPadFrame>
           </motion.div>
-        </div>
+          </div>{/* /perspective-wrapper */}
+        </div>{/* /clip-fenster */}
 
       </div>
     </section>
