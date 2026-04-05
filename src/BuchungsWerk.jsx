@@ -99,19 +99,17 @@ export default function BuchungsWerk({ gastModus = false }) {
       {materialienStartOffen && <MaterialienModal onSchliessen={() => setMaterialienStartOffen(false)} onLaden={materialLaden} />}
       {apUebungOffen && <APUebungModal onSchliessen={() => setApUebungOffen(false)} />}
 
-      {/* ── Hover-Scrim: Level 1 – sanftes Abdunkeln + minimaler Blur ── */}
+      {/* ── Hover-Scrim: Level 1 – nur Overlay, kein backdrop-filter ── */}
       {hoveredNav !== null && (
         <div style={{
           position:"fixed", top:62, bottom:56, left:0, right:0,
           zIndex:99, pointerEvents:"none",
-          backdropFilter:"blur(2px) brightness(0.78)",
-          WebkitBackdropFilter:"blur(2px) brightness(0.78)",
-          background:"rgba(0,0,0,0.14)",
+          background:"rgba(0,0,0,0.08)",
           animation:"bw-backdrop 0.15s ease",
         }} />
       )}
 
-      {/* CSS Animations */}
+      {/* CSS Animations + Blur-Klassen */}
       <style>{`
         @keyframes bw-picker-up {
           from { opacity:0; transform:translateY(18px) scale(0.96); }
@@ -137,13 +135,27 @@ export default function BuchungsWerk({ gastModus = false }) {
           border-color: rgba(232,96,10,0.4) !important;
           transform: translateY(-2px) !important;
         }
+        /* Direkter filter auf Content – kein backdrop-filter Compound-Problem */
+        .bw-step-content {
+          transition: filter 0.18s ease;
+          will-change: filter;
+        }
+        .bw-step-content.blur-l1 {
+          filter: blur(3px) brightness(0.80);
+        }
+        .bw-step-content.blur-l2 {
+          filter: blur(6px) brightness(0.68);
+        }
+        body.bw-dropdown-open .bw-step-content {
+          filter: blur(3px) brightness(0.80);
+        }
       `}</style>
 
       {/* Bibliothek-Picker — animiertes Bottom-Sheet */}
       {bibliothekPickerOffen && (
         <>
           <div style={{ position:"fixed", top:62, bottom:56, left:0, right:0, zIndex:150,
-            background:"rgba(0,0,0,0.28)", backdropFilter:"blur(4px) brightness(0.70)", WebkitBackdropFilter:"blur(4px) brightness(0.70)",
+            background:"rgba(0,0,0,0.15)",
             animation:"bw-backdrop 0.18s ease" }}
             onClick={() => setBibliothekPickerOffen(false)} />
           <div style={{ position:"fixed", bottom:72, left:8, right:8, zIndex:151,
@@ -264,12 +276,15 @@ export default function BuchungsWerk({ gastModus = false }) {
       </div>
 
       {/* ── CONTENT ─────────────────────────────────────────────────────────── */}
+      {!gastModus && <SupportButton />}
       <div style={{ ...S.container, paddingBottom: 16 }}>
-        {!gastModus && <SupportButton />}
-        {schritt === 1 && <SchrittTyp onWeiter={cfg => { setConfig(cfg); if (skipFirma) { setSkipFirma(false); setSchritt(3); if (!gastModus) setStreak(aktualisiereStreak()); } else setSchritt(2); }} onBelegEditor={() => setBelegEditorOffen(true)} onEigeneBelege={() => setEigeneBelegeOffen(true)} onSimulation={() => setSchritt(4)} initialConfig={skipFirma ? config : null} />}
-        {schritt === 2 && <SchrittFirma config={config} onWeiter={f => { setFirma(f); setSchritt(3); if (!gastModus) setStreak(aktualisiereStreak()); }} onZurueck={() => setSchritt(1)} />}
-        {schritt === 3 && <ErrorBoundary><SchrittAufgaben key={configVersion} config={config} firma={firma} initialAufgaben={initialAufgaben} onNeu={reset} onMaterialLaden={materialLaden} onThemen={zuThemen} onFirma={zuFirma} aufgabenRef={aufgabenForQuizRef} /></ErrorBoundary>}
-        {schritt === 4 && <ErrorBoundary><SimulationModus onZurueck={reset} onVonURLDetected={() => setIsVonURL(true)} onRegisterReset={fn => { simResetFnRef.current = fn; }} /></ErrorBoundary>}
+        {/* bw-step-content bekommt direkten CSS-filter (kein backdrop-filter) */}
+        <div className={`bw-step-content${bibliothekPickerOffen ? " blur-l2" : hoveredNav !== null ? " blur-l1" : ""}`}>
+          {schritt === 1 && <SchrittTyp onWeiter={cfg => { setConfig(cfg); if (skipFirma) { setSkipFirma(false); setSchritt(3); if (!gastModus) setStreak(aktualisiereStreak()); } else setSchritt(2); }} onBelegEditor={() => setBelegEditorOffen(true)} onEigeneBelege={() => setEigeneBelegeOffen(true)} onSimulation={() => setSchritt(4)} initialConfig={skipFirma ? config : null} />}
+          {schritt === 2 && <SchrittFirma config={config} onWeiter={f => { setFirma(f); setSchritt(3); if (!gastModus) setStreak(aktualisiereStreak()); }} onZurueck={() => setSchritt(1)} />}
+          {schritt === 3 && <ErrorBoundary><SchrittAufgaben key={configVersion} config={config} firma={firma} initialAufgaben={initialAufgaben} onNeu={reset} onMaterialLaden={materialLaden} onThemen={zuThemen} onFirma={zuFirma} aufgabenRef={aufgabenForQuizRef} /></ErrorBoundary>}
+          {schritt === 4 && <ErrorBoundary><SimulationModus onZurueck={reset} onVonURLDetected={() => setIsVonURL(true)} onRegisterReset={fn => { simResetFnRef.current = fn; }} /></ErrorBoundary>}
+        </div>
       </div>
 
       {/* Spacer für fixe Bottom-Bar */}

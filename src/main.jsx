@@ -962,6 +962,13 @@ function UserBadge({ user, onLogout, onUserUpdate }) {
     return () => document.removeEventListener("mousedown", handler);
   }, [open]);
 
+  // Body-Klasse setzen → CSS-filter auf .bw-step-content (kein backdrop-filter Compound)
+  useEffect(() => {
+    if (open) document.body.classList.add("bw-dropdown-open");
+    else document.body.classList.remove("bw-dropdown-open");
+    return () => document.body.classList.remove("bw-dropdown-open");
+  }, [open]);
+
   const menuItem = (icon, label, onClick, danger) => (
     <button onClick={() => { setOpen(false); onClick(); }} style={{
       width: "100%", padding: "8px 12px",
@@ -1020,15 +1027,7 @@ function UserBadge({ user, onLogout, onUserUpdate }) {
             }
           `}</style>
 
-          {/* Scrim Level 1 – sanft, nur Content-Bereich */}
-          <div style={{
-            position: "fixed", top: 62, bottom: 56, left: 0, right: 0,
-            zIndex: 490, pointerEvents: "none",
-            backdropFilter: "blur(2px) brightness(0.80)",
-            WebkitBackdropFilter: "blur(2px) brightness(0.80)",
-            background: "rgba(0,0,0,0.12)",
-            animation: "bw-scrim 0.15s ease",
-          }} />
+          {/* Kein Scrim-Overlay – Blur via body.bw-dropdown-open CSS-Klasse auf .bw-step-content */}
 
           {/* 3-Layer Liquid-Glass Dropdown */}
           <div style={{
