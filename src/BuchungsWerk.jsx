@@ -56,23 +56,26 @@ export default function BuchungsWerk({ gastModus = false }) {
   const [hoveredNav, setHoveredNav] = useState(null);
   const hoverTimerRef = useRef(null);
   const contentBlurRef = useRef(null);
+  // Jede Blur-Quelle hält ihr eigenes Level – updateBlur() nimmt immer das Maximum.
+  // Verhindert, dass navLeave/dropdown-close ein höher-priorisiertes bibliothek-Level löscht.
+  const blurSourcesRef = useRef({ nav: 0, bibliothek: 0, dropdown: 0 });
 
-  // Direktes DOM-Update – kein React render, kein State, kein CSS-Konflikt
-  const applyBlur = (level) => {
-    if (!contentBlurRef.current) return;
+  const updateBlur = () => {
     const el = contentBlurRef.current;
-    if (level === 2) {
-      el.style.filter = "blur(8px) brightness(0.60)";
-    } else if (level === 1) {
-      el.style.filter = "blur(4px) brightness(0.72)";
-    } else {
-      el.style.filter = "";
-    }
+    if (!el) return;
+    const level = Math.max(
+      blurSourcesRef.current.nav,
+      blurSourcesRef.current.bibliothek,
+      blurSourcesRef.current.dropdown,
+    );
+    el.style.filter = level === 2 ? "blur(10px) brightness(0.55)"
+                    : level === 1 ? "blur(5px) brightness(0.70)"
+                    : "";
   };
 
   const reset = () => { setSchritt(1); setConfig(null); setFirma(null); setInitialAufgaben(null); setIsVonURL(false); };
-  const navEnter = (label) => { clearTimeout(hoverTimerRef.current); setHoveredNav(label); applyBlur(1); };
-  const navLeave = () => { hoverTimerRef.current = setTimeout(() => { setHoveredNav(null); applyBlur(0); }, 80); };
+  const navEnter = (label) => { clearTimeout(hoverTimerRef.current); setHoveredNav(label); blurSourcesRef.current.nav = 1; updateBlur(); };
+  const navLeave = () => { hoverTimerRef.current = setTimeout(() => { setHoveredNav(null); blurSourcesRef.current.nav = 0; updateBlur(); }, 80); };
 
   const materialLaden = ({ config: c, firma: f, aufgaben: a }) => {
     setConfig(c);
@@ -92,7 +95,7 @@ export default function BuchungsWerk({ gastModus = false }) {
   useEffect(() => {
     const openMastery   = () => setMasteryOffen(true);
     const openSettings  = () => setEinstellungenOffen(true);
-    const onDropdown    = (e) => applyBlur(e.detail?.open ? 1 : 0);
+    const onDropdown    = (e) => { blurSourcesRef.current.dropdown = e.detail?.open ? 1 : 0; updateBlur(); };
     window.addEventListener("bw:mastery",   openMastery);
     window.addEventListener("bw:settings",  openSettings);
     window.addEventListener("bw:dropdown",  onDropdown);
@@ -160,7 +163,7 @@ export default function BuchungsWerk({ gastModus = false }) {
           <div style={{ position:"fixed", top:62, bottom:56, left:0, right:0, zIndex:150,
             background:"rgba(0,0,0,0.15)",
             animation:"bw-backdrop 0.18s ease" }}
-            onClick={() => { setBibliothekPickerOffen(false); applyBlur(0); }} />
+            onClick={() => { blurSourcesRef.current.bibliothek = 0; updateBlur(); setBibliothekPickerOffen(false); }} />
           <div style={{ position:"fixed", bottom:72, left:8, right:8, zIndex:151,
             animation:"bw-picker-up 0.32s cubic-bezier(0.34,1.56,0.64,1)",
             background:"rgba(12,8,2,0.98)", backdropFilter:"blur(28px)", WebkitBackdropFilter:"blur(28px)",
@@ -168,8 +171,8 @@ export default function BuchungsWerk({ gastModus = false }) {
             borderRadius:16, padding:"10px",
             display:"flex", gap:8, boxShadow:"0 -12px 48px rgba(0,0,0,0.75), 0 0 0 1px rgba(232,96,10,0.08)" }}>
             {[
-              { icon: BookOpen,   label:"Materialien",   sub:"Geteilte Aufgabensets laden",    action: () => { applyBlur(0); setBibliothekPickerOffen(false); setMaterialienStartOffen(true); } },
-              { icon: FolderOpen, label:"Eigene Belege", sub:"Selbst erstellte Belege öffnen", action: () => { applyBlur(0); setBibliothekPickerOffen(false); setEigeneBelegeOffen(true); } },
+              { icon: BookOpen,   label:"Materialien",   sub:"Geteilte Aufgabensets laden",    action: () => { blurSourcesRef.current.bibliothek = 0; updateBlur(); setBibliothekPickerOffen(false); setMaterialienStartOffen(true); } },
+              { icon: FolderOpen, label:"Eigene Belege", sub:"Selbst erstellte Belege öffnen", action: () => { blurSourcesRef.current.bibliothek = 0; updateBlur(); setBibliothekPickerOffen(false); setEigeneBelegeOffen(true); } },
             ].map(({ icon: Icon, label, sub, action }) => (
               <button key={label} onClick={action} className="bw-picker-btn"
                 style={{ flex:1, display:"flex", alignItems:"center", gap:12, padding:"12px 18px", borderRadius:12,
@@ -322,7 +325,7 @@ export default function BuchungsWerk({ gastModus = false }) {
             {/* ── Nav items ── */}
             {[
               { icon: BookOpen,      label:"Bibliothek",    active: bibliothekPickerOffen,
-                action: () => setBibliothekPickerOffen(v => { applyBlur(v ? 0 : 2); return !v; }),
+                action: () => setBibliothekPickerOffen(v => { blurSourcesRef.current.bibliothek = v ? 0 : 2; updateBlur(); return !v; }),
                 expandItems: [
                   { icon: BookOpen,   label:"Materialien",   sub:"Aufgabensets laden",      action: () => { setBibliothekPickerOffen(false); setMaterialienStartOffen(true); } },
                   { icon: FolderOpen, label:"Eigene Belege", sub:"Selbst erstellte Belege", action: () => { setBibliothekPickerOffen(false); setEigeneBelegeOffen(true); } },
