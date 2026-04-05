@@ -99,12 +99,14 @@ export default function BuchungsWerk({ gastModus = false }) {
       {materialienStartOffen && <MaterialienModal onSchliessen={() => setMaterialienStartOffen(false)} onLaden={materialLaden} />}
       {apUebungOffen && <APUebungModal onSchliessen={() => setApUebungOffen(false)} />}
 
-      {/* ── Globaler Dimm-Scrim – nur Darkening, kein backdrop-filter (SVG-Filter-Konflikt) ── */}
+      {/* ── Hover-Scrim: Level 1 – sanftes Abdunkeln + minimaler Blur ── */}
       {hoveredNav !== null && (
         <div style={{
           position:"fixed", top:62, bottom:56, left:0, right:0,
           zIndex:99, pointerEvents:"none",
-          background:"rgba(0,0,0,0.18)",
+          backdropFilter:"blur(2px) brightness(0.78)",
+          WebkitBackdropFilter:"blur(2px) brightness(0.78)",
+          background:"rgba(0,0,0,0.14)",
           animation:"bw-backdrop 0.15s ease",
         }} />
       )}
@@ -141,7 +143,7 @@ export default function BuchungsWerk({ gastModus = false }) {
       {bibliothekPickerOffen && (
         <>
           <div style={{ position:"fixed", top:62, bottom:56, left:0, right:0, zIndex:150,
-            background:"rgba(0,0,0,0.42)", backdropFilter:"blur(4px) brightness(0.88)", WebkitBackdropFilter:"blur(4px) brightness(0.88)",
+            background:"rgba(0,0,0,0.28)", backdropFilter:"blur(4px) brightness(0.70)", WebkitBackdropFilter:"blur(4px) brightness(0.70)",
             animation:"bw-backdrop 0.18s ease" }}
             onClick={() => setBibliothekPickerOffen(false)} />
           <div style={{ position:"fixed", bottom:72, left:8, right:8, zIndex:151,
