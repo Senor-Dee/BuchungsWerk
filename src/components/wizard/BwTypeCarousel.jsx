@@ -112,11 +112,13 @@ export function BwTypeCarousel({ onSelect, selectedId }) {
     const onWheel = (e) => {
       if (isSnapRef.current) return;
       e.preventDefault();
-      applyRot(rotRef.current + e.deltaY * 0.30);
+      // Normalisiertes Delta: Mausrad und Trackpad angleichen, Beschleunigung begrenzen
+      const dy = Math.sign(e.deltaY) * Math.min(Math.abs(e.deltaY), 80);
+      applyRot(rotRef.current + dy * 0.22);
       const fi = getFront(rotRef.current);
       if (fi !== frontIdxRef.current) setFrontIdx(fi);
       clearTimeout(wheelTimerRef.current);
-      wheelTimerRef.current = setTimeout(() => snapTo(getFront(rotRef.current)), 160);
+      wheelTimerRef.current = setTimeout(() => snapTo(getFront(rotRef.current)), 280);
     };
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => el.removeEventListener('wheel', onWheel);

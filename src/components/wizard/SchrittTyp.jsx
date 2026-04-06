@@ -31,6 +31,12 @@ export function SchrittTyp({ onWeiter, onBelegEditor, onEigeneBelege, onSimulati
     }
   }, [heroCollapsed]);
 
+  // Body-Scroll sperren solange Karussell aktiv – kein Konflikt mit Wheel-Drehen
+  useEffect(() => {
+    document.body.style.overflow = heroCollapsed ? '' : 'hidden';
+    return () => { document.body.style.overflow = ''; };
+  }, [heroCollapsed]);
+
   const TYPE_META = {
     'Übung':        { Icon: PenLine,       sub: 'Aufgaben üben' },
     'Prüfung':      { Icon: ClipboardList, sub: 'Schulaufgabe' },
@@ -192,7 +198,7 @@ export function SchrittTyp({ onWeiter, onBelegEditor, onEigeneBelege, onSimulati
     <div style={{ background: "transparent" }}>
 
       {/* ── HERO ── */}
-      <div style={{ padding: "32px 16px 24px" }}>
+      <div style={{ padding: "0 16px" }}>
         <div style={{ maxWidth: "860px", margin: "0 auto" }}>
 
           {/* ── Slim-Bar: erscheint nach Auswahl (Morph-Effekt) ── */}
@@ -202,7 +208,7 @@ export function SchrittTyp({ onWeiter, onBelegEditor, onEigeneBelege, onSimulati
             return (
               <div style={{
                 display: 'flex', alignItems: 'center', gap: 14,
-                padding: '10px 14px 10px 10px', borderRadius: 14, marginBottom: 24,
+                padding: '10px 14px 10px 10px', borderRadius: 14, margin: '20px 0 24px',
                 background: 'rgba(232,96,10,0.07)',
                 border: '1.5px solid rgba(232,96,10,0.28)',
                 backdropFilter: 'blur(24px) saturate(180%)',
@@ -237,26 +243,28 @@ export function SchrittTyp({ onWeiter, onBelegEditor, onEigeneBelege, onSimulati
             );
           })()}
 
-          {/* ── Karussell: kollabiert nach Auswahl ── */}
+          {/* ── Karussell: height-Collapse (kein overflow:hidden → kein 3D-Clipping!) ── */}
           <div style={{
-            maxHeight: heroCollapsed ? '0px' : '520px',
-            overflow: 'hidden',
+            height: heroCollapsed ? 0 : 540,
+            overflow: 'visible',
             opacity: heroCollapsed ? 0 : 1,
             pointerEvents: heroCollapsed ? 'none' : 'auto',
-            transition: 'max-height 400ms cubic-bezier(0.4,0,0.2,1), opacity 260ms ease',
+            transition: 'height 420ms cubic-bezier(0.4,0,0.2,1), opacity 250ms ease',
           }}>
-            <div style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.15em", textTransform: "uppercase", color: "#e8600a", marginBottom: "8px", textAlign: "center" }}>BwR Bayern</div>
-            <div style={{ fontSize: "20px", fontWeight: 800, color: "rgba(240,236,227,0.85)", letterSpacing: "-0.02em", marginBottom: "52px", textAlign: "center" }}>Was möchtest du erstellen?</div>
-            <BwTypeCarousel
-              selectedId={typ || undefined}
-              onSelect={(id) => {
-                if (id === "Simulation")   { setTyp("Simulation"); onSimulation?.(); return; }
-                if (id === "Beleg-Editor") { onBelegEditor?.(); return; }
-                if (id === "Übung")        { setTyp("Übung"); setPruefungsart(null); }
-                else                       { setTyp("Prüfung"); }
-                setTimeout(() => setHeroCollapsed(true), 340);
-              }}
-            />
+            <div style={{ paddingTop: 32 }}>
+              <div style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.15em", textTransform: "uppercase", color: "#e8600a", marginBottom: "8px", textAlign: "center" }}>BwR Bayern</div>
+              <div style={{ fontSize: "20px", fontWeight: 800, color: "rgba(240,236,227,0.85)", letterSpacing: "-0.02em", marginBottom: "52px", textAlign: "center" }}>Was möchtest du erstellen?</div>
+              <BwTypeCarousel
+                selectedId={typ || undefined}
+                onSelect={(id) => {
+                  if (id === "Simulation")   { setTyp("Simulation"); onSimulation?.(); return; }
+                  if (id === "Beleg-Editor") { onBelegEditor?.(); return; }
+                  if (id === "Übung")        { setTyp("Übung"); setPruefungsart(null); }
+                  else                       { setTyp("Prüfung"); }
+                  setTimeout(() => setHeroCollapsed(true), 340);
+                }}
+              />
+            </div>
           </div>
 
         </div>
