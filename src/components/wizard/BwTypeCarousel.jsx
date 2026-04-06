@@ -159,7 +159,7 @@ export function BwTypeCarousel({ onSelect, selectedId }) {
       style={{
         width: '100%', height: 340,
         perspective: '1200px',
-        perspectiveOrigin: '50% 42%',
+        perspectiveOrigin: '50% 28%',
         userSelect: 'none', cursor: 'grab',
         position: 'relative', overflow: 'visible',
       }}
@@ -187,7 +187,7 @@ export function BwTypeCarousel({ onSelect, selectedId }) {
                 style={{
                   position: 'absolute',
                   width: CARD_W, height: CARD_H,
-                  left: '50%', top: '50%',
+                  left: '50%', top: '40%',
                   marginLeft: -CARD_W / 2, marginTop: -CARD_H / 2,
                   transform: 'translate3d(0,0,0)', // wird von applyRot gesetzt
                   borderRadius: 18,

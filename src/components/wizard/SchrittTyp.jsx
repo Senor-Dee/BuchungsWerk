@@ -245,15 +245,15 @@ export function SchrittTyp({ onWeiter, onBelegEditor, onEigeneBelege, onSimulati
 
           {/* ── Karussell: height-Collapse (kein overflow:hidden → kein 3D-Clipping!) ── */}
           <div style={{
-            height: heroCollapsed ? 0 : 540,
+            height: heroCollapsed ? 0 : 490,
             overflow: 'visible',
             opacity: heroCollapsed ? 0 : 1,
             pointerEvents: heroCollapsed ? 'none' : 'auto',
             transition: 'height 420ms cubic-bezier(0.4,0,0.2,1), opacity 250ms ease',
           }}>
-            <div style={{ paddingTop: 32 }}>
-              <div style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.15em", textTransform: "uppercase", color: "#e8600a", marginBottom: "8px", textAlign: "center" }}>BwR Bayern</div>
-              <div style={{ fontSize: "20px", fontWeight: 800, color: "rgba(240,236,227,0.85)", letterSpacing: "-0.02em", marginBottom: "52px", textAlign: "center" }}>Was möchtest du erstellen?</div>
+            <div style={{ paddingTop: 16 }}>
+              <div style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.15em", textTransform: "uppercase", color: "#e8600a", marginBottom: "6px", textAlign: "center" }}>BwR Bayern</div>
+              <div style={{ fontSize: "20px", fontWeight: 800, color: "rgba(240,236,227,0.85)", letterSpacing: "-0.02em", marginBottom: "28px", textAlign: "center" }}>Was möchtest du erstellen?</div>
               <BwTypeCarousel
                 selectedId={typ || undefined}
                 onSelect={(id) => {
