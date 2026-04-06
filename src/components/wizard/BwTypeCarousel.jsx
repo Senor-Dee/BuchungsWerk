@@ -14,9 +14,9 @@ const ITEMS = [
 const N      = ITEMS.length; // 4
 const ANGLE  = 360 / N;      // 90°
 const RADIUS = 240;          // Kreis-Radius – kleiner = Kacheln können leicht überlappen
-const TILT   = -22;          // deg rotateX – Vogelperspektive (Top → Viewer)
+const TILT   = -14;          // deg rotateX – moderater Bird's-Eye (weniger Projektion nach unten)
 const CARD_W = 160;          // schmälere Kacheln
-const CARD_H = 224;
+const CARD_H = 200;
 
 function easeOut(t) { return 1 - Math.pow(1 - t, 3); }
 
