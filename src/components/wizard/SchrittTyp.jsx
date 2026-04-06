@@ -6,6 +6,7 @@ import React, { useState } from "react";
 import { FileText, Zap, Timer, Search, PenLine, ClipboardList, Factory,
          ReceiptEuro, FolderOpen, RefreshCw, Package, BarChart2, Download,
          Tag, Building2, Upload, AlertTriangle, TrendingDown, Settings } from "lucide-react";
+import { BwTypeCarousel } from "./BwTypeCarousel.jsx";
 import { AUFGABEN_POOL } from "../../data/aufgabenPool.js";
 import { LB_INFO, WERKSTOFF_TYPEN } from "../../utils.js";
 import { UNTERNEHMEN } from "../../data/stammdaten.js";
@@ -174,76 +175,16 @@ export function SchrittTyp({ onWeiter, onBelegEditor, onEigeneBelege, onSimulati
       <div style={{ padding: "18px 16px 20px" }}>
         <div style={{ maxWidth: "860px", margin: "0 auto" }}>
           <div style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.15em", textTransform: "uppercase", color: "#e8600a", marginBottom: "4px" }}>BwR Bayern</div>
-          <div style={{ fontSize: "18px", fontWeight: 800, color: "rgba(240,236,227,0.85)", letterSpacing: "-0.02em", marginBottom: "14px" }}>Was möchtest du erstellen?</div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: "8px" }}>
-        {[
-          ["Übung", PenLine, "Aufgaben üben", () => { setTyp("Übung"); setPruefungsart(null); }],
-          ["Prüfung", ClipboardList, "Schulaufgabe", () => setTyp("Prüfung")],
-          ["Simulation", Factory, "Firma führen", () => { setTyp("Simulation"); onSimulation && onSimulation(); }],
-          ["Beleg-Editor", ReceiptEuro, "Beleg erstellen", () => onBelegEditor && onBelegEditor()],
-        ].map(([t, icon, desc, onClick]) => {
-          const sel = typ === t;
-          const hov = hoveredCard === t && !sel;
-          return (
-            <button key={t} onClick={onClick}
-              onMouseEnter={() => setHoveredCard(t)}
-              onMouseLeave={() => setHoveredCard(null)}
-              style={{
-                flex: 1, padding: 0, cursor: "pointer", textAlign: "center",
-                borderRadius: "14px", position: "relative", overflow: "hidden",
-                border: sel ? "1.5px solid rgba(232,96,10,0.65)" : hov ? "1.5px solid rgba(240,236,227,0.20)" : "1.5px solid rgba(240,236,227,0.09)",
-                boxShadow: sel
-                  ? "0 0 0 1px rgba(232,96,10,0.20), 0 10px 36px rgba(232,96,10,0.28), 0 3px 10px rgba(0,0,0,0.55)"
-                  : hov
-                  ? "0 0 0 1px rgba(255,255,255,0.04), 0 10px 32px rgba(0,0,0,0.60), 0 2px 8px rgba(0,0,0,0.45)"
-                  : "0 4px 16px rgba(0,0,0,0.45), 0 1px 4px rgba(0,0,0,0.30)",
-                color: sel ? "#e8600a" : hov ? "#f0ece3" : "rgba(240,236,227,0.60)",
-                transform: hov ? "translateY(-3px) scale(1.015)" : sel ? "translateY(-1px)" : "none",
-                transition: "all 0.22s cubic-bezier(0.23,1,0.32,1)",
-              }}>
-              {/* Layer 1: Bend – backdrop-filter + SVG glass-distort */}
-              <div style={{
-                position:"absolute", inset:0,
-                backdropFilter: sel || hov ? "blur(28px) saturate(240%) brightness(1.10)" : "blur(18px) saturate(200%) brightness(1.05)",
-                WebkitBackdropFilter: sel || hov ? "blur(28px) saturate(240%) brightness(1.10)" : "blur(18px) saturate(200%) brightness(1.05)",
-                background: sel ? "rgba(232,96,10,0.15)" : hov ? "rgba(32,22,8,0.80)" : "rgba(20,14,4,0.65)",
-                filter:"url(#bw-glass-filter)",
-                zIndex:0,
-              }} />
-              {/* Layer 2: Edge highlights */}
-              <div style={{
-                position:"absolute", inset:0, zIndex:1, pointerEvents:"none",
-                boxShadow: sel ? [
-                  "inset 0 1px 0 rgba(255,160,60,0.30)",
-                  "inset 0 -1px 0 rgba(0,0,0,0.42)",
-                  "inset 1px 0 0 rgba(255,160,60,0.14)",
-                  "inset -1px 0 0 rgba(255,160,60,0.14)",
-                  "inset 0 2px 8px rgba(255,130,30,0.10)",
-                ].join(", ") : hov ? [
-                  "inset 0 1px 0 rgba(255,255,255,0.22)",
-                  "inset 0 -1px 0 rgba(0,0,0,0.40)",
-                  "inset 1px 0 0 rgba(255,255,255,0.09)",
-                  "inset -1px 0 0 rgba(255,255,255,0.09)",
-                  "inset 0 2px 8px rgba(255,255,255,0.06)",
-                ].join(", ") : [
-                  "inset 0 1px 0 rgba(255,255,255,0.12)",
-                  "inset 0 -1px 0 rgba(0,0,0,0.30)",
-                  "inset 1px 0 0 rgba(255,255,255,0.05)",
-                  "inset -1px 0 0 rgba(255,255,255,0.05)",
-                ].join(", "),
-              }} />
-              {/* Layer 3: Content */}
-              <div style={{ position:"relative", zIndex:2, padding:"16px 10px" }}>
-                <div style={{ marginBottom:"8px", display:"flex", justifyContent:"center" }}>
-                  {React.createElement(icon, { size: 24, strokeWidth: 1.5 })}
-                </div>
-                <div style={{ fontWeight:800, fontSize:"13px", marginBottom:"3px", letterSpacing:"-.01em" }}>{t}</div>
-                <div style={{ fontSize:"10px", opacity:0.55, fontWeight:500 }}>{desc}</div>
-              </div>
-            </button>
-          );
-        })}
-          </div>
+          <div style={{ fontSize: "18px", fontWeight: 800, color: "rgba(240,236,227,0.85)", letterSpacing: "-0.02em", marginBottom: "28px", textAlign: "center" }}>Was möchtest du erstellen?</div>
+          <BwTypeCarousel
+            selectedId={typ || undefined}
+            onSelect={(id) => {
+              if (id === "Übung")             { setTyp("Übung"); setPruefungsart(null); }
+              else if (id === "Prüfung")      { setTyp("Prüfung"); }
+              else if (id === "Simulation")   { setTyp("Simulation"); onSimulation?.(); }
+              else if (id === "Beleg-Editor") { onBelegEditor?.(); }
+            }}
+          />
         </div>
       </div>
 
