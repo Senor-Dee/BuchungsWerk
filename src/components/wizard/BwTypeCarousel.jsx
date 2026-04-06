@@ -1,70 +1,50 @@
-// BwTypeCarousel – 3D Zylinder-Karussell, Vogelperspektive
-// Interaction: Maus-Drag + Touch-Drag + Direktklick auf jede Karte
-// Kein Auto-Rotate, kein Wheel (kein Scroll-Konflikt)
+// BwTypeCarousel – 3D Orbital-Karussell, Vogelperspektive
+// Karten zeigen IMMER zur Kamera (orbitierend, kein Zylinder-Drehen)
+// Interaction: Maus-Drag + Touch-Drag + Wheel + Direktklick
 import { useRef, useEffect, useState } from 'react';
 import { PenLine, ClipboardList, Factory, ReceiptEuro } from 'lucide-react';
 
 const ITEMS = [
-  {
-    id: 'Übung',
-    icon: PenLine,
-    label: 'Übung',
-    sub: 'Aufgaben üben',
-    desc: 'Buchungsaufgaben nach Klasse & Lernbereich',
-  },
-  {
-    id: 'Prüfung',
-    icon: ClipboardList,
-    label: 'Prüfung',
-    sub: 'Schulaufgabe',
-    desc: 'Bewertete Prüfung mit Punkteschema',
-  },
-  {
-    id: 'Simulation',
-    icon: Factory,
-    label: 'Simulation',
-    sub: 'Firma führen',
-    desc: 'Vollständige Buchführungssimulation',
-  },
-  {
-    id: 'Beleg-Editor',
-    icon: ReceiptEuro,
-    label: 'Beleg-Editor',
-    sub: 'Belege gestalten',
-    desc: 'Belege erstellen & exportieren',
-  },
+  { id: 'Übung',       icon: PenLine,      label: 'Übung',       sub: 'Aufgaben üben',      desc: 'Buchungsaufgaben nach Klasse & Lernbereich' },
+  { id: 'Prüfung',     icon: ClipboardList,label: 'Prüfung',     sub: 'Schulaufgabe',        desc: 'Bewertete Prüfung mit Punkteschema' },
+  { id: 'Simulation',  icon: Factory,      label: 'Simulation',  sub: 'Firma führen',        desc: 'Vollständige Buchführungssimulation' },
+  { id: 'Beleg-Editor',icon: ReceiptEuro,  label: 'Beleg-Editor',sub: 'Belege gestalten',    desc: 'Belege erstellen & exportieren' },
 ];
 
 const N      = ITEMS.length; // 4
 const ANGLE  = 360 / N;      // 90°
-const RADIUS = 220;          // px Tiefe
-const TILT   = -22;          // deg rotateX – Vogelperspektive (Top sieht Viewer)
+const RADIUS = 300;          // größerer Kreis → mehr Abstand zwischen Kacheln
+const TILT   = -22;          // deg rotateX – Vogelperspektive (Top → Viewer)
+const CARD_W = 160;          // schmälere Kacheln
+const CARD_H = 224;
 
 function easeOut(t) { return 1 - Math.pow(1 - t, 3); }
 
-export function BwTypeCarousel({ onSelect, selectedId, onScrollToContent }) {
-  const containerRef   = useRef(null);
-  const innerRef       = useRef(null);
-  const cardRefs       = useRef([]);
-  const rotRef         = useRef(0);
-  const isSnapRef      = useRef(false);
-  const dragRef        = useRef(null); // { x, startRot, moved }
-  const frontIdxRef    = useRef(0);
-  const wheelTimerRef  = useRef(null);
+export function BwTypeCarousel({ onSelect, selectedId }) {
+  const containerRef  = useRef(null);
+  const cardRefs      = useRef([]);
+  const rotRef        = useRef(0);
+  const isSnapRef     = useRef(false);
+  const dragRef       = useRef(null);
+  const frontIdxRef   = useRef(0);
+  const wheelTimerRef = useRef(null);
   const [frontIdx, _setFrontIdx] = useState(0);
 
   const setFrontIdx = (i) => { frontIdxRef.current = i; _setFrontIdx(i); };
 
-  // ── DOM-Rotation + Opacity ──────────────────────────────────────────────────
+  // ── Orbital-Positionierung: Karten bleiben immer zur Kamera gewandt ─────────
   const applyRot = (deg) => {
     rotRef.current = deg;
-    if (innerRef.current)
-      innerRef.current.style.transform = `rotateY(${-deg}deg)`;
     cardRefs.current.forEach((el, i) => {
       if (!el) return;
-      const w = ((i * ANGLE - deg) % 360 + 360) % 360;
+      const angleDeg = i * ANGLE - deg;
+      const rad = angleDeg * Math.PI / 180;
+      const x = Math.sin(rad) * RADIUS;
+      const z = Math.cos(rad) * RADIUS;
+      el.style.transform = `translate3d(${x.toFixed(2)}px, 0px, ${z.toFixed(2)}px)`;
+      const w = ((angleDeg % 360) + 360) % 360;
       const d = Math.min(w, 360 - w);
-      el.style.opacity = Math.max(0.18, 1 - d / 130);
+      el.style.opacity = Math.max(0.15, 1 - d / 120);
     });
   };
 
@@ -78,16 +58,15 @@ export function BwTypeCarousel({ onSelect, selectedId, onScrollToContent }) {
     return idx;
   };
 
-  // ── Snap-Animation (eigener rAF, kein framer-motion nötig) ─────────────────
+  // ── Snap-Animation ──────────────────────────────────────────────────────────
   const snapTo = (targetIdx) => {
-    // frontIdxRef sofort setzen → verhindert Doppel-Snap aus useEffect
     frontIdxRef.current = targetIdx;
     isSnapRef.current   = true;
     const from = rotRef.current;
     const diff = ((targetIdx * ANGLE - from) % 360 + 540) % 360 - 180;
     const to   = from + diff;
     const t0   = performance.now();
-    const dur  = 440;
+    const dur  = 420;
     const tick = (now) => {
       const t = Math.min(1, (now - t0) / dur);
       applyRot(from + (to - from) * easeOut(t));
@@ -96,20 +75,23 @@ export function BwTypeCarousel({ onSelect, selectedId, onScrollToContent }) {
       } else {
         rotRef.current    = to;
         isSnapRef.current = false;
-        _setFrontIdx(targetIdx); // React-State für Re-Render (Styling)
+        _setFrontIdx(targetIdx);
       }
     };
     requestAnimationFrame(tick);
   };
 
-  // ── Snap zum ausgewählten Typ wenn selectedId von außen gesetzt ─────────────
+  // Initiale Positionierung nach Mount
+  useEffect(() => { applyRot(rotRef.current); }, []);
+
+  // Snap zu selectedId wenn von außen gesetzt
   useEffect(() => {
     if (!selectedId) return;
     const idx = ITEMS.findIndex(it => it.id === selectedId);
     if (idx >= 0 && idx !== frontIdxRef.current) snapTo(idx);
   }, [selectedId]);
 
-  // ── Touch: horizontales Drag soll nicht die Seite scrollen ─────────────────
+  // Touch: horizontales Drag → kein Seiten-Scroll
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -117,24 +99,24 @@ export function BwTypeCarousel({ onSelect, selectedId, onScrollToContent }) {
       if (!dragRef.current) return;
       const dx = Math.abs(e.touches[0].clientX - dragRef.current.x);
       const dy = Math.abs((e.touches[0].clientY ?? 0) - (dragRef.current.startY ?? 0));
-      if (dx > dy) e.preventDefault(); // nur bei horizontalem Drag
+      if (dx > dy) e.preventDefault();
     };
     el.addEventListener('touchmove', onTM, { passive: false });
     return () => el.removeEventListener('touchmove', onTM);
   }, []);
 
-  // ── Wheel: dreht das Karussell (kein Page-Scroll über Container) ────────────
+  // Wheel: dreht das Karussell (Page-Scroll verhindert solange Cursor über Container)
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
     const onWheel = (e) => {
       if (isSnapRef.current) return;
       e.preventDefault();
-      applyRot(rotRef.current + e.deltaY * 0.28);
+      applyRot(rotRef.current + e.deltaY * 0.30);
       const fi = getFront(rotRef.current);
       if (fi !== frontIdxRef.current) setFrontIdx(fi);
       clearTimeout(wheelTimerRef.current);
-      wheelTimerRef.current = setTimeout(() => snapTo(getFront(rotRef.current)), 180);
+      wheelTimerRef.current = setTimeout(() => snapTo(getFront(rotRef.current)), 160);
     };
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => el.removeEventListener('wheel', onWheel);
@@ -150,7 +132,7 @@ export function BwTypeCarousel({ onSelect, selectedId, onScrollToContent }) {
     if (!dragRef.current) return;
     const dx = x - dragRef.current.x;
     if (Math.abs(dx) > 5) dragRef.current.moved = true;
-    applyRot(dragRef.current.startRot + dx * 0.50);
+    applyRot(dragRef.current.startRot + dx * 0.48);
     const fi = getFront(rotRef.current);
     if (fi !== frontIdxRef.current) setFrontIdx(fi);
   };
@@ -164,47 +146,33 @@ export function BwTypeCarousel({ onSelect, selectedId, onScrollToContent }) {
   // ── Klick: jede Karte direkt auswählen ─────────────────────────────────────
   const onItemClick = (i, e) => {
     e.stopPropagation();
-    if (dragRef.current?.moved) return; // war ein Drag, kein Klick
+    if (dragRef.current?.moved) return;
     snapTo(i);
     onSelect?.(ITEMS[i].id);
-    // Gleite zur unteren Section (nur Übung / Prüfung – andere navigieren weg)
-    setTimeout(() => onScrollToContent?.(), 320);
   };
 
   return (
     <div
       ref={containerRef}
       style={{
-        width: '100%', height: 360,
-        perspective: '1400px',
-        perspectiveOrigin: '50% 45%',
+        width: '100%', height: 340,
+        perspective: '1200px',
+        perspectiveOrigin: '50% 42%',
         userSelect: 'none', cursor: 'grab',
         position: 'relative', overflow: 'visible',
       }}
       onMouseDown={e => startDrag(e.clientX, e.clientY)}
-      onMouseMove={e => moveDrag(e.clientX)}
+      onMouseMove={e => { if (dragRef.current) moveDrag(e.clientX); }}
       onMouseUp={endDrag}
       onMouseLeave={endDrag}
       onTouchStart={e => startDrag(e.touches[0].clientX, e.touches[0].clientY)}
-      onTouchMove={e => moveDrag(e.touches[0].clientX)}
+      onTouchMove={e => { if (dragRef.current) moveDrag(e.touches[0].clientX); }}
       onTouchEnd={endDrag}
     >
-      {/* Fixer X-Tilt: Vogelperspektive – Back-Card sichtbar */}
-      <div style={{
-        width: '100%', height: '100%',
-        transformStyle: 'preserve-3d',
-        transform: `rotateX(${TILT}deg)`,
-      }}>
-        {/* Y-Rotation (animiert) */}
-        <div
-          ref={innerRef}
-          style={{
-            width: '100%', height: '100%',
-            position: 'relative',
-            transformStyle: 'preserve-3d',
-            transform: 'rotateY(0deg)',
-          }}
-        >
+      {/* Fixer X-Tilt: Vogelperspektive */}
+      <div style={{ width: '100%', height: '100%', transformStyle: 'preserve-3d', transform: `rotateX(${TILT}deg)` }}>
+        {/* Orbital-Container: Karten bewegen sich einzeln (kein rotateY hier) */}
+        <div style={{ width: '100%', height: '100%', position: 'relative', transformStyle: 'preserve-3d' }}>
           {ITEMS.map((item, i) => {
             const isFront    = i === frontIdx;
             const isSelected = item.id === selectedId;
@@ -216,19 +184,19 @@ export function BwTypeCarousel({ onSelect, selectedId, onScrollToContent }) {
                 onClick={e => onItemClick(i, e)}
                 style={{
                   position: 'absolute',
-                  width: 188, height: 232,
+                  width: CARD_W, height: CARD_H,
                   left: '50%', top: '50%',
-                  marginLeft: -94, marginTop: -116,
-                  transform: `rotateY(${i * ANGLE}deg) translateZ(${RADIUS}px)`,
+                  marginLeft: -CARD_W / 2, marginTop: -CARD_H / 2,
+                  transform: 'translate3d(0,0,0)', // wird von applyRot gesetzt
                   borderRadius: 18,
                   border: isSelected
-                    ? '2px solid rgba(232,96,10,0.80)'
+                    ? '2px solid rgba(232,96,10,0.85)'
                     : isFront
                     ? '1.5px solid rgba(232,96,10,0.55)'
-                    : '1.5px solid rgba(240,236,227,0.08)',
+                    : '1.5px solid rgba(240,236,227,0.07)',
                   boxShadow: isFront || isSelected
-                    ? '0 0 0 1px rgba(232,96,10,0.10), 0 22px 60px rgba(0,0,0,0.68), 0 4px 20px rgba(232,96,10,0.18)'
-                    : '0 4px 18px rgba(0,0,0,0.48)',
+                    ? '0 0 0 1px rgba(232,96,10,0.10), 0 24px 64px rgba(0,0,0,0.72), 0 4px 22px rgba(232,96,10,0.20)'
+                    : '0 4px 16px rgba(0,0,0,0.44)',
                   overflow: 'hidden', cursor: 'pointer',
                   background: isFront || isSelected
                     ? 'rgba(232,96,10,0.09)' : 'rgba(16,11,2,0.82)',
@@ -241,14 +209,11 @@ export function BwTypeCarousel({ onSelect, selectedId, onScrollToContent }) {
                 <div style={{
                   position: 'absolute', inset: 0, borderRadius: 17, pointerEvents: 'none',
                   boxShadow: isFront || isSelected ? [
-                    'inset 0 1.5px 0 rgba(255,160,60,0.24)',
+                    'inset 0 1.5px 0 rgba(255,160,60,0.26)',
                     'inset 0 -1px 0 rgba(0,0,0,0.36)',
                     'inset 1px 0 0 rgba(255,160,60,0.09)',
                     'inset -1px 0 0 rgba(255,160,60,0.09)',
-                  ].join(', ') : [
-                    'inset 0 1px 0 rgba(255,255,255,0.09)',
-                    'inset 0 -1px 0 rgba(0,0,0,0.26)',
-                  ].join(', '),
+                  ].join(', ') : 'inset 0 1px 0 rgba(255,255,255,0.07), inset 0 -1px 0 rgba(0,0,0,0.24)',
                 }} />
 
                 {/* Content */}
@@ -256,72 +221,51 @@ export function BwTypeCarousel({ onSelect, selectedId, onScrollToContent }) {
                   position: 'relative', zIndex: 1, height: '100%',
                   display: 'flex', flexDirection: 'column',
                   alignItems: 'center', justifyContent: 'center',
-                  padding: '20px 14px', gap: 9, textAlign: 'center',
+                  padding: '18px 12px', gap: 8, textAlign: 'center',
                 }}>
-                  {/* Icon */}
                   <div style={{
-                    width: 52, height: 52, borderRadius: 14, flexShrink: 0,
+                    width: 48, height: 48, borderRadius: 13, flexShrink: 0,
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    background: isFront || isSelected
-                      ? 'rgba(232,96,10,0.15)' : 'rgba(240,236,227,0.04)',
-                    border: isFront || isSelected
-                      ? '1px solid rgba(232,96,10,0.28)' : '1px solid rgba(240,236,227,0.08)',
-                    boxShadow: isFront || isSelected ? '0 0 22px rgba(232,96,10,0.16)' : 'none',
+                    background: isFront || isSelected ? 'rgba(232,96,10,0.15)' : 'rgba(240,236,227,0.04)',
+                    border: isFront || isSelected ? '1px solid rgba(232,96,10,0.28)' : '1px solid rgba(240,236,227,0.07)',
+                    boxShadow: isFront || isSelected ? '0 0 20px rgba(232,96,10,0.18)' : 'none',
                   }}>
-                    <Icon size={24} strokeWidth={1.5}
-                      style={{ color: isFront || isSelected ? '#e8600a' : 'rgba(240,236,227,0.35)' }} />
+                    <Icon size={22} strokeWidth={1.5}
+                      style={{ color: isFront || isSelected ? '#e8600a' : 'rgba(240,236,227,0.32)' }} />
                   </div>
 
-                  {/* Label */}
-                  <div style={{
-                    fontSize: 15, fontWeight: 800, letterSpacing: '-0.01em',
-                    color: isFront || isSelected ? '#f0ece3' : 'rgba(240,236,227,0.42)',
-                  }}>
+                  <div style={{ fontSize: 14, fontWeight: 800, letterSpacing: '-0.01em',
+                    color: isFront || isSelected ? '#f0ece3' : 'rgba(240,236,227,0.38)' }}>
                     {item.label}
                   </div>
 
-                  {/* Sub */}
-                  <div style={{
-                    fontSize: 9.5, fontWeight: 700, letterSpacing: '0.07em',
-                    textTransform: 'uppercase',
-                    color: isFront || isSelected ? '#e8600a' : 'rgba(240,236,227,0.20)',
-                  }}>
+                  <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase',
+                    color: isFront || isSelected ? '#e8600a' : 'rgba(240,236,227,0.18)' }}>
                     {item.sub}
                   </div>
 
-                  {/* Desc */}
-                  <div style={{
-                    fontSize: 10.5, fontWeight: 500, lineHeight: 1.45,
-                    color: isFront || isSelected
-                      ? 'rgba(240,236,227,0.52)' : 'rgba(240,236,227,0.18)',
-                  }}>
+                  <div style={{ fontSize: 10, fontWeight: 500, lineHeight: 1.45,
+                    color: isFront || isSelected ? 'rgba(240,236,227,0.50)' : 'rgba(240,236,227,0.16)' }}>
                     {item.desc}
                   </div>
 
-                  {/* CTA */}
                   {isFront && !isSelected && (
                     <div style={{
-                      marginTop: 4, padding: '6px 18px', borderRadius: 20,
+                      marginTop: 4, padding: '5px 16px', borderRadius: 20,
                       background: 'linear-gradient(180deg, #f07320 0%, #e8600a 100%)',
-                      color: '#fff', fontSize: 10, fontWeight: 700,
+                      color: '#fff', fontSize: 9.5, fontWeight: 700,
                       letterSpacing: '0.07em', textTransform: 'uppercase',
-                      boxShadow: '0 3px 10px rgba(232,96,10,0.38)',
-                      pointerEvents: 'none',
-                    }}>
-                      Auswählen →
-                    </div>
+                      boxShadow: '0 3px 10px rgba(232,96,10,0.38)', pointerEvents: 'none',
+                    }}>Auswählen →</div>
                   )}
                   {isSelected && (
                     <div style={{
-                      marginTop: 4, padding: '6px 18px', borderRadius: 20,
+                      marginTop: 4, padding: '5px 16px', borderRadius: 20,
                       background: 'rgba(232,96,10,0.14)',
                       border: '1px solid rgba(232,96,10,0.32)',
-                      color: '#e8600a', fontSize: 10, fontWeight: 700,
-                      letterSpacing: '0.07em', textTransform: 'uppercase',
-                      pointerEvents: 'none',
-                    }}>
-                      ✓ Ausgewählt
-                    </div>
+                      color: '#e8600a', fontSize: 9.5, fontWeight: 700,
+                      letterSpacing: '0.07em', textTransform: 'uppercase', pointerEvents: 'none',
+                    }}>✓ Ausgewählt</div>
                   )}
                 </div>
               </div>
@@ -330,14 +274,13 @@ export function BwTypeCarousel({ onSelect, selectedId, onScrollToContent }) {
         </div>
       </div>
 
-      {/* Hint */}
       <div style={{
-        position: 'absolute', bottom: -18, left: 0, right: 0,
+        position: 'absolute', bottom: -20, left: 0, right: 0,
         textAlign: 'center', pointerEvents: 'none',
         fontSize: 9, fontWeight: 600, letterSpacing: '0.10em',
-        textTransform: 'uppercase', color: 'rgba(240,236,227,0.18)',
+        textTransform: 'uppercase', color: 'rgba(240,236,227,0.16)',
       }}>
-        Ziehen oder Tippen zum Auswählen
+        Ziehen · Scrollen · Tippen
       </div>
     </div>
   );

@@ -2,7 +2,7 @@
 // SchrittTyp – Schritt 1: Konfiguration (Typ, Klasse, Themen, Optionen)
 // Extrahiert aus BuchungsWerk.jsx – Phase D2 Refactoring
 // ══════════════════════════════════════════════════════════════════════════════
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { FileText, Zap, Timer, Search, PenLine, ClipboardList, Factory,
          ReceiptEuro, FolderOpen, RefreshCw, Package, BarChart2, Download,
          Tag, Building2, Upload, AlertTriangle, TrendingDown, Settings } from "lucide-react";
@@ -17,7 +17,26 @@ import { S } from "../../styles.js";
 export function SchrittTyp({ onWeiter, onBelegEditor, onEigeneBelege, onSimulation, initialConfig }) {
   // Wenn initialConfig gesetzt → Vorauswahl aus bestehendem config
   const ic = initialConfig;
-  const contentRef = useRef(null);
+  const contentRef     = useRef(null);
+  const [heroCollapsed, setHeroCollapsed] = useState(false);
+  const [barVisible,    setBarVisible]    = useState(false);
+
+  // Bar-Einblend-Animation nach Collapse
+  useEffect(() => {
+    if (heroCollapsed) {
+      const raf = requestAnimationFrame(() => setBarVisible(true));
+      return () => cancelAnimationFrame(raf);
+    } else {
+      setBarVisible(false);
+    }
+  }, [heroCollapsed]);
+
+  const TYPE_META = {
+    'Übung':        { Icon: PenLine,       sub: 'Aufgaben üben' },
+    'Prüfung':      { Icon: ClipboardList, sub: 'Schulaufgabe' },
+    'Simulation':   { Icon: Factory,       sub: 'Firma führen' },
+    'Beleg-Editor': { Icon: ReceiptEuro,   sub: 'Belege gestalten' },
+  };
   const [typ, setTyp] = useState(ic?.typ ?? null);
   const [hoveredCard, setHoveredCard] = useState(null);
   const [pruefungsart, setPruefungsart] = useState(ic?.pruefungsart ?? null);
@@ -173,20 +192,73 @@ export function SchrittTyp({ onWeiter, onBelegEditor, onEigeneBelege, onSimulati
     <div style={{ background: "transparent" }}>
 
       {/* ── HERO ── */}
-      <div style={{ padding: "36px 16px 28px" }}>
+      <div style={{ padding: "32px 16px 24px" }}>
         <div style={{ maxWidth: "860px", margin: "0 auto" }}>
-          <div style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.15em", textTransform: "uppercase", color: "#e8600a", marginBottom: "6px", textAlign: "center" }}>BwR Bayern</div>
-          <div style={{ fontSize: "20px", fontWeight: 800, color: "rgba(240,236,227,0.85)", letterSpacing: "-0.02em", marginBottom: "48px", textAlign: "center" }}>Was möchtest du erstellen?</div>
-          <BwTypeCarousel
-            selectedId={typ || undefined}
-            onScrollToContent={() => contentRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-            onSelect={(id) => {
-              if (id === "Übung")             { setTyp("Übung"); setPruefungsart(null); }
-              else if (id === "Prüfung")      { setTyp("Prüfung"); }
-              else if (id === "Simulation")   { setTyp("Simulation"); onSimulation?.(); }
-              else if (id === "Beleg-Editor") { onBelegEditor?.(); }
-            }}
-          />
+
+          {/* ── Slim-Bar: erscheint nach Auswahl (Morph-Effekt) ── */}
+          {heroCollapsed && typ && (() => {
+            const meta = TYPE_META[typ];
+            const Icon = meta?.Icon;
+            return (
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 14,
+                padding: '10px 14px 10px 10px', borderRadius: 14, marginBottom: 24,
+                background: 'rgba(232,96,10,0.07)',
+                border: '1.5px solid rgba(232,96,10,0.28)',
+                backdropFilter: 'blur(24px) saturate(180%)',
+                WebkitBackdropFilter: 'blur(24px) saturate(180%)',
+                opacity: barVisible ? 1 : 0,
+                transform: barVisible ? 'translateY(0) scale(1)' : 'translateY(-10px) scale(0.97)',
+                transition: 'opacity 260ms ease, transform 320ms cubic-bezier(0.34,1.56,0.64,1)',
+              }}>
+                {Icon && (
+                  <div style={{
+                    width: 38, height: 38, borderRadius: 10, flexShrink: 0,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    background: 'rgba(232,96,10,0.14)', border: '1px solid rgba(232,96,10,0.26)',
+                  }}>
+                    <Icon size={18} strokeWidth={1.5} style={{ color: '#e8600a' }} />
+                  </div>
+                )}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: 'rgba(240,236,227,0.92)', letterSpacing: '-0.01em' }}>{typ}</div>
+                  <div style={{ fontSize: 10, fontWeight: 600, color: 'rgba(240,236,227,0.36)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>{meta?.sub}</div>
+                </div>
+                <button
+                  onClick={() => { setHeroCollapsed(false); setTyp(null); setPruefungsart(null); }}
+                  style={{
+                    padding: '5px 13px', borderRadius: 8, flexShrink: 0,
+                    background: 'rgba(240,236,227,0.06)', border: '1px solid rgba(240,236,227,0.13)',
+                    color: 'rgba(240,236,227,0.52)', fontSize: 11, fontWeight: 600,
+                    cursor: 'pointer', letterSpacing: '0.04em',
+                  }}
+                >Ändern</button>
+              </div>
+            );
+          })()}
+
+          {/* ── Karussell: kollabiert nach Auswahl ── */}
+          <div style={{
+            maxHeight: heroCollapsed ? '0px' : '520px',
+            overflow: 'hidden',
+            opacity: heroCollapsed ? 0 : 1,
+            pointerEvents: heroCollapsed ? 'none' : 'auto',
+            transition: 'max-height 400ms cubic-bezier(0.4,0,0.2,1), opacity 260ms ease',
+          }}>
+            <div style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.15em", textTransform: "uppercase", color: "#e8600a", marginBottom: "8px", textAlign: "center" }}>BwR Bayern</div>
+            <div style={{ fontSize: "20px", fontWeight: 800, color: "rgba(240,236,227,0.85)", letterSpacing: "-0.02em", marginBottom: "52px", textAlign: "center" }}>Was möchtest du erstellen?</div>
+            <BwTypeCarousel
+              selectedId={typ || undefined}
+              onSelect={(id) => {
+                if (id === "Simulation")   { setTyp("Simulation"); onSimulation?.(); return; }
+                if (id === "Beleg-Editor") { onBelegEditor?.(); return; }
+                if (id === "Übung")        { setTyp("Übung"); setPruefungsart(null); }
+                else                       { setTyp("Prüfung"); }
+                setTimeout(() => setHeroCollapsed(true), 340);
+              }}
+            />
+          </div>
+
         </div>
       </div>
 
