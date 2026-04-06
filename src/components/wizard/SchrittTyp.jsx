@@ -2,7 +2,7 @@
 // SchrittTyp – Schritt 1: Konfiguration (Typ, Klasse, Themen, Optionen)
 // Extrahiert aus BuchungsWerk.jsx – Phase D2 Refactoring
 // ══════════════════════════════════════════════════════════════════════════════
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { FileText, Zap, Timer, Search, PenLine, ClipboardList, Factory,
          ReceiptEuro, FolderOpen, RefreshCw, Package, BarChart2, Download,
          Tag, Building2, Upload, AlertTriangle, TrendingDown, Settings } from "lucide-react";
@@ -17,6 +17,7 @@ import { S } from "../../styles.js";
 export function SchrittTyp({ onWeiter, onBelegEditor, onEigeneBelege, onSimulation, initialConfig }) {
   // Wenn initialConfig gesetzt → Vorauswahl aus bestehendem config
   const ic = initialConfig;
+  const contentRef = useRef(null);
   const [typ, setTyp] = useState(ic?.typ ?? null);
   const [hoveredCard, setHoveredCard] = useState(null);
   const [pruefungsart, setPruefungsart] = useState(ic?.pruefungsart ?? null);
@@ -172,12 +173,13 @@ export function SchrittTyp({ onWeiter, onBelegEditor, onEigeneBelege, onSimulati
     <div style={{ background: "transparent" }}>
 
       {/* ── HERO ── */}
-      <div style={{ padding: "18px 16px 20px" }}>
+      <div style={{ padding: "36px 16px 28px" }}>
         <div style={{ maxWidth: "860px", margin: "0 auto" }}>
-          <div style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.15em", textTransform: "uppercase", color: "#e8600a", marginBottom: "4px" }}>BwR Bayern</div>
-          <div style={{ fontSize: "18px", fontWeight: 800, color: "rgba(240,236,227,0.85)", letterSpacing: "-0.02em", marginBottom: "28px", textAlign: "center" }}>Was möchtest du erstellen?</div>
+          <div style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.15em", textTransform: "uppercase", color: "#e8600a", marginBottom: "6px", textAlign: "center" }}>BwR Bayern</div>
+          <div style={{ fontSize: "20px", fontWeight: 800, color: "rgba(240,236,227,0.85)", letterSpacing: "-0.02em", marginBottom: "48px", textAlign: "center" }}>Was möchtest du erstellen?</div>
           <BwTypeCarousel
             selectedId={typ || undefined}
+            onScrollToContent={() => contentRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
             onSelect={(id) => {
               if (id === "Übung")             { setTyp("Übung"); setPruefungsart(null); }
               else if (id === "Prüfung")      { setTyp("Prüfung"); }
@@ -217,7 +219,7 @@ export function SchrittTyp({ onWeiter, onBelegEditor, onEigeneBelege, onSimulati
       })()}
 
       {/* ── MAIN CONTENT ── */}
-      <div style={{ maxWidth: "860px", margin: "0 auto", padding: "20px 16px" }}>
+      <div ref={contentRef} style={{ maxWidth: "860px", margin: "0 auto", padding: "20px 16px" }}>
 
       {/* Prüfungsart — nur bei Prüfung */}
       {typ === "Prüfung" && (

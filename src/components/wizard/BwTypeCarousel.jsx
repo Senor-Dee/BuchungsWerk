@@ -38,18 +38,19 @@ const ITEMS = [
 const N      = ITEMS.length; // 4
 const ANGLE  = 360 / N;      // 90°
 const RADIUS = 220;          // px Tiefe
-const TILT   = 22;           // deg rotateX – zeigt Back-Card von oben
+const TILT   = -22;          // deg rotateX – Vogelperspektive (Top sieht Viewer)
 
 function easeOut(t) { return 1 - Math.pow(1 - t, 3); }
 
-export function BwTypeCarousel({ onSelect, selectedId }) {
-  const containerRef = useRef(null);
-  const innerRef     = useRef(null);
-  const cardRefs     = useRef([]);
-  const rotRef       = useRef(0);
-  const isSnapRef    = useRef(false);
-  const dragRef      = useRef(null); // { x, startRot, moved }
-  const frontIdxRef  = useRef(0);
+export function BwTypeCarousel({ onSelect, selectedId, onScrollToContent }) {
+  const containerRef   = useRef(null);
+  const innerRef       = useRef(null);
+  const cardRefs       = useRef([]);
+  const rotRef         = useRef(0);
+  const isSnapRef      = useRef(false);
+  const dragRef        = useRef(null); // { x, startRot, moved }
+  const frontIdxRef    = useRef(0);
+  const wheelTimerRef  = useRef(null);
   const [frontIdx, _setFrontIdx] = useState(0);
 
   const setFrontIdx = (i) => { frontIdxRef.current = i; _setFrontIdx(i); };
@@ -122,6 +123,23 @@ export function BwTypeCarousel({ onSelect, selectedId }) {
     return () => el.removeEventListener('touchmove', onTM);
   }, []);
 
+  // ── Wheel: dreht das Karussell (kein Page-Scroll über Container) ────────────
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const onWheel = (e) => {
+      if (isSnapRef.current) return;
+      e.preventDefault();
+      applyRot(rotRef.current + e.deltaY * 0.28);
+      const fi = getFront(rotRef.current);
+      if (fi !== frontIdxRef.current) setFrontIdx(fi);
+      clearTimeout(wheelTimerRef.current);
+      wheelTimerRef.current = setTimeout(() => snapTo(getFront(rotRef.current)), 180);
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, []);
+
   // ── Drag ────────────────────────────────────────────────────────────────────
   const startDrag = (x, y = 0) => {
     if (isSnapRef.current) return;
@@ -149,6 +167,8 @@ export function BwTypeCarousel({ onSelect, selectedId }) {
     if (dragRef.current?.moved) return; // war ein Drag, kein Klick
     snapTo(i);
     onSelect?.(ITEMS[i].id);
+    // Gleite zur unteren Section (nur Übung / Prüfung – andere navigieren weg)
+    setTimeout(() => onScrollToContent?.(), 320);
   };
 
   return (
