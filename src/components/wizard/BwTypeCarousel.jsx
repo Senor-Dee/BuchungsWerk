@@ -13,7 +13,7 @@ const ITEMS = [
 
 const N      = ITEMS.length; // 4
 const ANGLE  = 360 / N;      // 90°
-const RADIUS = 300;          // größerer Kreis → mehr Abstand zwischen Kacheln
+const RADIUS = 240;          // Kreis-Radius – kleiner = Kacheln können leicht überlappen
 const TILT   = -22;          // deg rotateX – Vogelperspektive (Top → Viewer)
 const CARD_W = 160;          // schmälere Kacheln
 const CARD_H = 224;
@@ -187,7 +187,7 @@ export function BwTypeCarousel({ onSelect, selectedId }) {
                 style={{
                   position: 'absolute',
                   width: CARD_W, height: CARD_H,
-                  left: '50%', top: '40%',
+                  left: '50%', top: '45%',
                   marginLeft: -CARD_W / 2, marginTop: -CARD_H / 2,
                   transform: 'translate3d(0,0,0)', // wird von applyRot gesetzt
                   borderRadius: 18,
