@@ -78,6 +78,11 @@ export default function BuchungsWerk({ gastModus = false }) {
   const navLeave = () => { hoverTimerRef.current = setTimeout(() => { setHoveredNav(null); blurSourcesRef.current.nav = 0; updateBlur(); }, 80); };
 
   const materialLaden = ({ config: c, firma: f, aufgaben: a }) => {
+    // Alle Blur-Quellen zurücksetzen (Bibliothek-Picker könnte offen/aktiv sein)
+    blurSourcesRef.current.bibliothek = 0;
+    blurSourcesRef.current.nav = 0;
+    updateBlur();
+    setBibliothekPickerOffen(false);
     setConfig(c);
     setFirma(f);
     setInitialAufgaben(a || null);

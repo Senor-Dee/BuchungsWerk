@@ -18,8 +18,9 @@ export function SchrittTyp({ onWeiter, onBelegEditor, onEigeneBelege, onSimulati
   // Wenn initialConfig gesetzt → Vorauswahl aus bestehendem config
   const ic = initialConfig;
   const contentRef     = useRef(null);
-  const [heroCollapsed, setHeroCollapsed] = useState(false);
-  const [barVisible,    setBarVisible]    = useState(false);
+  // Wenn initialConfig vorhanden (Back-Navigation aus Schritt 3) → Carousel überspringen
+  const [heroCollapsed, setHeroCollapsed] = useState(!!ic);
+  const [barVisible,    setBarVisible]    = useState(!!ic);
 
   // Bar-Einblend-Animation nach Collapse
   useEffect(() => {
