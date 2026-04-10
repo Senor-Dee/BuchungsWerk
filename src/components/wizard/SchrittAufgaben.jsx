@@ -114,14 +114,13 @@ export default function SchrittAufgaben({ config, firma, initialAufgaben, onNeu,
           : typ.taskTyp === "rechnung" || typ.taskTyp === "schaubild"
           ? (gen.punkte || gen.nrPunkte || 3)
           : (gen.soll?.length || 0) + (gen.haben?.length || 0) + (gen.nrPunkte || 0);
-      // Komplex-Aufgabe zählt als so viele Teilaufgaben wie sie Schritte hat
-      const schrittAnzahl = typ.taskTyp === "komplex" ? (gen.schritte || []).length : 1;
+      // Jede Aufgabe (inkl. Komplex) zählt als 1 Aufgabe – Punkte separat via maxPunkte
       if (config.maxPunkte && punkteSum + pts > config.maxPunkte) break;
-      if (!config.maxPunkte && result.length > 0 && teilaufgabenSum + schrittAnzahl > zielAnzahl) break;
+      if (!config.maxPunkte && result.length > 0 && teilaufgabenSum + 1 > zielAnzahl) break;
       result.push({ ...gen, titel: typ.titel, id: `${typ.id}_${i}`, taskTyp: typ.taskTyp || "buchung", themenTyp: typ.themenTyp,
         _baseTypId: typ.id, _typ: typ, _opts: opts, _firma: firma });
       punkteSum += pts;
-      teilaufgabenSum += schrittAnzahl;
+      teilaufgabenSum += 1;
     }
     // Mastery tracking: Nutzung pro Task-Typ speichern
     try { trackMastery(result); } catch {}

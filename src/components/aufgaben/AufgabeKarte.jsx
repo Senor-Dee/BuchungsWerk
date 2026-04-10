@@ -540,8 +540,13 @@ export function AufgabeKarte({ aufgabe, nr, showLoesung, globalMode, klasse = 10
         {/* Stift-Button – nur im Beleg-Modus oder ohne Beleg */}
         {(effectiveMode !== "text" || !hasBeleg) && (
           <button onClick={startEdit} title="Aufgabentext bearbeiten"
-            style={{ padding: "4px 8px", border: "1.5px solid " + (isEdited ? "#e8600a" : "#e2e8f0"), borderRadius: "8px", background: isEdited ? "#fffbeb" : "#fff", cursor: "pointer", display:"flex", alignItems:"center", gap:3 }}>
-            <PenLine size={12} strokeWidth={1.5} color={isEdited?"#e8600a":"#94a3b8"}/>{isEdited ? <CheckSquare size={10} strokeWidth={1.5} color="#16a34a"/> : null}
+            style={{ padding: "6px 10px", border: "1.5px solid " + (isEdited ? "#e8600a" : "rgba(240,236,227,0.35)"),
+              borderRadius: "8px",
+              background: isEdited ? "rgba(232,96,10,0.18)" : "rgba(240,236,227,0.08)",
+              cursor: "pointer", display:"flex", alignItems:"center", gap:5,
+              boxShadow: isEdited ? "0 0 8px rgba(232,96,10,0.3)" : "none" }}>
+            <PenLine size={14} strokeWidth={2} color={isEdited?"#e8600a":"rgba(240,236,227,0.75)"}/>
+            {isEdited && <CheckSquare size={12} strokeWidth={2} color="#4ade80"/>}
           </button>
         )}
         <button onClick={() => setOpen(!open)} className="bw-btn" style={{ ...S.btnSecondary, padding: "4px 10px", fontSize: "12px" }}>{open ? "▲" : "▼ Lösung"}</button>

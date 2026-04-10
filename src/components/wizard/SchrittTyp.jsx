@@ -395,14 +395,25 @@ export function SchrittTyp({ onWeiter, onBelegEditor, onEigeneBelege, onSimulati
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 {vorklassen.length > 0 && (
                   <button onClick={() => setWiederholungAn(w => !w)}
-                    style={{ fontSize:12, fontWeight:700, padding:"6px 14px", borderRadius:20, border:"1.5px solid", cursor:"pointer",
-                      display:"flex", alignItems:"center", gap:6,
-                      borderColor: wiederholungAn ? "#e8600a" : "rgba(240,236,227,0.2)",
-                      background: wiederholungAn ? "rgba(232,96,10,0.15)" : "rgba(240,236,227,0.06)",
+                    style={{ display:"flex", alignItems:"center", gap:8, cursor:"pointer",
+                      padding:"5px 10px 5px 12px", borderRadius:20,
+                      border:"1.5px solid " + (wiederholungAn ? "#e8600a" : "rgba(240,236,227,0.2)"),
+                      background: wiederholungAn ? "rgba(232,96,10,0.15)" : "rgba(240,236,227,0.04)",
                       color: wiederholungAn ? "#e8600a" : "rgba(240,236,227,0.55)",
-                      fontFamily:"'IBM Plex Sans',sans-serif" }}>
-                    <RefreshCw size={13} strokeWidth={2}/>
-                    Wiederholung {wiederholungAn ? "ein" : "aus"}
+                      fontFamily:"'IBM Plex Sans',sans-serif", fontSize:12, fontWeight:700,
+                      boxShadow: wiederholungAn ? "0 0 10px rgba(232,96,10,0.2)" : "none",
+                      transition:"all 0.18s" }}>
+                    <span>Grundwissen</span>
+                    {/* Pill-Toggle */}
+                    <span style={{ position:"relative", display:"inline-flex", width:32, height:17,
+                      borderRadius:10, background: wiederholungAn ? "#e8600a" : "rgba(240,236,227,0.15)",
+                      border:"1.5px solid " + (wiederholungAn ? "#e8600a" : "rgba(240,236,227,0.25)"),
+                      transition:"background 0.18s", flexShrink:0 }}>
+                      <span style={{ position:"absolute", top:1, left: wiederholungAn ? 14 : 1,
+                        width:11, height:11, borderRadius:"50%",
+                        background: wiederholungAn ? "#fff" : "rgba(240,236,227,0.5)",
+                        transition:"left 0.18s", boxShadow:"0 1px 3px rgba(0,0,0,0.4)" }}/>
+                    </span>
                   </button>
                 )}
               </div>
