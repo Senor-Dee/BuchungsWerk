@@ -30,6 +30,7 @@ export function BwTypeCarousel({ onSelect, selectedId }) {
   const wheelTimerRef = useRef(null);
   const radiusXRef    = useRef(260);
   const [frontIdx, _setFrontIdx] = useState(0);
+  const [hoveredIdx, setHoveredIdx] = useState(null);
 
   const setFrontIdx = (i) => { frontIdxRef.current = i; _setFrontIdx(i); };
 
@@ -52,8 +53,8 @@ export function BwTypeCarousel({ onSelect, selectedId }) {
       el.style.transform = `translate3d(${x.toFixed(2)}px, 0px, ${z.toFixed(2)}px)`;
       const w = ((angleDeg % 360) + 360) % 360;
       const d = Math.min(w, 360 - w);
-      // Hintergrund-Kacheln deutlich sichtbarer (min 0.38)
-      el.style.opacity = Math.max(0.38, 1 - d / 140);
+      // Hintergrund-Kacheln sichtbarer (min 0.52)
+      el.style.opacity = Math.max(0.52, 1 - d / 160);
     });
   };
 
@@ -198,28 +199,44 @@ export function BwTypeCarousel({ onSelect, selectedId }) {
                 key={item.id}
                 ref={el => { cardRefs.current[i] = el; }}
                 onClick={e => onItemClick(i, e)}
-                style={{
-                  position: 'absolute',
-                  width: CARD_W, height: CARD_H,
-                  left: '50%', top: '44%',
-                  marginLeft: -CARD_W / 2, marginTop: -CARD_H / 2,
-                  transform: 'translate3d(0,0,0)', // wird von applyRot gesetzt
-                  borderRadius: 20,
-                  border: isSelected
-                    ? '2px solid rgba(232,96,10,0.85)'
-                    : isFront
-                    ? '1.5px solid rgba(232,96,10,0.55)'
-                    : '1.5px solid rgba(240,236,227,0.10)',
-                  boxShadow: isFront || isSelected
-                    ? '0 0 0 1px rgba(232,96,10,0.12), 0 24px 64px rgba(0,0,0,0.80), 0 4px 28px rgba(232,96,10,0.24)'
-                    : '0 0 28px rgba(232,96,10,0.13), 0 4px 16px rgba(0,0,0,0.52)',
-                  overflow: 'hidden', cursor: 'pointer',
-                  background: isFront || isSelected
-                    ? 'rgba(18,10,2,0.89)' : 'rgba(232,96,10,0.05)',
-                  backdropFilter: 'blur(36px) saturate(200%)',
-                  WebkitBackdropFilter: 'blur(36px) saturate(200%)',
-                  transition: 'border-color 0.3s, box-shadow 0.3s, background 0.3s',
-                }}
+                onMouseEnter={() => setHoveredIdx(i)}
+                onMouseLeave={() => setHoveredIdx(null)}
+                style={(() => {
+                  const isHovered = hoveredIdx === i;
+                  let border, boxShadow, background;
+                  if (isSelected) {
+                    border     = '2px solid rgba(232,96,10,0.90)';
+                    boxShadow  = isHovered
+                      ? '0 0 0 2px rgba(232,96,10,0.20), 0 28px 72px rgba(0,0,0,0.85), 0 6px 36px rgba(232,96,10,0.38)'
+                      : '0 0 0 1px rgba(232,96,10,0.12), 0 24px 64px rgba(0,0,0,0.80), 0 4px 28px rgba(232,96,10,0.24)';
+                    background = 'rgba(18,10,2,0.89)';
+                  } else if (isFront) {
+                    border     = isHovered ? '1.5px solid rgba(232,96,10,0.80)' : '1.5px solid rgba(232,96,10,0.55)';
+                    boxShadow  = isHovered
+                      ? '0 0 0 2px rgba(232,96,10,0.18), 0 28px 72px rgba(0,0,0,0.85), 0 6px 36px rgba(232,96,10,0.38)'
+                      : '0 0 0 1px rgba(232,96,10,0.12), 0 24px 64px rgba(0,0,0,0.80), 0 4px 28px rgba(232,96,10,0.24)';
+                    background = 'rgba(18,10,2,0.89)';
+                  } else {
+                    border     = isHovered ? '1.5px solid rgba(232,96,10,0.38)' : '1.5px solid rgba(240,236,227,0.10)';
+                    boxShadow  = isHovered
+                      ? '0 0 36px rgba(232,96,10,0.28), 0 6px 24px rgba(0,0,0,0.60)'
+                      : '0 0 28px rgba(232,96,10,0.13), 0 4px 16px rgba(0,0,0,0.52)';
+                    background = isHovered ? 'rgba(232,96,10,0.10)' : 'rgba(232,96,10,0.05)';
+                  }
+                  return {
+                    position: 'absolute',
+                    width: CARD_W, height: CARD_H,
+                    left: '50%', top: '44%',
+                    marginLeft: -CARD_W / 2, marginTop: -CARD_H / 2,
+                    transform: 'translate3d(0,0,0)',
+                    borderRadius: 20,
+                    border, boxShadow, background,
+                    overflow: 'hidden', cursor: 'pointer',
+                    backdropFilter: 'blur(36px) saturate(200%)',
+                    WebkitBackdropFilter: 'blur(36px) saturate(200%)',
+                    transition: 'border-color 0.22s, box-shadow 0.22s, background 0.22s',
+                  };
+                })()}
               >
                 {/* Liquid-Glass-Overlay: oranger Gradient oben (nur Vorderkarte) */}
                 {(isFront || isSelected) && (
