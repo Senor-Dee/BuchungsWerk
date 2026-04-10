@@ -128,7 +128,10 @@ export function BwTypeCarousel({ onSelect, selectedId }) {
     const onWheel = (e) => {
       if (isSnapRef.current) return;
       e.preventDefault();
-      const dy = Math.sign(e.deltaY) * Math.min(Math.abs(e.deltaY), 80);
+      // Horizontales Wischen (iPad/Trackpad) via deltaX, sonst deltaY
+      const raw = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+      // Richtung: Wischen nach rechts → linke Karte nach vorne (negieren)
+      const dy = -Math.sign(raw) * Math.min(Math.abs(raw), 80);
       applyRot(rotRef.current + dy * 0.22);
       const fi = getFront(rotRef.current);
       if (fi !== frontIdxRef.current) setFrontIdx(fi);
@@ -149,7 +152,8 @@ export function BwTypeCarousel({ onSelect, selectedId }) {
     if (!dragRef.current) return;
     const dx = x - dragRef.current.x;
     if (Math.abs(dx) > 5) dragRef.current.moved = true;
-    applyRot(dragRef.current.startRot + dx * 0.48);
+    // Richtung: Wischen nach rechts → linke Karte nach vorne (negieren)
+    applyRot(dragRef.current.startRot - dx * 0.48);
     const fi = getFront(rotRef.current);
     if (fi !== frontIdxRef.current) setFrontIdx(fi);
   };
