@@ -403,8 +403,8 @@ export function SchrittTyp({ onWeiter, onBelegEditor, onEigeneBelege, onSimulati
                       color: wiederholungAn ? "#e8600a" : "rgba(240,236,227,0.55)",
                       fontFamily:"'IBM Plex Sans',sans-serif", fontSize:12, fontWeight:700,
                       boxShadow: wiederholungAn
-                        ? "0 0 16px rgba(232,96,10,0.45), 0 0 6px rgba(232,96,10,0.25)"
-                        : "none",
+                        ? "0 0 14px rgba(232,96,10,0.55), 0 0 4px rgba(232,96,10,0.3)"
+                        : "0 0 8px rgba(232,96,10,0.2)",
                       transition:"all 0.18s" }}>
                     <span>Grundwissen</span>
                     {/* Pill-Toggle */}
@@ -1157,7 +1157,7 @@ export function SchrittTyp({ onWeiter, onBelegEditor, onEigeneBelege, onSimulati
             border:"1.5px solid rgba(240,236,227,0.25)", background:"rgba(240,236,227,0.06)",
             color:"rgba(240,236,227,0.65)", fontWeight:700, cursor:"pointer", marginBottom:8,
             display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
-            🏢 Firma wechseln (Schritt 2)
+            Firma wechseln (Schritt 2)
           </button>
         )}
         <button onClick={() => {
