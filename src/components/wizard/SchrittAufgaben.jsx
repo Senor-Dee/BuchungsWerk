@@ -8,7 +8,7 @@ import { ClipboardList, Calendar, Download, FilePen, Printer,
 import { fmt, fmtIBAN, berechnePunkte, LB_INFO, r2 } from "../../utils.js";
 import { validatePoolBuchungssatz, belegPoolToBuchungssatz, engineFormatToPoolFormat } from "../../utils/buchungsEngine.js";
 import { S } from "../../styles.js";
-import { apiFetch } from "../../api.js";
+import { apiFetch, userKey } from "../../api.js";
 import { useSettings, trackMastery } from "../../settings.js";
 import { AUFGABEN_POOL } from "../../data/aufgabenPool.js";
 import { IconFor } from "../IconFor.jsx";
@@ -196,7 +196,7 @@ export default function SchrittAufgaben({ config, firma, initialAufgaben, onNeu,
             <button onClick={() => setShowLoesungen(!showLoesungen)} className="bw-btn" style={S.btnSecondary}>{showLoesungen ? "Lösungen ausblenden" : "Alle Lösungen"}</button>
             <button onClick={() => {
               try {
-                const ki = JSON.parse(localStorage.getItem("buchungswerk_ki_export") || "[]");
+                const ki = JSON.parse(localStorage.getItem(userKey("buchungswerk_ki_export")) || "[]");
                 setKiHistorie(ki);
               } catch { setKiHistorie([]); }
               setExportOffen(true);
@@ -317,7 +317,7 @@ export default function SchrittAufgaben({ config, firma, initialAufgaben, onNeu,
         <button onClick={onNeu} className="bw-btn" style={S.btnSecondary}>✕ Neu starten</button>
         <button onClick={() => {
           try {
-            const ki = JSON.parse(localStorage.getItem("buchungswerk_ki_export") || "[]");
+            const ki = JSON.parse(localStorage.getItem(userKey("buchungswerk_ki_export")) || "[]");
             setKiHistorie(ki);
           } catch { setKiHistorie([]); }
           setExportOffen(true);

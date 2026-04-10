@@ -1,4 +1,5 @@
 import React from "react";
+import { userKey } from "./api.js";
 
 // ══════════════════════════════════════════════════════════════════════════════
 // EINSTELLUNGEN – global, in localStorage gespeichert
@@ -26,7 +27,7 @@ export const DEFAULT_SETTINGS = {
 // ── Streak-System ──────────────────────────────────────────────────────────────
 export function ladeStreak() {
   try {
-    const raw = localStorage.getItem("bw_streak");
+    const raw = localStorage.getItem(userKey("bw_streak"));
     if (!raw) return { count: 0, lastDate: null, longest: 0 };
     return JSON.parse(raw);
   } catch { return { count: 0, lastDate: null, longest: 0 }; }
@@ -39,7 +40,7 @@ export function aktualisiereStreak() {
   const gestern = new Date(Date.now() - 86400000).toISOString().split("T")[0];
   const neuerCount = s.lastDate === gestern ? s.count + 1 : 1;
   const neu = { count: neuerCount, lastDate: heute, longest: Math.max(neuerCount, s.longest || 0) };
-  try { localStorage.setItem("bw_streak", JSON.stringify(neu)); } catch {}
+  try { localStorage.setItem(userKey("bw_streak"), JSON.stringify(neu)); } catch {}
   return neu;
 }
 
@@ -53,14 +54,14 @@ export function streakEmoji(count) {
 
 // ── Mastery-System ─────────────────────────────────────────────────────────────
 export function ladeMastery() {
-  try { return JSON.parse(localStorage.getItem("bw_mastery") || "{}"); }
+  try { return JSON.parse(localStorage.getItem(userKey("bw_mastery")) || "{}"); }
   catch { return {}; }
 }
 export function trackMastery(aufgaben) {
   if (!aufgaben || aufgaben.length === 0) return;
   const m = ladeMastery();
   aufgaben.forEach(a => { if (a._baseTypId) m[a._baseTypId] = (m[a._baseTypId] || 0) + 1; });
-  try { localStorage.setItem("bw_mastery", JSON.stringify(m)); } catch {}
+  try { localStorage.setItem(userKey("bw_mastery"), JSON.stringify(m)); } catch {}
 }
 export function masteryLevel(count) {
   if (count >= 20) return { level: 4, label: "Meister",    color: "#f59e0b", bg: "#fffbeb", icon: "🏆" };
@@ -72,12 +73,12 @@ export function masteryLevel(count) {
 
 export function ladeSettings() {
   try {
-    const s = localStorage.getItem("buchungswerk_settings");
+    const s = localStorage.getItem(userKey("buchungswerk_settings"));
     return s ? { ...DEFAULT_SETTINGS, ...JSON.parse(s) } : { ...DEFAULT_SETTINGS };
   } catch { return { ...DEFAULT_SETTINGS }; }
 }
 export function speichereSettings(s) {
-  try { localStorage.setItem("buchungswerk_settings", JSON.stringify(s)); } catch {}
+  try { localStorage.setItem(userKey("buchungswerk_settings"), JSON.stringify(s)); } catch {}
 }
 
 // ── React Context ──────────────────────────────────────────────────────────────

@@ -5,7 +5,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Award, BarChart2, BookOpen, CheckSquare, Download, Eye, Factory,
          Megaphone, QrCode, Settings2, Star, Timer, Trophy, Users, XCircle } from "lucide-react";
-import { apiFetch } from "../../api.js";
+import { apiFetch, userKey } from "../../api.js";
 import { S } from "../../styles.js";
 import { UNTERNEHMEN } from "../../data/stammdaten.js";
 import { SIM_SCHWIERIGKEITEN, simStartKonten, simEreignisse } from "../../data/simulatorDaten.js";
@@ -60,12 +60,12 @@ export default function SimulationModus({ onZurueck, onVonURLDetected, onRegiste
   };
   const [lehrerConfig, setLehrerConfig] = useState(() => {
     try {
-      const s = localStorage.getItem("bw_lehrer_konfig");
+      const s = localStorage.getItem(userKey("bw_lehrer_konfig"));
       return s ? { ...LC_DEFAULTS, ...JSON.parse(s) } : { ...LC_DEFAULTS };
     } catch { return { ...LC_DEFAULTS }; }
   });
   React.useEffect(() => {
-    try { localStorage.setItem("bw_lehrer_konfig", JSON.stringify(lehrerConfig)); } catch {}
+    try { localStorage.setItem(userKey("bw_lehrer_konfig"), JSON.stringify(lehrerConfig)); } catch {}
   }, [lehrerConfig]);
   const [ereignisse, setEreignisse] = useState([]);
   const [aktuellesIdx, setAktuellesIdx] = useState(0);
@@ -157,7 +157,7 @@ export default function SimulationModus({ onZurueck, onVonURLDetected, onRegiste
   React.useEffect(() => {
     if (!vonURL) return;
     try {
-      const last = JSON.parse(localStorage.getItem("bw_last_session") || "null");
+      const last = JSON.parse(localStorage.getItem(userKey("bw_last_session")) || "null");
       if (last?.code === klassenCode && last?.name) {
         setSpielerName(last.name);
         apiFetch(`/session/stand/${klassenCode}/${encodeURIComponent(last.name)}`).then(res => {
@@ -403,7 +403,7 @@ export default function SimulationModus({ onZurueck, onVonURLDetected, onRegiste
         onClick={async () => {
           const name = (spielerName.trim() || "Anonym");
           // Persist for auto-fill on same device
-          try { localStorage.setItem("bw_last_session", JSON.stringify({ code: klassenCode, name })); } catch {}
+          try { localStorage.setItem(userKey("bw_last_session"), JSON.stringify({ code: klassenCode, name })); } catch {}
           // Register as active in session
           await apiFetch("/session/join", "POST", { session_code: klassenCode, spieler: name, klasse: klassenKlasse });
           const chosen = klassenFirmaId

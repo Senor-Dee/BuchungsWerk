@@ -4,7 +4,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 import React, { useState, useRef } from "react";
 import { PenLine, Zap, Download, Upload, Mail, Landmark, ArrowLeftRight, Receipt } from "lucide-react";
-import { apiFetch } from "../../api.js";
+import { apiFetch, userKey } from "../../api.js";
 import { UNTERNEHMEN } from "../../data/stammdaten.js";
 import { r2 } from "../../utils.js";
 import { belegToBuchungssatz, buchungssatzToText } from "../../utils/buchungsEngine.js";
@@ -1004,13 +1004,13 @@ Antworte NUR mit reinem JSON:
 
   const handleSaveToPool = () => {
     try {
-      const existing = JSON.parse(localStorage.getItem("buchungswerk_belege") || "[]");
+      const existing = JSON.parse(localStorage.getItem(userKey("buchungswerk_belege")) || "[]");
       existing.push({
         id: be_uid(), typ,
         titel: belegTitel.trim() || `${BELEGTYPEN.find(t=>t.id===typ)?.label} vom ${new Date().toLocaleDateString("de-DE")}`,
         data, erstellt: new Date().toISOString(),
       });
-      localStorage.setItem("buchungswerk_belege", JSON.stringify(existing));
+      localStorage.setItem(userKey("buchungswerk_belege"), JSON.stringify(existing));
       setSaveState("ok"); setTimeout(() => setSaveState(null), 2500);
     } catch { setSaveState("error"); setTimeout(() => setSaveState(null), 3000); }
   };

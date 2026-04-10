@@ -4,7 +4,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 import React, { useState } from "react";
 import { CheckSquare, ClipboardList, Star, Zap } from "lucide-react";
-import { apiFetch } from "../../api.js";
+import { apiFetch, userKey } from "../../api.js";
 import { belegToBuchungssatz, buchungssatzToText } from "../../utils/buchungsEngine.js";
 import DraggableHaken from "../DraggableHaken.jsx";
 import { KürzelSpan } from "../kontenplan/KontenplanModal.jsx";
@@ -54,7 +54,7 @@ function belegZuText(b) {
 
 function EigeneBelege({ onSchliessen }) {
   const [belege, setBelege] = useState(() => {
-    try { return JSON.parse(localStorage.getItem("buchungswerk_belege") || "[]"); }
+    try { return JSON.parse(localStorage.getItem(userKey("buchungswerk_belege")) || "[]"); }
     catch { return []; }
   });
   const [selected, setSelected]         = useState(null);
@@ -68,7 +68,7 @@ function EigeneBelege({ onSchliessen }) {
 
   const loeschen = (id) => {
     const neu = belege.filter(b => b.id !== id);
-    localStorage.setItem("buchungswerk_belege", JSON.stringify(neu));
+    localStorage.setItem(userKey("buchungswerk_belege"), JSON.stringify(neu));
     setBelege(neu);
     if (selected?.id === id) { setSelected(null); setHistorie([]); setVorschlaege(null); }
   };
@@ -290,7 +290,7 @@ ZUSAMMENGESETZTER BUCHUNGSSATZ – PFLICHT-REGELN FÜR DAS JSON:
       setHistorie(prev => {
         const neu = [...prev, eintrag];
         // Für Export in SchrittAufgaben bereitstellen
-        try { localStorage.setItem("buchungswerk_ki_export", JSON.stringify(neu.map(e => ({ result: e, beleg: selected })))); } catch {}
+        try { localStorage.setItem(userKey("buchungswerk_ki_export"), JSON.stringify(neu.map(e => ({ result: e, beleg: selected })))); } catch {}
         return neu;
       });
       setGenStatus("ok");

@@ -7,6 +7,19 @@ function getToken() {
   try { return localStorage.getItem("bw_token"); } catch { return null; }
 }
 
+/**
+ * Gibt einen user-scoped localStorage-Key zurück.
+ * buchungswerk_belege → buchungswerk_belege_u42  (für user id=42)
+ * Verhindert, dass verschiedene Nutzer am selben Gerät elkaindere Daten sehen.
+ */
+export function userKey(key) {
+  try {
+    const u = JSON.parse(localStorage.getItem("bw_user") || "null");
+    if (u?.id) return `${key}_u${u.id}`;
+  } catch {}
+  return key; // nicht eingeloggt – kein Scoping möglich
+}
+
 export async function apiFetch(path, method = "GET", body = null, timeoutMs = 10000, throwOnError = false) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
