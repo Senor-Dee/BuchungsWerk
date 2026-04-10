@@ -766,7 +766,7 @@ class KlasseCreate(BaseModel):
 @app.get("/klassen")
 def list_klassen(db: sqlite3.Connection = Depends(get_db), user=Depends(get_current_user)):
     return [dict(r) for r in db.execute(
-        "SELECT * FROM klassen WHERE user_id=? OR user_id IS NULL ORDER BY stufe, name",
+        "SELECT * FROM klassen WHERE user_id=? ORDER BY stufe, name",
         (user["id"],)
     ).fetchall()]
 
@@ -785,7 +785,7 @@ def create_klasse(data: KlasseCreate, db: sqlite3.Connection = Depends(get_db),
 def delete_klasse(id: int, db: sqlite3.Connection = Depends(get_db), user=Depends(get_current_user)):
     row = db.execute("SELECT user_id FROM klassen WHERE id=?", (id,)).fetchone()
     if not row: raise HTTPException(404, "Klasse nicht gefunden")
-    if row["user_id"] is not None and row["user_id"] != user["id"]:
+    if row["user_id"] != user["id"]:
         raise HTTPException(403, "Keine Berechtigung")
     db.execute("DELETE FROM klassen WHERE id=?", (id,)); db.commit()
 
@@ -796,10 +796,10 @@ class SchuelerCreate(BaseModel):
     kuerzel: Optional[str] = None
 
 def _check_klasse_owner(klasse_id: int, user_id: int, db: sqlite3.Connection):
-    """Stellt sicher, dass die Klasse dem Nutzer gehört (oder noch kein owner gesetzt)."""
+    """Stellt sicher, dass die Klasse dem Nutzer gehört."""
     row = db.execute("SELECT user_id FROM klassen WHERE id=?", (klasse_id,)).fetchone()
     if not row: raise HTTPException(404, "Klasse nicht gefunden")
-    if row["user_id"] is not None and row["user_id"] != user_id:
+    if row["user_id"] != user_id:
         raise HTTPException(403, "Keine Berechtigung")
 
 @app.get("/klassen/{klasse_id}/schueler")
@@ -826,7 +826,7 @@ def delete_schueler(id: int, db: sqlite3.Connection = Depends(get_db), user=Depe
         "SELECT k.user_id FROM schueler s JOIN klassen k ON k.id=s.klasse_id WHERE s.id=?", (id,)
     ).fetchone()
     if not row: raise HTTPException(404, "Schüler nicht gefunden")
-    if row["user_id"] is not None and row["user_id"] != user["id"]:
+    if row["user_id"] != user["id"]:
         raise HTTPException(403, "Keine Berechtigung")
     db.execute("DELETE FROM schueler WHERE id=?", (id,)); db.commit()
 
@@ -858,7 +858,7 @@ def session_zusammenfassung(id: int, db: sqlite3.Connection = Depends(get_db),
     session = db.execute("SELECT * FROM quiz_sessions WHERE id=?", (id,)).fetchone()
     if not session: raise HTTPException(404, "Session nicht gefunden")
     s = dict(session)
-    if s.get("user_id") is not None and s["user_id"] != user["id"]:
+    if s.get("user_id") is not None and s.get("user_id") != user["id"]:
         raise HTTPException(403, "Keine Berechtigung")
     ergebnisse = db.execute(
         "SELECT * FROM ergebnisse WHERE session_id=? ORDER BY rowid", (id,)
@@ -919,7 +919,7 @@ class MaterialCreate(BaseModel):
 def list_materialien(stufe: Optional[int] = None, db: sqlite3.Connection = Depends(get_db),
                      user=Depends(get_current_user)):
     base = ("SELECT id,titel,jahrgangsstufe,typ,pruefungsart,firma_name,firma_icon,gesamt_punkte,erstellt "
-            "FROM materialien WHERE (user_id=? OR user_id IS NULL)")
+            "FROM materialien WHERE user_id=?")
     if stufe:
         rows = db.execute(base + " AND jahrgangsstufe=? ORDER BY erstellt DESC",
                           (user["id"], stufe)).fetchall()
@@ -934,7 +934,7 @@ def get_material(id: int, db: sqlite3.Connection = Depends(get_db),
     row = db.execute("SELECT * FROM materialien WHERE id=?", (id,)).fetchone()
     if not row: raise HTTPException(404, "Material nicht gefunden")
     m = dict(row)
-    if m.get("user_id") is not None and m["user_id"] != user["id"]:
+    if m.get("user_id") != user["id"]:
         raise HTTPException(403, "Keine Berechtigung")
     return m
 
@@ -953,7 +953,7 @@ def update_material(id: int, data: MaterialCreate, db: sqlite3.Connection = Depe
                     user=Depends(get_current_user)):
     row = db.execute("SELECT user_id FROM materialien WHERE id=?", (id,)).fetchone()
     if not row: raise HTTPException(404, "Material nicht gefunden")
-    if row["user_id"] is not None and row["user_id"] != user["id"]:
+    if row["user_id"] != user["id"]:
         raise HTTPException(403, "Keine Berechtigung")
     db.execute(
         "UPDATE materialien SET titel=?,jahrgangsstufe=?,typ=?,pruefungsart=?,firma_name=?,firma_icon=?,gesamt_punkte=?,daten_json=?,geaendert=datetime('now') WHERE id=?",
@@ -967,7 +967,7 @@ def delete_material(id: int, db: sqlite3.Connection = Depends(get_db),
                     user=Depends(get_current_user)):
     row = db.execute("SELECT user_id FROM materialien WHERE id=?", (id,)).fetchone()
     if not row: raise HTTPException(404, "Material nicht gefunden")
-    if row["user_id"] is not None and row["user_id"] != user["id"]:
+    if row["user_id"] != user["id"]:
         raise HTTPException(403, "Keine Berechtigung")
     db.execute("DELETE FROM materialien WHERE id=?", (id,)); db.commit()
 
