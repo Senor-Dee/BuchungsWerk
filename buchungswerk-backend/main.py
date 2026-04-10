@@ -3,7 +3,7 @@ BuchungsWerk Backend – FastAPI + SQLite + JWT-Auth
 Raspberry Pi / Home Server
 """
 
-from fastapi import FastAPI, HTTPException, Depends, Request
+from fastapi import FastAPI, HTTPException, Depends, Request, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
@@ -248,6 +248,10 @@ def init_db():
         "ALTER TABLE session_aktiv ADD COLUMN spielstand TEXT",
         "ALTER TABLE live_quiz_teilnehmer ADD COLUMN letzte_aktivitaet TEXT DEFAULT (datetime('now'))",
         "ALTER TABLE lernbereich_niveau ADD COLUMN gesamt_aufgaben INTEGER NOT NULL DEFAULT 50",
+        # Datenschutz-Fix: user_id in alle Daten-Tabellen
+        "ALTER TABLE materialien   ADD COLUMN user_id INTEGER REFERENCES users(id) ON DELETE CASCADE",
+        "ALTER TABLE klassen       ADD COLUMN user_id INTEGER REFERENCES users(id) ON DELETE CASCADE",
+        "ALTER TABLE quiz_sessions ADD COLUMN user_id INTEGER REFERENCES users(id) ON DELETE SET NULL",
     ]
     for sql in migrations:
         try:
@@ -432,7 +436,7 @@ def health():
 
 @app.post("/auth/register", status_code=201)
 @limiter.limit("5/minute")
-def register(request: Request, data: RegisterReq, db: sqlite3.Connection = Depends(get_db)):
+def register(request: Request, data: RegisterReq, background_tasks: BackgroundTasks, db: sqlite3.Connection = Depends(get_db)):
     email = data.email.strip().lower()
     if not email or "@" not in email:
         raise HTTPException(400, "Ungültige E-Mail-Adresse")
@@ -462,7 +466,7 @@ def register(request: Request, data: RegisterReq, db: sqlite3.Connection = Depen
         db.execute("INSERT INTO token_store (user_id, token, typ, abgelaufen) VALUES (?,?,?,?)",
                    (user_id, code, "verify", exp))
         db.commit()
-        send_email(email, "BuchungsWerk – E-Mail bestätigen",
+        background_tasks.add_task(send_email, email, "BuchungsWerk – E-Mail bestätigen",
             f"<p>Hallo {data.vorname},</p>"
             f"<p>dein Bestätigungscode: <strong style='font-size:22px;letter-spacing:4px'>{code}</strong></p>"
             f"<p>Gültig für 1 Stunde.</p>")
@@ -551,7 +555,7 @@ def verify_email_ep(data: VerifyEmailReq, db: sqlite3.Connection = Depends(get_d
 
 
 @app.post("/auth/resend-verify")
-def resend_verify(data: ResendVerifyReq, db: sqlite3.Connection = Depends(get_db)):
+def resend_verify(data: ResendVerifyReq, background_tasks: BackgroundTasks, db: sqlite3.Connection = Depends(get_db)):
     email = data.email.strip().lower()
     user = db.execute("SELECT * FROM users WHERE email=? AND email_verified=0", (email,)).fetchone()
     if not user:
@@ -562,7 +566,7 @@ def resend_verify(data: ResendVerifyReq, db: sqlite3.Connection = Depends(get_db
     db.execute("INSERT INTO token_store (user_id, token, typ, abgelaufen) VALUES (?,?,?,?)",
                (user["id"], code, "verify", exp))
     db.commit()
-    send_email(email, "BuchungsWerk – Neuer Bestätigungscode",
+    background_tasks.add_task(send_email, email, "BuchungsWerk – Neuer Bestätigungscode",
         f"<p>Hallo {user['vorname']},</p>"
         f"<p>dein neuer Bestätigungscode: <strong style='font-size:22px;letter-spacing:4px'>{code}</strong></p>"
         f"<p>Gültig für 1 Stunde.</p>")
@@ -571,7 +575,7 @@ def resend_verify(data: ResendVerifyReq, db: sqlite3.Connection = Depends(get_db
 
 @app.post("/auth/reset-request")
 @limiter.limit("3/minute")
-def reset_request(request: Request, data: ResetRequestReq, db: sqlite3.Connection = Depends(get_db)):
+def reset_request(request: Request, data: ResetRequestReq, background_tasks: BackgroundTasks, db: sqlite3.Connection = Depends(get_db)):
     email = data.email.strip().lower()
     user = db.execute("SELECT * FROM users WHERE email=? AND ist_aktiv=1", (email,)).fetchone()
     if user:
@@ -581,7 +585,7 @@ def reset_request(request: Request, data: ResetRequestReq, db: sqlite3.Connectio
         db.execute("INSERT INTO token_store (user_id, token, typ, abgelaufen) VALUES (?,?,?,?)",
                    (user["id"], code, "reset", exp))
         db.commit()
-        send_email(email, "BuchungsWerk – Passwort zurücksetzen",
+        background_tasks.add_task(send_email, email, "BuchungsWerk – Passwort zurücksetzen",
             f"<p>Hallo {user['vorname']},</p>"
             f"<p>dein Reset-Code: <strong style='font-size:22px;letter-spacing:4px'>{code}</strong></p>"
             f"<p>Gültig für 30 Minuten.</p>")
@@ -760,22 +764,29 @@ class KlasseCreate(BaseModel):
     schuljahr: str
 
 @app.get("/klassen")
-def list_klassen(db: sqlite3.Connection = Depends(get_db), _=Depends(get_current_user)):
-    return [dict(r) for r in db.execute("SELECT * FROM klassen ORDER BY stufe, name").fetchall()]
+def list_klassen(db: sqlite3.Connection = Depends(get_db), user=Depends(get_current_user)):
+    return [dict(r) for r in db.execute(
+        "SELECT * FROM klassen WHERE user_id=? OR user_id IS NULL ORDER BY stufe, name",
+        (user["id"],)
+    ).fetchall()]
 
 @app.post("/klassen", status_code=201)
 def create_klasse(data: KlasseCreate, db: sqlite3.Connection = Depends(get_db),
-                  _=Depends(get_current_user)):
+                  user=Depends(get_current_user)):
     try:
-        cur = db.execute("INSERT INTO klassen (name,stufe,schuljahr) VALUES (?,?,?)",
-                         (data.name, data.stufe, data.schuljahr))
+        cur = db.execute("INSERT INTO klassen (name,stufe,schuljahr,user_id) VALUES (?,?,?,?)",
+                         (data.name, data.stufe, data.schuljahr, user["id"]))
         db.commit()
         return {"id": cur.lastrowid, **data.model_dump()}
     except sqlite3.IntegrityError:
         raise HTTPException(400, f"Klasse '{data.name}' existiert bereits")
 
 @app.delete("/klassen/{id}", status_code=204)
-def delete_klasse(id: int, db: sqlite3.Connection = Depends(get_db), _=Depends(get_current_user)):
+def delete_klasse(id: int, db: sqlite3.Connection = Depends(get_db), user=Depends(get_current_user)):
+    row = db.execute("SELECT user_id FROM klassen WHERE id=?", (id,)).fetchone()
+    if not row: raise HTTPException(404, "Klasse nicht gefunden")
+    if row["user_id"] is not None and row["user_id"] != user["id"]:
+        raise HTTPException(403, "Keine Berechtigung")
     db.execute("DELETE FROM klassen WHERE id=?", (id,)); db.commit()
 
 class SchuelerCreate(BaseModel):
@@ -784,9 +795,17 @@ class SchuelerCreate(BaseModel):
     nachname: str
     kuerzel: Optional[str] = None
 
+def _check_klasse_owner(klasse_id: int, user_id: int, db: sqlite3.Connection):
+    """Stellt sicher, dass die Klasse dem Nutzer gehört (oder noch kein owner gesetzt)."""
+    row = db.execute("SELECT user_id FROM klassen WHERE id=?", (klasse_id,)).fetchone()
+    if not row: raise HTTPException(404, "Klasse nicht gefunden")
+    if row["user_id"] is not None and row["user_id"] != user_id:
+        raise HTTPException(403, "Keine Berechtigung")
+
 @app.get("/klassen/{klasse_id}/schueler")
 def list_schueler(klasse_id: int, db: sqlite3.Connection = Depends(get_db),
-                  _=Depends(get_current_user)):
+                  user=Depends(get_current_user)):
+    _check_klasse_owner(klasse_id, user["id"], db)
     rows = db.execute(
         "SELECT * FROM schueler WHERE klasse_id=? ORDER BY nachname, vorname", (klasse_id,)
     ).fetchall()
@@ -794,14 +813,21 @@ def list_schueler(klasse_id: int, db: sqlite3.Connection = Depends(get_db),
 
 @app.post("/schueler", status_code=201)
 def create_schueler(data: SchuelerCreate, db: sqlite3.Connection = Depends(get_db),
-                    _=Depends(get_current_user)):
+                    user=Depends(get_current_user)):
+    _check_klasse_owner(data.klasse_id, user["id"], db)
     cur = db.execute("INSERT INTO schueler (klasse_id,vorname,nachname,kuerzel) VALUES (?,?,?,?)",
                      (data.klasse_id, data.vorname, data.nachname, data.kuerzel))
     db.commit()
     return {"id": cur.lastrowid, **data.model_dump()}
 
 @app.delete("/schueler/{id}", status_code=204)
-def delete_schueler(id: int, db: sqlite3.Connection = Depends(get_db), _=Depends(get_current_user)):
+def delete_schueler(id: int, db: sqlite3.Connection = Depends(get_db), user=Depends(get_current_user)):
+    row = db.execute(
+        "SELECT k.user_id FROM schueler s JOIN klassen k ON k.id=s.klasse_id WHERE s.id=?", (id,)
+    ).fetchone()
+    if not row: raise HTTPException(404, "Schüler nicht gefunden")
+    if row["user_id"] is not None and row["user_id"] != user["id"]:
+        raise HTTPException(403, "Keine Berechtigung")
     db.execute("DELETE FROM schueler WHERE id=?", (id,)); db.commit()
 
 class SessionCreate(BaseModel):
@@ -815,8 +841,8 @@ class SessionCreate(BaseModel):
 @app.post("/sessions", status_code=201)
 def create_session(data: SessionCreate, db: sqlite3.Connection = Depends(get_db), current_user: dict = Depends(get_current_user)):
     cur = db.execute(
-        "INSERT INTO quiz_sessions (klasse_id,schueler_id,titel,klasse_stufe,pruefungsart,config_json) VALUES (?,?,?,?,?,?)",
-        (data.klasse_id, data.schueler_id, data.titel, data.klasse_stufe, data.pruefungsart, data.config_json)
+        "INSERT INTO quiz_sessions (klasse_id,schueler_id,titel,klasse_stufe,pruefungsart,config_json,user_id) VALUES (?,?,?,?,?,?,?)",
+        (data.klasse_id, data.schueler_id, data.titel, data.klasse_stufe, data.pruefungsart, data.config_json, current_user["id"])
     )
     db.commit()
     return {"id": cur.lastrowid, "gestartet": datetime.now().isoformat()}
@@ -828,9 +854,12 @@ def session_abschliessen(id: int, db: sqlite3.Connection = Depends(get_db)):
 
 @app.get("/sessions/{id}/zusammenfassung")
 def session_zusammenfassung(id: int, db: sqlite3.Connection = Depends(get_db),
-                             _=Depends(get_current_user)):
+                             user=Depends(get_current_user)):
     session = db.execute("SELECT * FROM quiz_sessions WHERE id=?", (id,)).fetchone()
     if not session: raise HTTPException(404, "Session nicht gefunden")
+    s = dict(session)
+    if s.get("user_id") is not None and s["user_id"] != user["id"]:
+        raise HTTPException(403, "Keine Berechtigung")
     ergebnisse = db.execute(
         "SELECT * FROM ergebnisse WHERE session_id=? ORDER BY rowid", (id,)
     ).fetchall()
@@ -860,7 +889,8 @@ def create_ergebnis(data: ErgebnisCreate, db: sqlite3.Connection = Depends(get_d
 
 @app.get("/klassen/{klasse_id}/statistik")
 def klassen_statistik(klasse_id: int, db: sqlite3.Connection = Depends(get_db),
-                      _=Depends(get_current_user)):
+                      user=Depends(get_current_user)):
+    _check_klasse_owner(klasse_id, user["id"], db)
     rows = db.execute("""
         SELECT s.vorname, s.nachname, s.kuerzel,
                COUNT(DISTINCT qs.id) as quiz_count,
@@ -886,31 +916,45 @@ class MaterialCreate(BaseModel):
     daten_json: str
 
 @app.get("/materialien")
-def list_materialien(stufe: Optional[int] = None, db: sqlite3.Connection = Depends(get_db)):
-    q = "SELECT id,titel,jahrgangsstufe,typ,pruefungsart,firma_name,firma_icon,gesamt_punkte,erstellt FROM materialien"
-    rows = db.execute(q + (" WHERE jahrgangsstufe=? ORDER BY erstellt DESC" if stufe else " ORDER BY jahrgangsstufe, erstellt DESC"),
-                      (stufe,) if stufe else ()).fetchall()
+def list_materialien(stufe: Optional[int] = None, db: sqlite3.Connection = Depends(get_db),
+                     user=Depends(get_current_user)):
+    base = ("SELECT id,titel,jahrgangsstufe,typ,pruefungsart,firma_name,firma_icon,gesamt_punkte,erstellt "
+            "FROM materialien WHERE (user_id=? OR user_id IS NULL)")
+    if stufe:
+        rows = db.execute(base + " AND jahrgangsstufe=? ORDER BY erstellt DESC",
+                          (user["id"], stufe)).fetchall()
+    else:
+        rows = db.execute(base + " ORDER BY jahrgangsstufe, erstellt DESC",
+                          (user["id"],)).fetchall()
     return [dict(r) for r in rows]
 
 @app.get("/materialien/{id}")
-def get_material(id: int, db: sqlite3.Connection = Depends(get_db)):
+def get_material(id: int, db: sqlite3.Connection = Depends(get_db),
+                 user=Depends(get_current_user)):
     row = db.execute("SELECT * FROM materialien WHERE id=?", (id,)).fetchone()
     if not row: raise HTTPException(404, "Material nicht gefunden")
-    return dict(row)
+    m = dict(row)
+    if m.get("user_id") is not None and m["user_id"] != user["id"]:
+        raise HTTPException(403, "Keine Berechtigung")
+    return m
 
 @app.post("/materialien", status_code=201)
 def create_material(data: MaterialCreate, db: sqlite3.Connection = Depends(get_db),
-                    _=Depends(get_current_user)):
+                    user=Depends(get_current_user)):
     cur = db.execute(
-        "INSERT INTO materialien (titel,jahrgangsstufe,typ,pruefungsart,firma_name,firma_icon,gesamt_punkte,daten_json) VALUES (?,?,?,?,?,?,?,?)",
+        "INSERT INTO materialien (titel,jahrgangsstufe,typ,pruefungsart,firma_name,firma_icon,gesamt_punkte,daten_json,user_id) VALUES (?,?,?,?,?,?,?,?,?)",
         (data.titel, data.jahrgangsstufe, data.typ, data.pruefungsart,
-         data.firma_name, data.firma_icon, data.gesamt_punkte, data.daten_json)
+         data.firma_name, data.firma_icon, data.gesamt_punkte, data.daten_json, user["id"])
     )
     db.commit(); return {"id": cur.lastrowid, "erstellt": datetime.now().isoformat()}
 
 @app.put("/materialien/{id}")
 def update_material(id: int, data: MaterialCreate, db: sqlite3.Connection = Depends(get_db),
-                    _=Depends(get_current_user)):
+                    user=Depends(get_current_user)):
+    row = db.execute("SELECT user_id FROM materialien WHERE id=?", (id,)).fetchone()
+    if not row: raise HTTPException(404, "Material nicht gefunden")
+    if row["user_id"] is not None and row["user_id"] != user["id"]:
+        raise HTTPException(403, "Keine Berechtigung")
     db.execute(
         "UPDATE materialien SET titel=?,jahrgangsstufe=?,typ=?,pruefungsart=?,firma_name=?,firma_icon=?,gesamt_punkte=?,daten_json=?,geaendert=datetime('now') WHERE id=?",
         (data.titel, data.jahrgangsstufe, data.typ, data.pruefungsart,
@@ -919,7 +963,12 @@ def update_material(id: int, data: MaterialCreate, db: sqlite3.Connection = Depe
     db.commit(); return {"ok": True}
 
 @app.delete("/materialien/{id}", status_code=204)
-def delete_material(id: int, db: sqlite3.Connection = Depends(get_db), _=Depends(get_current_user)):
+def delete_material(id: int, db: sqlite3.Connection = Depends(get_db),
+                    user=Depends(get_current_user)):
+    row = db.execute("SELECT user_id FROM materialien WHERE id=?", (id,)).fetchone()
+    if not row: raise HTTPException(404, "Material nicht gefunden")
+    if row["user_id"] is not None and row["user_id"] != user["id"]:
+        raise HTTPException(403, "Keine Berechtigung")
     db.execute("DELETE FROM materialien WHERE id=?", (id,)); db.commit()
 
 class SpielErgebnis(BaseModel):
