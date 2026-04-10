@@ -14,7 +14,7 @@ import { IconFor } from "../IconFor.jsx";
 import { KürzelSpan } from "../kontenplan/KontenplanModal.jsx";
 import { S } from "../../styles.js";
 
-export function SchrittTyp({ onWeiter, onBelegEditor, onEigeneBelege, onSimulation, initialConfig }) {
+export function SchrittTyp({ onWeiter, onBelegEditor, onEigeneBelege, onSimulation, initialConfig, onFirmaWaehlen }) {
   // Wenn initialConfig gesetzt → Vorauswahl aus bestehendem config
   const ic = initialConfig;
   const contentRef     = useRef(null);
@@ -402,7 +402,9 @@ export function SchrittTyp({ onWeiter, onBelegEditor, onEigeneBelege, onSimulati
                       background: wiederholungAn ? "rgba(232,96,10,0.15)" : "rgba(240,236,227,0.04)",
                       color: wiederholungAn ? "#e8600a" : "rgba(240,236,227,0.55)",
                       fontFamily:"'IBM Plex Sans',sans-serif", fontSize:12, fontWeight:700,
-                      boxShadow: wiederholungAn ? "0 0 10px rgba(232,96,10,0.2)" : "none",
+                      boxShadow: wiederholungAn
+                        ? "0 0 16px rgba(232,96,10,0.45), 0 0 6px rgba(232,96,10,0.25)"
+                        : "none",
                       transition:"all 0.18s" }}>
                     <span>Grundwissen</span>
                     {/* Pill-Toggle */}
@@ -1148,6 +1150,16 @@ export function SchrittTyp({ onWeiter, onBelegEditor, onEigeneBelege, onSimulati
 
 
 
+        {/* Wenn von Schritt 3 zurückgekommen: "Firma ändern" Button anzeigen */}
+        {onFirmaWaehlen && (
+          <button onClick={onFirmaWaehlen} className="bw-btn" style={{
+            width:"100%", padding:"12px 16px", fontSize:"14px", borderRadius:"12px",
+            border:"1.5px solid rgba(240,236,227,0.25)", background:"rgba(240,236,227,0.06)",
+            color:"rgba(240,236,227,0.65)", fontWeight:700, cursor:"pointer", marginBottom:8,
+            display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
+            🏢 Firma wechseln (Schritt 2)
+          </button>
+        )}
         <button onClick={() => {
           if (!canProceed) return;
           const themenMap = {};
@@ -1162,7 +1174,7 @@ export function SchrittTyp({ onWeiter, onBelegEditor, onEigeneBelege, onSimulati
             opacity: canProceed ? 1 : 0.35, cursor: canProceed ? "pointer" : "not-allowed",
             background: canProceed ? "#0f172a" : "#94a3b8",
             boxShadow: canProceed ? "0 4px 16px rgba(15,23,42,0.35)" : "none" }}>
-          Weiter: Unternehmen wählen →
+          {onFirmaWaehlen ? "Weiter: Aufgaben neu erstellen →" : "Weiter: Unternehmen wählen →"}
         </button>
       </>)}
       </div>

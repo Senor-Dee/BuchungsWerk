@@ -182,14 +182,17 @@ export function KomplexKarte({ aufgabe, nr, showLoesung, globalMode, klasse = 10
   const [openAll, setOpenAll] = useState(false);
   const [openSchritte, setOpenSchritte] = useState({});
   const [loesungsViews, setLoesungsViews] = useState({});
-  const [localMode, setLocalMode] = useState(null);
-  const [schrittModes, setSchrittModes] = useState({});
+  // Jeder Schritt hat seinen eigenen unabhängigen Mode
+  const [schrittModes, setSchrittModes] = useState(() => {
+    const modes = {};
+    (aufgabe.schritte || []).forEach((s, i) => { modes[i] = s.beleg ? "beleg" : "text"; });
+    return modes;
+  });
   const [addMenuOffen, setAddMenuOffen] = useState(false);
   const [editSchrittIdx, setEditSchrittIdx] = useState(null);
   const [editText, setEditText] = useState("");
   const [kiLaden, setKiLaden] = useState(false);
-  const effectiveMode = localMode ?? globalMode;
-  const getSchrittMode = i => schrittModes[i] ?? effectiveMode;
+  const getSchrittMode = i => schrittModes[i] ?? (aufgabe.schritte?.[i]?.beleg ? "beleg" : "text");
   const setSchrittMode = (i, v) => setSchrittModes(p => ({ ...p, [i]: v }));
   const gesamtPunkte = (aufgabe.schritte || []).reduce((s, st) => s + st.punkte, 0);
 
@@ -212,13 +215,6 @@ export function KomplexKarte({ aufgabe, nr, showLoesung, globalMode, klasse = 10
           <div style={{ fontSize: "15px", fontWeight: 800, color: "#fff" }}>{aufgabe.titel.replace("🔗 ", "")}</div>
         </div>
         <div style={{ background: "#e8600a", color: "#fff", borderRadius: "20px", padding: "4px 14px", fontSize: "13px", fontWeight: 900, flexShrink: 0 }}>{gesamtPunkte} P</div>
-        {/* Beleg/Geschäftsfall-Toggle für alle Schritte */}
-        <BelegGFSlider
-          value={effectiveMode}
-          isOverridden={!!localMode}
-          onChange={v => setLocalMode(v)}
-          compact
-        />
         <button onClick={() => setOpenAll(!openAll)} className="bw-btn"
           style={{ ...S.btnSecondary, padding: "4px 12px", fontSize: "12px" }}>
           {openAll ? "▲ Lösungen" : "▼ Lösungen"}
@@ -458,7 +454,8 @@ export function BelegGFSlider({ value, onChange, compact = false }) {
 
 export function AufgabeKarte({ aufgabe, nr, showLoesung, globalMode, klasse = 10, onAufgabeChange }) {
   const [open, setOpen] = useState(false);
-  const [localMode, setLocalMode] = useState(null);
+  // Jede Karte hat ihren eigenen unabhängigen Mode (globalMode nur als Initialwert)
+  const [localMode, setLocalMode] = useState(() => globalMode ?? (aufgabe.beleg ? "beleg" : "text"));
   const [loesungsView, setLoesungsView] = useState("buchungssatz");
   const [editMode, setEditMode] = useState(false);
   const [editText, setEditText] = useState("");
@@ -466,7 +463,7 @@ export function AufgabeKarte({ aufgabe, nr, showLoesung, globalMode, klasse = 10
   const [gfEditMode, setGfEditMode] = useState(false);
   const [gfEditText, setGfEditText] = useState("");
   const [gfKiLaden, setGfKiLaden] = useState(false);
-  const effectiveMode = localMode ?? globalMode;
+  const effectiveMode = localMode;
 
   const punkte = berechnePunkte(aufgabe);
   const isRechnung = aufgabe.taskTyp === "rechnung";
@@ -540,13 +537,17 @@ export function AufgabeKarte({ aufgabe, nr, showLoesung, globalMode, klasse = 10
         {/* Stift-Button – nur im Beleg-Modus oder ohne Beleg */}
         {(effectiveMode !== "text" || !hasBeleg) && (
           <button onClick={startEdit} title="Aufgabentext bearbeiten"
-            style={{ padding: "6px 10px", border: "1.5px solid " + (isEdited ? "#e8600a" : "rgba(240,236,227,0.35)"),
-              borderRadius: "8px",
-              background: isEdited ? "rgba(232,96,10,0.18)" : "rgba(240,236,227,0.08)",
-              cursor: "pointer", display:"flex", alignItems:"center", gap:5,
-              boxShadow: isEdited ? "0 0 8px rgba(232,96,10,0.3)" : "none" }}>
-            <PenLine size={14} strokeWidth={2} color={isEdited?"#e8600a":"rgba(240,236,227,0.75)"}/>
-            {isEdited && <CheckSquare size={12} strokeWidth={2} color="#4ade80"/>}
+            style={{ padding: "7px 12px", border: "1.5px solid " + (isEdited ? "#e8600a" : "rgba(232,96,10,0.5)"),
+              borderRadius: "10px",
+              background: isEdited ? "rgba(232,96,10,0.22)" : "rgba(232,96,10,0.10)",
+              cursor: "pointer", display:"flex", alignItems:"center", gap:6,
+              boxShadow: isEdited
+                ? "0 0 14px rgba(232,96,10,0.55), 0 0 4px rgba(232,96,10,0.3)"
+                : "0 0 8px rgba(232,96,10,0.2)",
+              color: isEdited ? "#e8600a" : "rgba(232,96,10,0.85)",
+              fontSize: 12, fontWeight: 700 }}>
+            <PenLine size={14} strokeWidth={2} color="currentColor"/>
+            {isEdited ? <><CheckSquare size={13} strokeWidth={2} color="#4ade80"/> Bearbeitet</> : "Bearbeiten"}
           </button>
         )}
         <button onClick={() => setOpen(!open)} className="bw-btn" style={{ ...S.btnSecondary, padding: "4px 10px", fontSize: "12px" }}>{open ? "▲" : "▼ Lösung"}</button>

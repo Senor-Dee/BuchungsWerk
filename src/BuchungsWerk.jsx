@@ -290,7 +290,14 @@ export default function BuchungsWerk({ gastModus = false }) {
       {!gastModus && <SupportButton />}
       <div style={{ ...S.container, paddingBottom: 16 }}>
         <div ref={contentBlurRef} style={{ transition: "filter 0.22s ease" }}>
-          {schritt === 1 && <SchrittTyp onWeiter={cfg => { setConfig(cfg); if (skipFirma) { setSkipFirma(false); setSchritt(3); if (!gastModus) setStreak(aktualisiereStreak()); } else setSchritt(2); }} onBelegEditor={() => setBelegEditorOffen(true)} onEigeneBelege={() => setEigeneBelegeOffen(true)} onSimulation={() => setSchritt(4)} initialConfig={skipFirma ? config : null} />}
+          {schritt === 1 && <SchrittTyp
+            onWeiter={cfg => { setConfig(cfg); if (skipFirma) { setSkipFirma(false); setSchritt(3); if (!gastModus) setStreak(aktualisiereStreak()); } else setSchritt(2); }}
+            onBelegEditor={() => setBelegEditorOffen(true)}
+            onEigeneBelege={() => setEigeneBelegeOffen(true)}
+            onSimulation={() => setSchritt(4)}
+            initialConfig={skipFirma ? config : null}
+            onFirmaWaehlen={skipFirma ? () => { setSkipFirma(false); setSchritt(2); } : null}
+          />}
           {schritt === 2 && <SchrittFirma config={config} onWeiter={f => { setFirma(f); setSchritt(3); if (!gastModus) setStreak(aktualisiereStreak()); }} onZurueck={() => setSchritt(1)} />}
           {schritt === 3 && <ErrorBoundary><SchrittAufgaben key={configVersion} config={config} firma={firma} initialAufgaben={initialAufgaben} onNeu={reset} onMaterialLaden={materialLaden} onThemen={zuThemen} onFirma={zuFirma} aufgabenRef={aufgabenForQuizRef} /></ErrorBoundary>}
           {schritt === 4 && <ErrorBoundary><SimulationModus onZurueck={reset} onVonURLDetected={() => setIsVonURL(true)} onRegisterReset={fn => { simResetFnRef.current = fn; }} /></ErrorBoundary>}
