@@ -211,25 +211,33 @@ export function BwTypeCarousel({ onSelect, selectedId }) {
                     ? '1.5px solid rgba(232,96,10,0.55)'
                     : '1.5px solid rgba(240,236,227,0.10)',
                   boxShadow: isFront || isSelected
-                    ? '0 0 0 1px rgba(232,96,10,0.10), 0 24px 64px rgba(0,0,0,0.72), 0 4px 22px rgba(232,96,10,0.20)'
-                    : '0 4px 16px rgba(0,0,0,0.44)',
+                    ? '0 0 0 1px rgba(232,96,10,0.12), 0 24px 64px rgba(0,0,0,0.80), 0 4px 28px rgba(232,96,10,0.24)'
+                    : '0 0 28px rgba(232,96,10,0.13), 0 4px 16px rgba(0,0,0,0.52)',
                   overflow: 'hidden', cursor: 'pointer',
                   background: isFront || isSelected
-                    ? 'rgba(232,96,10,0.10)' : 'rgba(22,15,6,0.78)',
-                  backdropFilter: 'blur(28px) saturate(180%)',
-                  WebkitBackdropFilter: 'blur(28px) saturate(180%)',
+                    ? 'rgba(18,10,2,0.89)' : 'rgba(232,96,10,0.05)',
+                  backdropFilter: 'blur(36px) saturate(200%)',
+                  WebkitBackdropFilter: 'blur(36px) saturate(200%)',
                   transition: 'border-color 0.3s, box-shadow 0.3s, background 0.3s',
                 }}
               >
+                {/* Liquid-Glass-Overlay: oranger Gradient oben (nur Vorderkarte) */}
+                {(isFront || isSelected) && (
+                  <div style={{
+                    position: 'absolute', inset: 0, borderRadius: 20, pointerEvents: 'none', zIndex: 0,
+                    background: 'linear-gradient(160deg, rgba(232,96,10,0.13) 0%, rgba(232,96,10,0.04) 45%, rgba(0,0,0,0) 100%)',
+                  }} />
+                )}
+
                 {/* Edge highlight */}
                 <div style={{
-                  position: 'absolute', inset: 0, borderRadius: 19, pointerEvents: 'none',
+                  position: 'absolute', inset: 0, borderRadius: 19, pointerEvents: 'none', zIndex: 0,
                   boxShadow: isFront || isSelected ? [
-                    'inset 0 1.5px 0 rgba(255,160,60,0.26)',
-                    'inset 0 -1px 0 rgba(0,0,0,0.36)',
-                    'inset 1px 0 0 rgba(255,160,60,0.09)',
-                    'inset -1px 0 0 rgba(255,160,60,0.09)',
-                  ].join(', ') : 'inset 0 1px 0 rgba(255,255,255,0.08), inset 0 -1px 0 rgba(0,0,0,0.24)',
+                    'inset 0 1.5px 0 rgba(255,160,60,0.30)',
+                    'inset 0 -1px 0 rgba(0,0,0,0.40)',
+                    'inset 1px 0 0 rgba(255,160,60,0.10)',
+                    'inset -1px 0 0 rgba(255,160,60,0.10)',
+                  ].join(', ') : 'inset 0 1px 0 rgba(255,160,60,0.06), inset 0 -1px 0 rgba(0,0,0,0.24)',
                 }} />
 
                 {/* Content */}
