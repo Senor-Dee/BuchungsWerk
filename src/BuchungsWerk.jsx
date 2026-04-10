@@ -73,16 +73,21 @@ export default function BuchungsWerk({ gastModus = false }) {
                     : "";
   };
 
-  const reset = () => { setSchritt(1); setConfig(null); setFirma(null); setInitialAufgaben(null); setIsVonURL(false); };
+  // Alle Blur-Quellen komplett zurücksetzen (bei jeder Step-Navigation)
+  const clearBlur = () => {
+    blurSourcesRef.current.bibliothek = 0;
+    blurSourcesRef.current.nav = 0;
+    blurSourcesRef.current.dropdown = 0;
+    updateBlur();
+    setBibliothekPickerOffen(false);
+  };
+
+  const reset = () => { clearBlur(); setSchritt(1); setConfig(null); setFirma(null); setInitialAufgaben(null); setIsVonURL(false); };
   const navEnter = (label, level = 1) => { clearTimeout(hoverTimerRef.current); setHoveredNav(label); blurSourcesRef.current.nav = level; updateBlur(); };
   const navLeave = () => { hoverTimerRef.current = setTimeout(() => { setHoveredNav(null); blurSourcesRef.current.nav = 0; updateBlur(); }, 80); };
 
   const materialLaden = ({ config: c, firma: f, aufgaben: a }) => {
-    // Alle Blur-Quellen zurücksetzen (Bibliothek-Picker könnte offen/aktiv sein)
-    blurSourcesRef.current.bibliothek = 0;
-    blurSourcesRef.current.nav = 0;
-    updateBlur();
-    setBibliothekPickerOffen(false);
+    clearBlur();
     setConfig(c);
     setFirma(f);
     setInitialAufgaben(a || null);
@@ -91,8 +96,8 @@ export default function BuchungsWerk({ gastModus = false }) {
   };
 
   const [skipFirma, setSkipFirma] = useState(false);
-  const zuThemen = () => { setSkipFirma(true); setSchritt(1); };
-  const zuFirma  = () => setSchritt(2);
+  const zuThemen = () => { clearBlur(); setSkipFirma(true); setSchritt(1); };
+  const zuFirma  = () => { clearBlur(); setSchritt(2); };
 
   const isSimulation = schritt === 4;
 
@@ -291,14 +296,14 @@ export default function BuchungsWerk({ gastModus = false }) {
       <div style={{ ...S.container, paddingBottom: 16 }}>
         <div ref={contentBlurRef} style={{ transition: "filter 0.22s ease" }}>
           {schritt === 1 && <SchrittTyp
-            onWeiter={cfg => { setConfig(cfg); if (skipFirma) { setSkipFirma(false); setSchritt(3); if (!gastModus) setStreak(aktualisiereStreak()); } else setSchritt(2); }}
+            onWeiter={cfg => { clearBlur(); setConfig(cfg); if (skipFirma) { setSkipFirma(false); setSchritt(3); if (!gastModus) setStreak(aktualisiereStreak()); } else setSchritt(2); }}
             onBelegEditor={() => setBelegEditorOffen(true)}
             onEigeneBelege={() => setEigeneBelegeOffen(true)}
             onSimulation={() => setSchritt(4)}
             initialConfig={skipFirma ? config : null}
-            onFirmaWaehlen={skipFirma ? () => { setSkipFirma(false); setSchritt(2); } : null}
+            onFirmaWaehlen={skipFirma ? () => { clearBlur(); setSkipFirma(false); setSchritt(2); } : null}
           />}
-          {schritt === 2 && <SchrittFirma config={config} onWeiter={f => { setFirma(f); setSchritt(3); if (!gastModus) setStreak(aktualisiereStreak()); }} onZurueck={() => setSchritt(1)} />}
+          {schritt === 2 && <SchrittFirma config={config} onWeiter={f => { clearBlur(); setFirma(f); setSchritt(3); if (!gastModus) setStreak(aktualisiereStreak()); }} onZurueck={() => { clearBlur(); setSchritt(1); }} />}
           {schritt === 3 && <ErrorBoundary><SchrittAufgaben key={configVersion} config={config} firma={firma} initialAufgaben={initialAufgaben} onNeu={reset} onMaterialLaden={materialLaden} onThemen={zuThemen} onFirma={zuFirma} aufgabenRef={aufgabenForQuizRef} /></ErrorBoundary>}
           {schritt === 4 && <ErrorBoundary><SimulationModus onZurueck={reset} onVonURLDetected={() => setIsVonURL(true)} onRegisterReset={fn => { simResetFnRef.current = fn; }} /></ErrorBoundary>}
         </div>

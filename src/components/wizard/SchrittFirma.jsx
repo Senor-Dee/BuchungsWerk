@@ -22,18 +22,33 @@ export function SchrittFirma({ config, onWeiter, onZurueck }) {
       </div>
       <div style={{ maxWidth: "860px", margin: "0 auto", padding: "24px 16px" }}>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "20px" }}>
-          {UNTERNEHMEN.map(u => (
-            <button key={u.id} onClick={() => setSelected(u.id)} style={{ padding: 0, border: "2px solid", cursor: "pointer", textAlign: "left", overflow: "hidden", borderRadius: "12px", borderColor: selected === u.id ? u.farbe : "rgba(240,236,227,0.15)", background: selected === u.id ? u.farbe + "22" : "rgba(30,22,10,0.6)", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)" }}>
-              <div style={{ background: u.farbe, padding: "10px 16px", display: "flex", alignItems: "center", gap: "8px" }}>
-                <span style={{ color: "rgba(255,255,255,0.9)", display:"flex" }}><IconFor name={u.icon} size={20} /></span>
-                <span style={{ fontWeight: 800, fontSize: "14px", color: "#fff" }}>{u.name}</span>
-              </div>
-              <div style={{ padding: "12px 16px" }}>
-                <div style={{ fontSize: "13px", color: "#f0ece3", fontWeight: 600 }}>{u.ort} · {u.rechtsform}</div>
-                <div style={{ fontSize: "12px", color: "rgba(240,236,227,0.5)" }}>{u.branche}</div>
-              </div>
-            </button>
-          ))}
+          {UNTERNEHMEN.map(u => {
+            const isSel = selected === u.id;
+            return (
+              <button key={u.id} onClick={() => setSelected(u.id)}
+                style={{ padding: 0, border: "2px solid", cursor: "pointer", textAlign: "left", overflow: "hidden", borderRadius: "14px",
+                  borderColor: isSel ? u.farbe : "rgba(240,236,227,0.12)",
+                  background: isSel ? u.farbe + "1a" : "rgba(20,16,8,0.72)",
+                  backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)",
+                  boxShadow: isSel ? `0 0 22px ${u.farbe}40, 0 2px 8px rgba(0,0,0,0.4)` : "0 2px 8px rgba(0,0,0,0.3)",
+                  transition: "border-color 0.18s, box-shadow 0.18s, background 0.18s" }}>
+                <div style={{ background: `linear-gradient(135deg, ${u.farbe}ee, ${u.farbe}bb)`, padding: "12px 16px", display: "flex", alignItems: "center", gap: "10px" }}>
+                  <div style={{ width:34, height:34, borderRadius:8, background:"rgba(0,0,0,0.2)", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+                    <span style={{ color: "rgba(255,255,255,0.95)", display:"flex" }}><IconFor name={u.icon} size={20} /></span>
+                  </div>
+                  <div>
+                    <div style={{ fontWeight: 800, fontSize: "14px", color: "#fff", letterSpacing:"-0.01em" }}>{u.name}</div>
+                    <div style={{ fontSize: "11px", color: "rgba(255,255,255,0.65)", fontWeight: 600 }}>{u.rechtsform}</div>
+                  </div>
+                  {isSel && <div style={{ marginLeft:"auto", width:20, height:20, borderRadius:"50%", background:"rgba(255,255,255,0.9)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:12, flexShrink:0 }}>✓</div>}
+                </div>
+                <div style={{ padding: "12px 16px" }}>
+                  <div style={{ fontSize: "13px", color: "rgba(240,236,227,0.85)", fontWeight: 600 }}>{u.ort}</div>
+                  <div style={{ fontSize: "12px", color: "rgba(240,236,227,0.45)", marginTop:2 }}>{u.branche}</div>
+                </div>
+              </button>
+            );
+          })}
         </div>
         <div style={{ display: "flex", gap: "10px" }}>
           <button onClick={onZurueck} className="bw-btn" style={S.btnSecondary}>← Zurück</button>
