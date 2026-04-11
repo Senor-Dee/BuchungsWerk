@@ -296,10 +296,14 @@ export function KomplexKarte({ aufgabe, nr, showLoesung, globalMode, klasse = 10
                   </p>
                   <button onClick={() => { setEditText(schritt._aufgabeEdit ?? anrede(klasse, schritt.aufgabe ?? "")); setEditSchrittIdx(i); }}
                     title="Aufgabentext bearbeiten"
-                    style={{ padding: "4px 7px", border: `1.5px solid ${schritt._aufgabeEdit ? "#e8600a" : "#e2e8f0"}`,
-                      borderRadius: "6px", background: schritt._aufgabeEdit ? "#fffbeb" : "#fff",
-                      cursor: "pointer", flexShrink: 0, display:"flex", alignItems:"center", gap:3 }}>
-                    <PenLine size={11} strokeWidth={1.5} color={schritt._aufgabeEdit?"#e8600a":"#94a3b8"}/>{schritt._aufgabeEdit ? <CheckSquare size={10} strokeWidth={1.5} color="#16a34a"/> : null}
+                    style={{ padding: "4px 9px", border: `1.5px solid ${schritt._aufgabeEdit ? "#e8600a" : "rgba(232,96,10,0.45)"}`,
+                      borderRadius: "8px", background: schritt._aufgabeEdit ? "rgba(232,96,10,0.18)" : "rgba(232,96,10,0.09)",
+                      cursor: "pointer", flexShrink: 0, display:"flex", alignItems:"center", gap:4,
+                      color: schritt._aufgabeEdit ? "#e8600a" : "rgba(232,96,10,0.8)",
+                      fontSize: 11, fontWeight: 700,
+                      boxShadow: schritt._aufgabeEdit ? "0 0 10px rgba(232,96,10,0.45), 0 0 4px rgba(232,96,10,0.25)" : "0 0 6px rgba(232,96,10,0.18)" }}>
+                    <PenLine size={11} strokeWidth={1.5} color="currentColor"/>
+                    {schritt._aufgabeEdit ? <CheckSquare size={10} strokeWidth={1.5} color="#4ade80"/> : "Bearbeiten"}
                   </button>
                 </div>
               )}

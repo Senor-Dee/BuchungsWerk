@@ -1088,10 +1088,10 @@ export function SchrittTyp({ onWeiter, onBelegEditor, onEigeneBelege, onSimulati
 
               {/* Wiederholungs-Themen aus Vorklassen */}
               {wiederholungAn && vorklassen.length > 0 && (
-                <div style={{ marginTop:8, borderTop:"1px solid rgba(232,96,10,0.25)", paddingTop:10 }}>
-                  <div style={{ fontSize:10, fontWeight:700, color:"rgba(232,96,10,0.7)", letterSpacing:".1em", textTransform:"uppercase", marginBottom:8, display:"flex", alignItems:"center", gap:6 }}>
-                    <RefreshCw size={11} strokeWidth={2} style={{ color:"rgba(232,96,10,0.7)" }} />
-                    Wiederholungsstoff aus {vorklassen.map(k=>`Klasse ${k}`).join(" + ")}
+                <div style={{ marginTop:10, borderRadius:12, border:"1px dashed rgba(232,96,10,0.3)", background:"rgba(232,96,10,0.04)", padding:"10px 12px 8px 12px" }}>
+                  <div style={{ fontSize:10, fontWeight:700, color:"rgba(232,96,10,0.65)", letterSpacing:".1em", textTransform:"uppercase", marginBottom:8, display:"flex", alignItems:"center", gap:6 }}>
+                    <RefreshCw size={11} strokeWidth={2} style={{ color:"rgba(232,96,10,0.65)" }} />
+                    Grundwissen · {vorklassen.map(k=>`Kl. ${k}`).join(" + ")}
                   </div>
                   {vorLernbereiche.map(({ lb, k }) => {
                     const meta = LB_INFO[lb] || { icon: "📌", farbe: "#e8600a" };

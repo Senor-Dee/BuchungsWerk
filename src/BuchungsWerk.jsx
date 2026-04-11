@@ -97,14 +97,10 @@ export default function BuchungsWerk({ gastModus = false }) {
 
   const [skipFirma, setSkipFirma] = useState(false);
   const zuThemen = () => { clearBlur(); setSkipFirma(true); setSchritt(1); };
-  const zuFirma  = () => { clearBlur(); setSchritt(2); };
+  // zuFirma: configVersion inkrementieren → SchrittAufgaben remountet nach Firma-Wechsel frisch
+  const zuFirma  = () => { clearBlur(); setConfigVersion(v => v + 1); setSchritt(2); };
 
   const isSimulation = schritt === 4;
-
-  // Guard: schritt=2 ohne config → Black-Screen-Prävention (z.B. nach Page-Reload in laufender Session)
-  useEffect(() => {
-    if (schritt === 2 && !config) setSchritt(1);
-  }, [schritt, config]);
 
   // Custom Events: UserBadge (main.jsx) kann Mastery + Einstellungen öffnen + Dropdown-Blur
   useEffect(() => {
@@ -257,8 +253,20 @@ export default function BuchungsWerk({ gastModus = false }) {
             </button>
           </div>
         ) : schritt === 1 ? (
-          /* Hero / Themenauswahl: kein Stepper – eigene Identität */
-          null
+          /* Hero / Themenauswahl: App-Tagline oder Kontext bei Back-Nav */
+          skipFirma && config ? (
+            <div style={{ display:"flex", alignItems:"center", gap:8, overflow:"hidden" }}>
+              <div style={{ fontSize:11, fontWeight:700, color:"rgba(240,236,227,0.35)", letterSpacing:".08em", textTransform:"uppercase", whiteSpace:"nowrap" }}>
+                {config.typ}{config.pruefungsart ? " · " + config.pruefungsart : ""} · Kl. {config.klasse}
+              </div>
+              <div style={{ width:3, height:3, borderRadius:"50%", background:"rgba(240,236,227,0.2)", flexShrink:0 }}/>
+              <div style={{ fontSize:11, color:"rgba(240,236,227,0.25)", fontWeight:600, whiteSpace:"nowrap" }}>Thema wählen</div>
+            </div>
+          ) : (
+            <div style={{ display:"flex", alignItems:"center", gap:7 }}>
+              <span style={{ fontSize:10, fontWeight:700, color:"rgba(240,236,227,0.22)", letterSpacing:".12em", textTransform:"uppercase" }}>Aufgaben erstellen</span>
+            </div>
+          )
         ) : schritt === 2 ? (
           /* Firma-Auswahl: kompakter 3-Schritt-Indikator */
           <div style={{ flex:1, display:"flex", justifyContent:"center", alignItems:"center", overflow:"hidden", padding:"0 8px" }}>
@@ -288,11 +296,11 @@ export default function BuchungsWerk({ gastModus = false }) {
               })}
             </div>
           </div>
-        ) : schritt === 3 && firma ? (
+        ) : schritt === 3 && firma?.name ? (
           /* Aufgaben: Firma-Kontext — nützlicher als Schritt-Nummern */
           <div style={{ flex:1, display:"flex", justifyContent:"center", alignItems:"center", gap:9, overflow:"hidden", padding:"0 12px" }}>
-            <div style={{ width:26, height:26, borderRadius:8, background: firma.farbe+"22", border:`1px solid ${firma.farbe}44`, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
-              <span style={{ fontSize:12, fontWeight:900, color: firma.farbe, lineHeight:1 }}>{firma.name.charAt(0)}</span>
+            <div style={{ width:26, height:26, borderRadius:8, background: (firma.farbe||"#e8600a")+"22", border:`1px solid ${(firma.farbe||"#e8600a")}44`, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+              <span style={{ fontSize:12, fontWeight:900, color: firma.farbe||"#e8600a", lineHeight:1 }}>{firma.name.charAt(0)}</span>
             </div>
             <div style={{ overflow:"hidden", minWidth:0 }}>
               <div style={{ fontSize:13, fontWeight:800, color:"rgba(240,236,227,0.82)", letterSpacing:"-.01em", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
@@ -321,7 +329,7 @@ export default function BuchungsWerk({ gastModus = false }) {
             onEigeneBelege={() => setEigeneBelegeOffen(true)}
             onSimulation={() => setSchritt(4)}
             initialConfig={skipFirma ? config : null}
-            onFirmaWaehlen={skipFirma ? () => { clearBlur(); setSkipFirma(false); setSchritt(2); } : null}
+            onFirmaWaehlen={skipFirma ? () => { clearBlur(); setSkipFirma(false); setConfigVersion(v => v + 1); setSchritt(2); } : null}
           />}
           {schritt === 2 && <SchrittFirma config={config} onWeiter={f => { clearBlur(); setFirma(f); setSchritt(3); if (!gastModus) setStreak(aktualisiereStreak()); }} onZurueck={() => { clearBlur(); setSchritt(1); }} />}
           {schritt === 3 && <ErrorBoundary><SchrittAufgaben key={configVersion} config={config} firma={firma} initialAufgaben={initialAufgaben} onNeu={reset} onMaterialLaden={materialLaden} onThemen={zuThemen} onFirma={zuFirma} aufgabenRef={aufgabenForQuizRef} /></ErrorBoundary>}
