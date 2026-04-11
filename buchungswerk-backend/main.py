@@ -40,17 +40,64 @@ app = FastAPI(
     openapi_url=None,
 )
 
+CORS_ORIGINS = ["https://buchungswerk.org", "https://www.buchungswerk.org", "http://localhost:5173"]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://buchungswerk.org", "https://www.buchungswerk.org", "http://localhost:5173"],
+    allow_origins=CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-limiter = Limiter(key_func=get_remote_address)
+# Rate limiter – verwendet echte Client-IP aus X-Forwarded-For (Cloudflare)
+# damit nicht alle User hinter Docker-Bridge dieselbe IP teilen.
+def real_client_ip(request: Request) -> str:
+    xff = request.headers.get("x-forwarded-for", "")
+    if xff:
+        return xff.split(",")[0].strip()
+    cf_ip = request.headers.get("cf-connecting-ip", "")
+    if cf_ip:
+        return cf_ip.strip()
+    return request.client.host if request.client else "unknown"
+
+limiter = Limiter(key_func=real_client_ip)
 app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# Rate-Limit-Handler mit CORS-Headern (damit Browser kein "Load failed" sieht)
+def cors_rate_limit_handler(request: Request, exc):
+    from fastapi.responses import JSONResponse
+    origin = request.headers.get("origin", "")
+    resp_origin = origin if origin in CORS_ORIGINS else CORS_ORIGINS[0]
+    headers = {
+        "access-control-allow-origin": resp_origin,
+        "access-control-allow-credentials": "true",
+    }
+    return JSONResponse(
+        status_code=429,
+        content={"detail": "Zu viele Anfragen – bitte kurz warten und erneut versuchen."},
+        headers=headers,
+    )
+
+app.add_exception_handler(RateLimitExceeded, cors_rate_limit_handler)
+
+# Globaler OPTIONS-Handler – fängt ALLE Preflight-Anfragen ab, bevor der
+# Rate-Limiter oder Route-Handler greift (verhindert 400/405 für OPTIONS).
+@app.options("/{full_path:path}")
+async def global_options(full_path: str, request: Request):
+    from fastapi.responses import Response
+    origin = request.headers.get("origin", "")
+    resp_origin = origin if origin in CORS_ORIGINS else CORS_ORIGINS[0]
+    return Response(
+        status_code=200,
+        headers={
+            "access-control-allow-origin": resp_origin,
+            "access-control-allow-credentials": "true",
+            "access-control-allow-methods": "GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD",
+            "access-control-allow-headers": "Content-Type, Authorization, X-Requested-With",
+            "access-control-max-age": "86400",
+        }
+    )
 
 security_scheme = HTTPBearer(auto_error=False)
 
@@ -435,7 +482,7 @@ def health():
 # ══════════════════════════════════════════════════════════════════════════════
 
 @app.post("/auth/register", status_code=201)
-@limiter.limit("5/minute")
+@limiter.limit("20/minute")
 def register(request: Request, data: RegisterReq, background_tasks: BackgroundTasks, db: sqlite3.Connection = Depends(get_db)):
     email = data.email.strip().lower()
     if not email or "@" not in email:
@@ -690,16 +737,14 @@ def admin_users(db: sqlite3.Connection = Depends(get_db), _=Depends(require_admi
 
 @app.get("/admin/stats")
 def admin_stats(db: sqlite3.Connection = Depends(get_db), _=Depends(require_admin)):
-    total   = db.execute("SELECT COUNT(*) FROM users").fetchone()[0]
-    verified = db.execute("SELECT COUNT(*) FROM users WHERE email_verified=1").fetchone()[0]
-    totp    = db.execute("SELECT COUNT(*) FROM users WHERE totp_enabled=1").fetchone()[0]
-    free    = db.execute("SELECT COUNT(*) FROM users WHERE lizenz_typ='free'").fetchone()[0]
-    pro     = db.execute("SELECT COUNT(*) FROM users WHERE lizenz_typ='pro'").fetchone()[0]
-    today   = db.execute(
-        "SELECT COUNT(*) FROM users WHERE date(letzter_login)=date('now')"
+    total      = db.execute("SELECT COUNT(*) FROM users").fetchone()[0]
+    active_30d = db.execute(
+        "SELECT COUNT(*) FROM users WHERE letzter_login >= date('now','-30 days')"
     ).fetchone()[0]
-    return {"total_users": total, "verified_users": verified, "totp_users": totp,
-            "free_users": free, "pro_users": pro, "active_today": today}
+    free       = db.execute("SELECT COUNT(*) FROM users WHERE lizenz_typ='free'").fetchone()[0]
+    pro        = db.execute("SELECT COUNT(*) FROM users WHERE lizenz_typ='pro'").fetchone()[0]
+    schule     = db.execute("SELECT COUNT(*) FROM users WHERE lizenz_typ='schule'").fetchone()[0]
+    return {"total": total, "active_30d": active_30d, "free": free, "pro": pro, "schule": schule}
 
 
 @app.get("/admin/smtp/status")
