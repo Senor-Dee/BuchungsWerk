@@ -4,16 +4,18 @@
 // ══════════════════════════════════════════════════════════════════════════════
 import React, { useState } from "react";
 import { FilePen, Printer, ClipboardList,
-         FileText, CheckSquare, Files, Bot, Download } from "lucide-react";
+         FileText, CheckSquare, Files, Bot, Monitor } from "lucide-react";
 import { anrede, berechnePunkte } from "../../utils.js";
 import { S } from "../../styles.js";
 import { generateExportHTML, makeBelegDocx, buildDocxBlob, firmaIconEmoji } from "../../utils/exportFunctions.js";
 import KopfzeilenEditor, { DEFAULT_KOPFZEILE } from "../export/KopfzeilenEditor.jsx";
+import H5PModal from "../quiz/H5PModal.jsx";
 
 export default function ExportModal({ aufgaben, config, firma, kiHistorie, onSchliessen }) {
   const [modus, setModus] = useState("aufgaben");
   const [kopfzeile, setKopfzeile] = useState({ ...DEFAULT_KOPFZEILE, klasse: config.klasse + "", pruefungsart: config.pruefungsart || config.typ || "Schulaufgabe", datum: config.datum || new Date().toISOString().split("T")[0] });
   const [zeigeKopfEditor, setZeigeKopfEditor] = useState(false);
+  const [h5pOffen, setH5pOffen] = useState(false);
 
   const modusOpts = [
     { key: "aufgaben",  icon: FileText,    label: "Aufgabenblatt",   desc: "Ohne Lösung (für Schüler)" },
@@ -483,6 +485,8 @@ export default function ExportModal({ aufgaben, config, firma, kiHistorie, onSch
   };
 
   return (
+    <>
+    {h5pOffen && <H5PModal aufgaben={aufgaben} config={config} firma={firma} onSchliessen={() => setH5pOffen(false)} />}
     <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.7)", backdropFilter:"blur(8px)", WebkitBackdropFilter:"blur(8px)", zIndex:1000, display:"flex", alignItems:"center", justifyContent:"center", padding:"16px" }}>
       <div style={{ background:"rgba(22,16,8,0.97)", backdropFilter:"blur(24px)", WebkitBackdropFilter:"blur(24px)", border:"1px solid rgba(240,236,227,0.12)", borderRadius:"16px", width:"100%", maxWidth:"520px", overflow:"hidden", boxShadow:"0 25px 50px rgba(0,0,0,0.5)" }}>
         {/* Header */}
@@ -556,8 +560,26 @@ export default function ExportModal({ aufgaben, config, firma, kiHistorie, onSch
           <div style={{ marginTop:"10px", fontSize:"10px", color:"#64748b", textAlign:"center" }}>
             Word/Pages: .docx herunterladen, dann "Öffnen mit Pages" · PDF: neuer Tab öffnet → Drucken / Als PDF speichern
           </div>
+
+          {/* H5P-Export */}
+          <div style={{ marginTop:14, paddingTop:14, borderTop:"1px solid rgba(240,236,227,0.07)" }}>
+            <div style={{ fontSize:"11px", fontWeight:700, letterSpacing:"0.08em", textTransform:"uppercase", color:"#64748b", marginBottom:"8px" }}>Interaktiv</div>
+            <button onClick={() => setH5pOffen(true)}
+              style={{ width:"100%", padding:"12px 14px", borderRadius:"10px",
+                background:"linear-gradient(180deg,rgba(16,185,129,0.18) 0%,rgba(16,185,129,0.07) 100%)",
+                border:"1.5px solid rgba(16,185,129,0.4)", color:"#6ee7b7", fontWeight:800, fontSize:"13px", cursor:"pointer",
+                display:"flex", alignItems:"center", justifyContent:"center", gap:"8px",
+                boxShadow:"0 3px 0 rgba(0,0,0,0.5), 0 0 16px rgba(16,185,129,0.18), inset 0 1px 0 rgba(110,231,183,0.10)" }}>
+              <Monitor size={18} strokeWidth={1.5}/>
+              H5P-Paket erstellen
+            </button>
+            <div style={{ marginTop:"8px", fontSize:"10px", color:"#64748b", textAlign:"center" }}>
+              Interaktive Buchungsaufgaben für Moodle · LernSax · H5P.org
+            </div>
+          </div>
         </div>
       </div>
     </div>
+    </>
   );
 }

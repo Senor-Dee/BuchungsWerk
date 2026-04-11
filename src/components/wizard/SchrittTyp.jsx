@@ -14,7 +14,7 @@ import { IconFor } from "../IconFor.jsx";
 import { KürzelSpan } from "../kontenplan/KontenplanModal.jsx";
 import { S } from "../../styles.js";
 
-export function SchrittTyp({ onWeiter, onBelegEditor, onEigeneBelege, onSimulation, initialConfig, onFirmaWaehlen }) {
+export function SchrittTyp({ onWeiter, onBelegEditor, onEigeneBelege, onSimulation, initialConfig, onFirmaWaehlen, onTypChosen }) {
   // Wenn initialConfig gesetzt → Vorauswahl aus bestehendem config
   const ic = initialConfig;
   const contentRef     = useRef(null);
@@ -262,7 +262,7 @@ export function SchrittTyp({ onWeiter, onBelegEditor, onEigeneBelege, onSimulati
                   if (id === "Beleg-Editor") { onBelegEditor?.(); return; }
                   if (id === "Übung")        { setTyp("Übung"); setPruefungsart(null); }
                   else                       { setTyp("Prüfung"); }
-                  setTimeout(() => setHeroCollapsed(true), 340);
+                  setTimeout(() => { setHeroCollapsed(true); onTypChosen?.(); }, 340);
                 }}
               />
             </div>

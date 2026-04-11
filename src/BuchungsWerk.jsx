@@ -55,22 +55,19 @@ export default function BuchungsWerk({ gastModus = false }) {
   const [initialAufgaben, setInitialAufgaben] = useState(null);
   const [hoveredNav, setHoveredNav] = useState(null);
   const hoverTimerRef = useRef(null);
-  const contentBlurRef = useRef(null);
+  const [blurLevel, setBlurLevel] = useState(0);
+  const [typChosen, setTypChosen] = useState(false);
   // Jede Blur-Quelle hält ihr eigenes Level – updateBlur() nimmt immer das Maximum.
   // Verhindert, dass navLeave/dropdown-close ein höher-priorisiertes bibliothek-Level löscht.
   const blurSourcesRef = useRef({ nav: 0, bibliothek: 0, dropdown: 0 });
 
   const updateBlur = () => {
-    const el = contentBlurRef.current;
-    if (!el) return;
     const level = Math.max(
       blurSourcesRef.current.nav,
       blurSourcesRef.current.bibliothek,
       blurSourcesRef.current.dropdown,
     );
-    el.style.filter = level === 2 ? "blur(4px) brightness(0.86)"
-                    : level === 1 ? "blur(2px) brightness(0.92)"
-                    : "";
+    setBlurLevel(level);
   };
 
   // Alle Blur-Quellen komplett zurücksetzen (bei jeder Step-Navigation)
@@ -82,7 +79,7 @@ export default function BuchungsWerk({ gastModus = false }) {
     setBibliothekPickerOffen(false);
   };
 
-  const reset = () => { clearBlur(); setSchritt(1); setConfig(null); setFirma(null); setInitialAufgaben(null); setIsVonURL(false); };
+  const reset = () => { clearBlur(); setSchritt(1); setConfig(null); setFirma(null); setInitialAufgaben(null); setIsVonURL(false); setTypChosen(false); };
   const navEnter = (label, level = 1) => { clearTimeout(hoverTimerRef.current); setHoveredNav(label); blurSourcesRef.current.nav = level; updateBlur(); };
   const navLeave = () => { hoverTimerRef.current = setTimeout(() => { setHoveredNav(null); blurSourcesRef.current.nav = 0; updateBlur(); }, 80); };
 
@@ -243,8 +240,8 @@ export default function BuchungsWerk({ gastModus = false }) {
               <BookMarked size={14} strokeWidth={1.5}/>Kontenplan
             </button>
           </div>
-        ) : schritt === 1 ? null : (
-          /* Wizard schritt 2–3: einheitlicher 3-Step-Stepper */
+        ) : (schritt === 1 && !typChosen && !(skipFirma && config)) ? null : (
+          /* Wizard schritt 1 (Form)/2/3: einheitlicher 3-Step-Stepper */
           <div style={{ flex:1, display:"flex", justifyContent:"center", alignItems:"center", gap:0, overflow:"hidden", padding:"0 8px" }}>
             <div style={{ display:"flex", alignItems:"center", gap:0 }}>
               {[
@@ -296,10 +293,21 @@ export default function BuchungsWerk({ gastModus = false }) {
         <div style={{ flexShrink:0, minWidth:130 }} />
       </div>
 
+      {/* ── Backdrop-Blur Overlay (ersetzt CSS-filter auf content div) ── */}
+      {blurLevel > 0 && (
+        <div style={{
+          position:"fixed", top:62, bottom:56, left:0, right:0, zIndex:50,
+          backdropFilter: blurLevel === 2 ? "blur(4px) brightness(0.86)" : "blur(2px) brightness(0.92)",
+          WebkitBackdropFilter: blurLevel === 2 ? "blur(4px) brightness(0.86)" : "blur(2px) brightness(0.92)",
+          pointerEvents:"none",
+          animation:"bw-backdrop 0.18s ease",
+        }} />
+      )}
+
       {/* ── CONTENT ─────────────────────────────────────────────────────────── */}
       {!gastModus && <SupportButton />}
       <div style={{ ...S.container, paddingBottom: 16 }}>
-        <div ref={contentBlurRef} style={{ transition: "filter 0.22s ease" }}>
+        <div>
           {schritt === 1 && <SchrittTyp
             onWeiter={cfg => { clearBlur(); setConfig(cfg); if (skipFirma) { setSkipFirma(false); setSchritt(3); if (!gastModus) setStreak(aktualisiereStreak()); } else setSchritt(2); }}
             onBelegEditor={() => setBelegEditorOffen(true)}
@@ -307,6 +315,7 @@ export default function BuchungsWerk({ gastModus = false }) {
             onSimulation={() => setSchritt(4)}
             initialConfig={skipFirma ? config : null}
             onFirmaWaehlen={skipFirma ? () => { clearBlur(); setSkipFirma(false); setConfigVersion(v => v + 1); setSchritt(2); } : null}
+            onTypChosen={() => setTypChosen(true)}
           />}
           {schritt === 2 && <SchrittFirma config={config} currentFirmaId={firma?.id} onWeiter={f => { clearBlur(); setFirma(f); setConfigVersion(v => v + 1); setSchritt(3); if (!gastModus) setStreak(aktualisiereStreak()); }} onZurueck={() => { clearBlur(); setSkipFirma(true); setSchritt(1); }} />}
           {schritt === 3 && <ErrorBoundary><SchrittAufgaben key={configVersion} config={config} firma={firma} initialAufgaben={initialAufgaben} onNeu={reset} onMaterialLaden={materialLaden} onThemen={zuThemen} onFirma={zuFirma} aufgabenRef={aufgabenForQuizRef} /></ErrorBoundary>}
