@@ -68,8 +68,8 @@ export default function BuchungsWerk({ gastModus = false }) {
       blurSourcesRef.current.bibliothek,
       blurSourcesRef.current.dropdown,
     );
-    el.style.filter = level === 2 ? "blur(3px) brightness(0.86)"
-                    : level === 1 ? "blur(1.5px) brightness(0.90)"
+    el.style.filter = level === 2 ? "blur(4px) brightness(0.86)"
+                    : level === 1 ? "blur(2px) brightness(0.92)"
                     : "";
   };
 
@@ -129,16 +129,6 @@ export default function BuchungsWerk({ gastModus = false }) {
       {kontenplanOffen   && <KontenplanModal   onSchliessen={() => setKontenplanOffen(false)} />}
       {materialienStartOffen && <MaterialienModal onSchliessen={() => setMaterialienStartOffen(false)} onLaden={materialLaden} />}
       {apUebungOffen && <APUebungModal onSchliessen={() => setApUebungOffen(false)} />}
-
-      {/* ── Hover-Scrim: Level 1 – nur Overlay, kein backdrop-filter ── */}
-      {hoveredNav !== null && (
-        <div style={{
-          position:"fixed", top:62, bottom:56, left:0, right:0,
-          zIndex:99, pointerEvents:"none",
-          background:"rgba(0,0,0,0.08)",
-          animation:"bw-backdrop 0.15s ease",
-        }} />
-      )}
 
       {/* CSS Animations + Blur-Klassen */}
       <style>{`
@@ -253,8 +243,8 @@ export default function BuchungsWerk({ gastModus = false }) {
               <BookMarked size={14} strokeWidth={1.5}/>Kontenplan
             </button>
           </div>
-        ) : (
-          /* Wizard schritt 1–3: einheitlicher 3-Step-Stepper */
+        ) : schritt === 1 ? null : (
+          /* Wizard schritt 2–3: einheitlicher 3-Step-Stepper */
           <div style={{ flex:1, display:"flex", justifyContent:"center", alignItems:"center", gap:0, overflow:"hidden", padding:"0 8px" }}>
             <div style={{ display:"flex", alignItems:"center", gap:0 }}>
               {[

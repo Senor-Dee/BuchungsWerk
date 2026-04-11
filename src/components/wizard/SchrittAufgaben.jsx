@@ -4,7 +4,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 import React, { useState, useRef, useEffect, useMemo } from "react";
 import { ClipboardList, Calendar, Download, FilePen, Printer,
-         Monitor, Library, Save, CheckSquare } from "lucide-react";
+         Library, Save, CheckSquare } from "lucide-react";
 import { fmt, fmtIBAN, berechnePunkte, LB_INFO, r2 } from "../../utils.js";
 import { validatePoolBuchungssatz, belegPoolToBuchungssatz, engineFormatToPoolFormat } from "../../utils/buchungsEngine.js";
 import { S } from "../../styles.js";
@@ -14,7 +14,6 @@ import { AUFGABEN_POOL } from "../../data/aufgabenPool.js";
 import { IconFor } from "../IconFor.jsx";
 import { FirmaLogoSVG } from "../beleg/BelegAnzeige.jsx";
 import MaterialienModal from "../export/MaterialienModal.jsx";
-import H5PModal from "../quiz/H5PModal.jsx";
 import ExportModal from "../export/ExportModal.jsx";
 import PunktePanel from "../aufgaben/PunktePanel.jsx";
 import { AufgabeKarte, TheorieKarte, KomplexKarte, BelegGFSlider } from "../aufgaben/AufgabeKarte.jsx";
@@ -27,7 +26,6 @@ export default function SchrittAufgaben({ config, firma, initialAufgaben, onNeu,
   const [showLoesungen, setShowLoesungen] = useState(!!settings.loesungenStandardAn);
   const [globalMode, setGlobalMode] = useState(settings.belegModus || "beleg"); // "beleg" | "text"
   const [exportOffen, setExportOffen] = useState(false);
-  const [h5pOffen, setH5pOffen] = useState(false);
   const [materialienOffen, setMaterialienOffen] = useState(false);
   const [speichernStatus, setSpeichernStatus] = useState(""); // "" | "saving" | "ok" | "err"
   const [kiHistorie, setKiHistorie] = useState([]);
@@ -150,14 +148,6 @@ export default function SchrittAufgaben({ config, firma, initialAufgaben, onNeu,
           onSchliessen={() => setExportOffen(false)}
         />
       )}
-      {h5pOffen && (
-        <H5PModal
-          aufgaben={aufgaben}
-          config={config}
-          firma={firma}
-          onSchliessen={() => setH5pOffen(false)}
-        />
-      )}
       {materialienOffen && (
         <MaterialienModal
           onSchliessen={() => setMaterialienOffen(false)}
@@ -209,7 +199,6 @@ export default function SchrittAufgaben({ config, firma, initialAufgaben, onNeu,
             }} className="bw-btn" style={{ display:"flex", alignItems:"center", gap:6, padding:"7px 12px", borderRadius:8, background:"rgba(232,96,10,0.09)", border:"1.5px solid rgba(232,96,10,0.35)", color:"#e8600a", fontWeight:700, fontSize:12, cursor:"pointer", boxShadow:"0 0 10px rgba(232,96,10,0.1)", fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}>
               <Download size={13} strokeWidth={1.5}/>Export
             </button>
-            <button onClick={() => setH5pOffen(true)} className="bw-btn" style={{ display:"flex", alignItems:"center", gap:6, padding:"7px 12px", borderRadius:8, background:"rgba(232,96,10,0.06)", border:"1px solid rgba(232,96,10,0.25)", color:"rgba(232,96,10,0.75)", fontWeight:700, fontSize:12, cursor:"pointer", fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}><Monitor size={13} strokeWidth={1.5}/>H5P</button>
             <button onClick={() => setMaterialienOffen(true)} className="bw-btn" style={{ display:"flex", alignItems:"center", gap:6, padding:"7px 12px", borderRadius:8, background:"rgba(240,236,227,0.06)", border:"1px solid rgba(240,236,227,0.15)", color:"rgba(240,236,227,0.72)", fontWeight:600, fontSize:12, cursor:"pointer", fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}><Library size={13} strokeWidth={1.5}/>Materialien</button>
             <button onClick={onFirma} className="bw-btn" style={{ display:"flex", alignItems:"center", gap:5, padding:"7px 12px", borderRadius:8, border:"1px solid rgba(240,236,227,0.12)", background:"rgba(240,236,227,0.04)", color:"rgba(240,236,227,0.38)", fontWeight:600, fontSize:12, cursor:"pointer", fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}>‹ Unternehmen</button>
             <button onClick={onThemen} className="bw-btn" style={{ display:"flex", alignItems:"center", gap:5, padding:"7px 12px", borderRadius:8, border:"1px solid rgba(240,236,227,0.12)", background:"rgba(240,236,227,0.04)", color:"rgba(240,236,227,0.38)", fontWeight:600, fontSize:12, cursor:"pointer", fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}>‹‹ Themen</button>
@@ -336,10 +325,6 @@ export default function SchrittAufgaben({ config, firma, initialAufgaben, onNeu,
           <FilePen size={14} strokeWidth={2}/>
           <Printer size={14} strokeWidth={2}/>
           Exportieren
-        </button>
-        <button onClick={() => setH5pOffen(true)} className="bw-btn" style={{ display:"flex", alignItems:"center", gap:7, padding:"11px 20px", borderRadius:"10px", background:"rgba(232,96,10,0.07)", border:"1px solid rgba(232,96,10,0.28)", color:"rgba(232,96,10,0.8)", fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"'IBM Plex Sans',system-ui,sans-serif", minHeight:44 }}>
-          <Monitor size={14} strokeWidth={2}/>
-          H5P exportieren
         </button>
       </div>
     </div>
