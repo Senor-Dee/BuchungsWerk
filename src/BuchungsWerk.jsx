@@ -98,7 +98,7 @@ export default function BuchungsWerk({ gastModus = false }) {
   const [skipFirma, setSkipFirma] = useState(false);
   const zuThemen = () => { clearBlur(); setSkipFirma(true); setSchritt(1); };
   // zuFirma: configVersion inkrementieren → SchrittAufgaben remountet nach Firma-Wechsel frisch
-  const zuFirma  = () => { clearBlur(); setConfigVersion(v => v + 1); setSchritt(2); };
+  const zuFirma  = () => { clearBlur(); setInitialAufgaben(null); setConfigVersion(v => v + 1); setSchritt(2); };
 
   const isSimulation = schritt === 4;
 
@@ -331,7 +331,7 @@ export default function BuchungsWerk({ gastModus = false }) {
             initialConfig={skipFirma ? config : null}
             onFirmaWaehlen={skipFirma ? () => { clearBlur(); setSkipFirma(false); setConfigVersion(v => v + 1); setSchritt(2); } : null}
           />}
-          {schritt === 2 && <SchrittFirma config={config} onWeiter={f => { clearBlur(); setFirma(f); setSchritt(3); if (!gastModus) setStreak(aktualisiereStreak()); }} onZurueck={() => { clearBlur(); setSchritt(1); }} />}
+          {schritt === 2 && <SchrittFirma config={config} currentFirmaId={firma?.id} onWeiter={f => { clearBlur(); setFirma(f); setConfigVersion(v => v + 1); setSchritt(3); if (!gastModus) setStreak(aktualisiereStreak()); }} onZurueck={() => { clearBlur(); setSchritt(1); }} />}
           {schritt === 3 && <ErrorBoundary><SchrittAufgaben key={configVersion} config={config} firma={firma} initialAufgaben={initialAufgaben} onNeu={reset} onMaterialLaden={materialLaden} onThemen={zuThemen} onFirma={zuFirma} aufgabenRef={aufgabenForQuizRef} /></ErrorBoundary>}
           {schritt === 4 && <ErrorBoundary><SimulationModus onZurueck={reset} onVonURLDetected={() => setIsVonURL(true)} onRegisterReset={fn => { simResetFnRef.current = fn; }} /></ErrorBoundary>}
         </div>

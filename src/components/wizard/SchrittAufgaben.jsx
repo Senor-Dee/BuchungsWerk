@@ -192,20 +192,20 @@ export default function SchrittAufgaben({ config, firma, initialAufgaben, onNeu,
               <BelegGFSlider value={globalMode} onChange={setGlobalMode} compact />
             </div>
 
-            <button onClick={() => setShowLoesungen(!showLoesungen)} className="bw-btn" style={S.btnSecondary}>{showLoesungen ? "Lösungen ausblenden" : "Alle Lösungen"}</button>
+            <button onClick={() => setShowLoesungen(!showLoesungen)} className="bw-btn" style={{ display:"flex", alignItems:"center", padding:"7px 12px", borderRadius:8, background:"rgba(240,236,227,0.06)", border:"1px solid rgba(240,236,227,0.15)", color:"rgba(240,236,227,0.72)", fontWeight:600, fontSize:12, cursor:"pointer", fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}>{showLoesungen ? "Lösungen ausblenden" : "Alle Lösungen"}</button>
             <button onClick={() => {
               try {
                 const ki = JSON.parse(localStorage.getItem(userKey("buchungswerk_ki_export")) || "[]");
                 setKiHistorie(ki);
               } catch { setKiHistorie([]); }
               setExportOffen(true);
-            }} className="bw-btn" style={{ display:"flex", alignItems:"center", gap:6, padding:"9px 14px", borderRadius:9, background:"rgba(232,96,10,0.09)", border:"1.5px solid rgba(232,96,10,0.35)", color:"#e8600a", fontWeight:700, fontSize:12, cursor:"pointer", boxShadow:"0 0 10px rgba(232,96,10,0.1)", fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}>
+            }} className="bw-btn" style={{ display:"flex", alignItems:"center", gap:6, padding:"7px 12px", borderRadius:8, background:"rgba(232,96,10,0.09)", border:"1.5px solid rgba(232,96,10,0.35)", color:"#e8600a", fontWeight:700, fontSize:12, cursor:"pointer", boxShadow:"0 0 10px rgba(232,96,10,0.1)", fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}>
               <Download size={13} strokeWidth={1.5}/>Export
             </button>
-            <button onClick={() => setH5pOffen(true)} className="bw-btn" style={{ display:"flex", alignItems:"center", gap:6, padding:"9px 14px", borderRadius:9, background:"rgba(232,96,10,0.06)", border:"1px solid rgba(232,96,10,0.25)", color:"rgba(232,96,10,0.75)", fontWeight:700, fontSize:12, cursor:"pointer", fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}><Monitor size={13} strokeWidth={1.5}/>H5P</button>
-            <button onClick={() => setMaterialienOffen(true)} className="bw-btn" style={{ ...S.btnSecondary, display:"flex", alignItems:"center", gap:6 }}><Library size={14} strokeWidth={1.5}/>Materialien</button>
-            <button onClick={onFirma} className="bw-btn" style={{ padding:"6px 14px", borderRadius:"8px", border:"1px solid rgba(240,236,227,0.15)", background:"rgba(240,236,227,0.05)", color:"rgba(240,236,227,0.45)", fontWeight:700, fontSize:12, cursor:"pointer", display:"flex", alignItems:"center", gap:5 }}>‹ Unternehmen</button>
-            <button onClick={onThemen} className="bw-btn" style={{ padding:"6px 14px", borderRadius:"8px", border:"1px solid rgba(240,236,227,0.15)", background:"rgba(240,236,227,0.05)", color:"rgba(240,236,227,0.45)", fontWeight:700, fontSize:12, cursor:"pointer", display:"flex", alignItems:"center", gap:5 }}>‹‹ Themen</button>
+            <button onClick={() => setH5pOffen(true)} className="bw-btn" style={{ display:"flex", alignItems:"center", gap:6, padding:"7px 12px", borderRadius:8, background:"rgba(232,96,10,0.06)", border:"1px solid rgba(232,96,10,0.25)", color:"rgba(232,96,10,0.75)", fontWeight:700, fontSize:12, cursor:"pointer", fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}><Monitor size={13} strokeWidth={1.5}/>H5P</button>
+            <button onClick={() => setMaterialienOffen(true)} className="bw-btn" style={{ display:"flex", alignItems:"center", gap:6, padding:"7px 12px", borderRadius:8, background:"rgba(240,236,227,0.06)", border:"1px solid rgba(240,236,227,0.15)", color:"rgba(240,236,227,0.72)", fontWeight:600, fontSize:12, cursor:"pointer", fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}><Library size={13} strokeWidth={1.5}/>Materialien</button>
+            <button onClick={onFirma} className="bw-btn" style={{ display:"flex", alignItems:"center", gap:5, padding:"7px 12px", borderRadius:8, border:"1px solid rgba(240,236,227,0.12)", background:"rgba(240,236,227,0.04)", color:"rgba(240,236,227,0.38)", fontWeight:600, fontSize:12, cursor:"pointer", fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}>‹ Unternehmen</button>
+            <button onClick={onThemen} className="bw-btn" style={{ display:"flex", alignItems:"center", gap:5, padding:"7px 12px", borderRadius:8, border:"1px solid rgba(240,236,227,0.12)", background:"rgba(240,236,227,0.04)", color:"rgba(240,236,227,0.38)", fontWeight:600, fontSize:12, cursor:"pointer", fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}>‹‹ Themen</button>
             <button onClick={async () => {
               setSpeichernStatus("saving");
               const titel = `${config.typ}${config.pruefungsart ? " · " + config.pruefungsart : ""} · Kl. ${config.klasse} · ${firma.name}`;
@@ -222,8 +222,13 @@ export default function SchrittAufgaben({ config, firma, initialAufgaben, onNeu,
               setSpeichernStatus(res ? "ok" : "err");
               if (speichernTimerRef.current) clearTimeout(speichernTimerRef.current);
               speichernTimerRef.current = setTimeout(() => setSpeichernStatus(""), 3000);
-            }} className="bw-btn bw-btn-primary" style={{ ...S.btnPrimary, display:"flex", alignItems:"center", gap:6, ...(speichernStatus === "ok" && { background: "rgba(74,222,128,0.85)", boxShadow: "0 3px 0 rgba(0,0,0,0.5), 0 0 16px rgba(74,222,128,0.35)" }), ...(speichernStatus === "err" && { background: "rgba(239,68,68,0.9)" }), ...(speichernStatus === "saving" && { opacity: 0.7 }) }}>
-              {speichernStatus === "saving" ? <><Save size={14} strokeWidth={1.5}/>…</> : speichernStatus === "ok" ? <><CheckSquare size={14} strokeWidth={1.5}/>Gespeichert</> : speichernStatus === "err" ? "✗ Fehler" : <><Save size={14} strokeWidth={1.5}/>Speichern</>}
+            }} className="bw-btn" style={{ display:"flex", alignItems:"center", gap:6, padding:"7px 12px", borderRadius:8, fontWeight:700, fontSize:12, cursor:"pointer", fontFamily:"'IBM Plex Sans',system-ui,sans-serif",
+              background: speichernStatus === "ok" ? "rgba(74,222,128,0.12)" : speichernStatus === "err" ? "rgba(239,68,68,0.12)" : "rgba(232,96,10,0.09)",
+              border: speichernStatus === "ok" ? "1.5px solid rgba(74,222,128,0.45)" : speichernStatus === "err" ? "1.5px solid rgba(239,68,68,0.45)" : "1.5px solid rgba(232,96,10,0.35)",
+              color: speichernStatus === "ok" ? "#4ade80" : speichernStatus === "err" ? "#ef4444" : "#e8600a",
+              opacity: speichernStatus === "saving" ? 0.65 : 1,
+              boxShadow: speichernStatus === "ok" ? "0 0 10px rgba(74,222,128,0.18)" : speichernStatus === "err" ? "0 0 10px rgba(239,68,68,0.18)" : "0 0 10px rgba(232,96,10,0.1)" }}>
+              {speichernStatus === "saving" ? <><Save size={13} strokeWidth={1.5}/>…</> : speichernStatus === "ok" ? <><CheckSquare size={13} strokeWidth={1.5}/>Gespeichert</> : speichernStatus === "err" ? <>✗ Fehler</> : <><Save size={13} strokeWidth={1.5}/>Speichern</>}
             </button>
           </div>
         </div>

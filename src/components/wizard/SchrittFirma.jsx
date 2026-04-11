@@ -3,12 +3,13 @@
 // Extrahiert aus BuchungsWerk.jsx – Phase D2 Refactoring
 // ══════════════════════════════════════════════════════════════════════════════
 import React, { useState } from "react";
+import { Check } from "lucide-react";
 import { UNTERNEHMEN } from "../../data/stammdaten.js";
 import { IconFor } from "../IconFor.jsx";
 import { S } from "../../styles.js";
 
-export function SchrittFirma({ config, onWeiter, onZurueck }) {
-  const [selected, setSelected] = useState(null);
+export function SchrittFirma({ config, onWeiter, onZurueck, currentFirmaId }) {
+  const [selected, setSelected] = useState(currentFirmaId || null);
   return (
     <div style={{ background: "transparent", minHeight: "calc(100vh - 56px)" }}>
       <div style={{ background: "linear-gradient(160deg,#1a1208,#251a0a)", padding: "28px 20px 36px" }}>
@@ -40,7 +41,7 @@ export function SchrittFirma({ config, onWeiter, onZurueck }) {
                     <div style={{ fontWeight: 800, fontSize: "14px", color: "#fff", letterSpacing:"-0.01em" }}>{u.name}</div>
                     <div style={{ fontSize: "11px", color: "rgba(255,255,255,0.65)", fontWeight: 600 }}>{u.rechtsform}</div>
                   </div>
-                  {isSel && <div style={{ marginLeft:"auto", width:20, height:20, borderRadius:"50%", background:"rgba(255,255,255,0.9)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:12, flexShrink:0 }}>✓</div>}
+                  {isSel && <div style={{ marginLeft:"auto", width:22, height:22, borderRadius:"50%", background:"rgba(0,0,0,0.35)", border:"2px solid rgba(255,255,255,0.6)", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}><Check size={13} strokeWidth={3} color="#fff" /></div>}
                 </div>
                 <div style={{ padding: "12px 16px" }}>
                   <div style={{ fontSize: "13px", color: "rgba(240,236,227,0.85)", fontWeight: 600 }}>{u.ort}</div>
