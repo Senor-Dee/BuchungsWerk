@@ -164,12 +164,12 @@ export default function SchrittAufgaben({ config, firma, initialAufgaben, onNeu,
             <div style={S.h2}>
               {config.typ}{config.pruefungsart ? ` · ${config.pruefungsart}` : ""} · Klasse {config.klasse}
             </div>
-            <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginTop: "8px" }}>
-              <span style={{ display:"inline-flex", alignItems:"center", gap:6, ...S.tag(firma.farbe) }}><FirmaLogoSVG firma={firma} size={18}/>{firma.name}</span>
-              {config.pruefungsart && <span style={{ display:"inline-flex", alignItems:"center", gap:4, ...S.tag("#0f172a") }}><ClipboardList size={11} strokeWidth={1.5}/>{config.pruefungsart}</span>}
-              {activeLBs.map(lb => { const m = LB_INFO[lb] || { icon: "FileText", farbe: "#475569" }; return <span key={lb} style={{ display:"inline-flex", alignItems:"center", gap:3, ...S.tag(m.farbe) }}><IconFor name={m.icon} size={11} />{lb.split("·")[0].trim()}</span>; })}
-              <span style={{ display:"inline-flex", alignItems:"center", gap:4, ...S.tag("#475569") }}><Calendar size={11} strokeWidth={1.5}/>{fmt_datum(config.datum)}</span>
-              <span style={{ display:"inline-flex", alignItems:"center", gap:4, ...S.tag("#475569") }}><ClipboardList size={11} strokeWidth={1.5}/>{aufgaben.reduce((s,a) => s + (a.taskTyp === "komplex" ? (a.schritte?.length || 1) : Array.isArray(a.teilaufgaben) ? a.teilaufgaben.length : 1), 0)} Aufg. · {gesamtPunkte} P</span>
+            <div style={{ display: "flex", gap: "5px", flexWrap: "wrap", marginTop: "8px" }}>
+              <span style={{ display:"inline-flex", alignItems:"center", gap:5, ...S.tag(firma.farbe) }}><FirmaLogoSVG firma={firma} size={13}/>{firma.name}</span>
+              {config.pruefungsart && <span style={{ display:"inline-flex", alignItems:"center", gap:5, ...S.tag("#0f172a") }}><ClipboardList size={12} strokeWidth={1.5}/>{config.pruefungsart}</span>}
+              {activeLBs.map(lb => { const m = LB_INFO[lb] || { icon: "FileText", farbe: "#475569" }; return <span key={lb} style={{ display:"inline-flex", alignItems:"center", gap:5, ...S.tag(m.farbe) }}><IconFor name={m.icon} size={12} />{lb.split("·")[0].trim()}</span>; })}
+              <span style={{ display:"inline-flex", alignItems:"center", gap:5, ...S.tag("#475569") }}><Calendar size={12} strokeWidth={1.5}/>{fmt_datum(config.datum)}</span>
+              <span style={{ display:"inline-flex", alignItems:"center", gap:5, ...S.tag("#475569") }}><ClipboardList size={12} strokeWidth={1.5}/>{aufgaben.reduce((s,a) => s + (a.taskTyp === "komplex" ? (a.schritte?.length || 1) : Array.isArray(a.teilaufgaben) ? a.teilaufgaben.length : 1), 0)} Aufg. · {gesamtPunkte} P</span>
             </div>
             {/* Fortschrittsleiste bei Punktziel */}
             {config.maxPunkte && (

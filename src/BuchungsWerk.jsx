@@ -68,8 +68,8 @@ export default function BuchungsWerk({ gastModus = false }) {
       blurSourcesRef.current.bibliothek,
       blurSourcesRef.current.dropdown,
     );
-    el.style.filter = level === 2 ? "blur(10px) brightness(0.55)"
-                    : level === 1 ? "blur(5px) brightness(0.70)"
+    el.style.filter = level === 2 ? "blur(3px) brightness(0.86)"
+                    : level === 1 ? "brightness(0.93)"
                     : "";
   };
 

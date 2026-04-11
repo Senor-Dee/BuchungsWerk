@@ -451,8 +451,8 @@ export function KomplexKarte({ aufgabe, nr, showLoesung, globalMode, klasse = 10
 // ── Beleg / Geschäftsfall Slider – jetzt LiquidRadio ─────────────────────────
 export function BelegGFSlider({ value, onChange, compact = false }) {
   const opts = compact
-    ? [{ key:"beleg", label:"Beleg", icon:FileText }, { key:"text", label:"GF", icon:MessageSquare }]
-    : [{ key:"beleg", label:"Beleg", icon:FileText }, { key:"text", label:"Geschäftsfall", icon:MessageSquare }];
+    ? [{ key:"beleg", label:"Beleg" }, { key:"text", label:"GF" }]
+    : [{ key:"beleg", label:"Beleg" }, { key:"text", label:"Geschäftsfall" }];
   return <LiquidRadio options={opts} value={value} onChange={onChange} size="sm" />;
 }
 
