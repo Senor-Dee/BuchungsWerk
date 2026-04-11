@@ -57,8 +57,14 @@ export default function SchrittAufgaben({ config, firma, initialAufgaben, onNeu,
     const zielAnzahl = config.anzahl || 5;
     const maxRunden = config.maxPunkte ? 50 : zielAnzahl * 4; // safety cap
     let teilaufgabenSum = 0; // Komplexaufgaben zählen als N Teilaufgaben
+    const usedKomplexIds = new Set();
     for (let i = 0; i < maxRunden; i++) {
       const typ = pool[i % pool.length];
+      // Keine Duplikate bei Kettenaufgaben (komplex-Typ)
+      if (typ.taskTyp === "komplex" && usedKomplexIds.has(typ.id)) {
+        if (pool.every(t => t.taskTyp !== "komplex" || usedKomplexIds.has(t.id))) break;
+        continue;
+      }
       const isLB2 = Object.keys(config.selectedThemen).some(lb => lb.includes("Werkstoffe"));
       const opts = {
         werkstoffId: config.werkstoffId || "rohstoffe",
@@ -119,6 +125,7 @@ export default function SchrittAufgaben({ config, firma, initialAufgaben, onNeu,
       if (!config.maxPunkte && result.length > 0 && teilaufgabenSum + 1 > zielAnzahl) break;
       result.push({ ...gen, titel: typ.titel, id: `${typ.id}_${i}`, taskTyp: typ.taskTyp || "buchung", themenTyp: typ.themenTyp,
         _baseTypId: typ.id, _typ: typ, _opts: opts, _firma: firma });
+      if (typ.taskTyp === "komplex") usedKomplexIds.add(typ.id);
       punkteSum += pts;
       teilaufgabenSum += 1;
     }

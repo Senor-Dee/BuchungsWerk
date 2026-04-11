@@ -3,7 +3,7 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import { Factory, BookOpen, GraduationCap, BookMarked,
-         Users, FolderOpen,
+         Users, FolderOpen, Check,
          Zap, Star, Trophy, Flame, Sprout,
          ListChecks, Dices, Play, BarChart2, Building2, TrendingUp } from "lucide-react";
 import { useStreak } from "./hooks/useStreak.js";
@@ -69,7 +69,7 @@ export default function BuchungsWerk({ gastModus = false }) {
       blurSourcesRef.current.dropdown,
     );
     el.style.filter = level === 2 ? "blur(3px) brightness(0.86)"
-                    : level === 1 ? "brightness(0.93)"
+                    : level === 1 ? "blur(1.5px) brightness(0.90)"
                     : "";
   };
 
@@ -216,7 +216,8 @@ export default function BuchungsWerk({ gastModus = false }) {
             <div title={`${streak.count} Tag${streak.count===1?"":"e"} in Folge aktiv · Rekord: ${streak.longest} Tage`}
               style={{ display:"flex", flexDirection:"column", alignItems:"center", background:"#1e293b",
                 border:`1.5px solid ${streak.count>=7?"#e8600a":"#334155"}`, borderRadius:8,
-                padding:"3px 8px", cursor:"default", minWidth:38 }}>
+                padding:"3px 8px", cursor:"pointer", minWidth:38 }}
+              onClick={() => window.dispatchEvent(new CustomEvent("bw:mastery"))}>
               <span style={{ lineHeight:1, color: streak.count>=30?"#f59e0b": streak.count>=14?"#e8600a": streak.count>=7?"#facc15": streak.count>=3?"#a78bfa":"#86efac", display:"flex" }}>
                 {streak.count>=30 ? <Trophy size={15} strokeWidth={1.5}/> : streak.count>=14 ? <Flame size={15} strokeWidth={1.5}/> : streak.count>=7 ? <Zap size={15} strokeWidth={1.5}/> : streak.count>=3 ? <Star size={15} strokeWidth={1.5}/> : <Sprout size={15} strokeWidth={1.5}/>}
               </span>
@@ -252,42 +253,34 @@ export default function BuchungsWerk({ gastModus = false }) {
               <BookMarked size={14} strokeWidth={1.5}/>Kontenplan
             </button>
           </div>
-        ) : schritt === 1 ? (
-          /* Hero / Themenauswahl: App-Tagline oder Kontext bei Back-Nav */
-          skipFirma && config ? (
-            <div style={{ display:"flex", alignItems:"center", gap:8, overflow:"hidden" }}>
-              <div style={{ fontSize:11, fontWeight:700, color:"rgba(240,236,227,0.35)", letterSpacing:".08em", textTransform:"uppercase", whiteSpace:"nowrap" }}>
-                {config.typ}{config.pruefungsart ? " · " + config.pruefungsart : ""} · Kl. {config.klasse}
-              </div>
-              <div style={{ width:3, height:3, borderRadius:"50%", background:"rgba(240,236,227,0.2)", flexShrink:0 }}/>
-              <div style={{ fontSize:11, color:"rgba(240,236,227,0.25)", fontWeight:600, whiteSpace:"nowrap" }}>Thema wählen</div>
-            </div>
-          ) : (
-            <div style={{ display:"flex", alignItems:"center", gap:7 }}>
-              <span style={{ fontSize:10, fontWeight:700, color:"rgba(240,236,227,0.22)", letterSpacing:".12em", textTransform:"uppercase" }}>Aufgaben erstellen</span>
-            </div>
-          )
-        ) : schritt === 2 ? (
-          /* Firma-Auswahl: kompakter 3-Schritt-Indikator */
-          <div style={{ flex:1, display:"flex", justifyContent:"center", alignItems:"center", overflow:"hidden", padding:"0 8px" }}>
+        ) : (
+          /* Wizard schritt 1–3: einheitlicher 3-Step-Stepper */
+          <div style={{ flex:1, display:"flex", justifyContent:"center", alignItems:"center", gap:0, overflow:"hidden", padding:"0 8px" }}>
             <div style={{ display:"flex", alignItems:"center", gap:0 }}>
-              {[["Thema",1],["Unternehmen",2],["Aufgaben",3]].map(([label, s], i) => {
-                const done = schritt > s;
+              {[
+                { label:"Thema",    s:1, onClick: schritt > 1 ? zuThemen : null },
+                { label:"Firma",    s:2, onClick: schritt > 2 ? zuFirma  : null },
+                { label:"Aufgaben", s:3, onClick: null },
+              ].map(({ label, s, onClick }, i) => {
+                const done   = schritt > s;
                 const active = schritt === s;
                 return (
                   <React.Fragment key={s}>
-                    {i > 0 && <div style={{ width:24, height:1.5, background: done?"rgba(240,236,227,0.22)":"rgba(240,236,227,0.08)", flexShrink:0 }} />}
-                    <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:3 }}>
-                      <div style={{ width:22, height:22, borderRadius:"50%", display:"flex", alignItems:"center", justifyContent:"center",
-                        fontSize: done?11:10, fontWeight:800,
-                        background: done?"rgba(240,236,227,0.16)": active?"linear-gradient(180deg,#f07320,#e8600a)":"rgba(240,236,227,0.05)",
-                        color: done?"rgba(240,236,227,0.55)": active?"#fff":"rgba(240,236,227,0.25)",
-                        border: active?"1px solid rgba(255,170,60,0.3)": done?"none":"1px solid rgba(240,236,227,0.1)",
-                        boxShadow: active?"0 0 12px rgba(232,96,10,0.45)":"none",
-                        transition:"all 0.2s" }}>
-                        {done?"✓":s}
+                    {i > 0 && <div style={{ width:28, height:1.5, background:done?"rgba(232,96,10,0.35)":"rgba(240,236,227,0.09)", flexShrink:0, transition:"background 0.3s" }} />}
+                    <div onClick={onClick || undefined}
+                      style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:3, cursor:onClick?"pointer":"default" }}>
+                      <div style={{ width:26, height:26, borderRadius:"50%", display:"flex", alignItems:"center", justifyContent:"center",
+                        fontWeight:800, fontSize:done?12:11,
+                        background: active?"linear-gradient(175deg,#f07320,#e8600a)": done?"rgba(232,96,10,0.14)":"rgba(240,236,227,0.05)",
+                        color: active?"#fff": done?"#e8600a":"rgba(240,236,227,0.22)",
+                        border: active?"1.5px solid rgba(255,160,50,0.4)": done?"1.5px solid rgba(232,96,10,0.35)":"1px solid rgba(240,236,227,0.1)",
+                        boxShadow: active?"0 0 14px rgba(232,96,10,0.5)": done?"0 0 8px rgba(232,96,10,0.15)":"none",
+                        transition:"all 0.25s ease" }}>
+                        {done ? <Check size={13} strokeWidth={2.5}/> : s}
                       </div>
-                      <span style={{ fontSize:7, fontWeight:active?700:500, color:active?"#e8600a":done?"rgba(240,236,227,0.4)":"rgba(240,236,227,0.2)", letterSpacing:".06em", textTransform:"uppercase", whiteSpace:"nowrap" }}>
+                      <span style={{ fontSize:8, fontWeight:active?700:500,
+                        color:active?"#e8600a": done?"rgba(232,96,10,0.55)":"rgba(240,236,227,0.2)",
+                        letterSpacing:".1em", textTransform:"uppercase", whiteSpace:"nowrap" }}>
                         {label}
                       </span>
                     </div>
@@ -295,25 +288,19 @@ export default function BuchungsWerk({ gastModus = false }) {
                 );
               })}
             </div>
-          </div>
-        ) : schritt === 3 && firma?.name ? (
-          /* Aufgaben: Firma-Kontext — nützlicher als Schritt-Nummern */
-          <div style={{ flex:1, display:"flex", justifyContent:"center", alignItems:"center", gap:9, overflow:"hidden", padding:"0 12px" }}>
-            <div style={{ width:26, height:26, borderRadius:8, background: (firma.farbe||"#e8600a")+"22", border:`1px solid ${(firma.farbe||"#e8600a")}44`, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
-              <span style={{ fontSize:12, fontWeight:900, color: firma.farbe||"#e8600a", lineHeight:1 }}>{firma.name.charAt(0)}</span>
-            </div>
-            <div style={{ overflow:"hidden", minWidth:0 }}>
-              <div style={{ fontSize:13, fontWeight:800, color:"rgba(240,236,227,0.82)", letterSpacing:"-.01em", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
-                {firma.name}
-              </div>
-              {config && (
-                <div style={{ fontSize:9, fontWeight:600, color:"rgba(240,236,227,0.3)", textTransform:"uppercase", letterSpacing:".08em", whiteSpace:"nowrap" }}>
-                  {config.typ}{config.pruefungsart ? " · " + config.pruefungsart : ""} · Kl. {config.klasse}
+            {schritt === 3 && firma?.name && (
+              <div style={{ marginLeft:20, paddingLeft:20, borderLeft:"1px solid rgba(240,236,227,0.1)", display:"flex", alignItems:"center", gap:7, overflow:"hidden", flexShrink:1, minWidth:0 }}>
+                <div style={{ width:22, height:22, borderRadius:7, background:(firma.farbe||"#e8600a")+"1e", border:`1.5px solid ${(firma.farbe||"#e8600a")}40`, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+                  <span style={{ fontSize:11, fontWeight:900, color:firma.farbe||"#e8600a", lineHeight:1 }}>{firma.name.charAt(0)}</span>
                 </div>
-              )}
-            </div>
+                <div style={{ overflow:"hidden", minWidth:0 }}>
+                  <div style={{ fontSize:12, fontWeight:700, color:"rgba(240,236,227,0.78)", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{firma.name}</div>
+                  {config && <div style={{ fontSize:9, color:"rgba(240,236,227,0.3)", textTransform:"uppercase", letterSpacing:".08em", fontWeight:600, whiteSpace:"nowrap" }}>{config.typ} · Kl. {config.klasse}</div>}
+                </div>
+              </div>
+            )}
           </div>
-        ) : null}
+        )}
 
         {/* Rechts: Spacer damit der Stepper visuell zentriert bleibt (UserBadge aus main.jsx liegt darüber) */}
         <div style={{ flexShrink:0, minWidth:130 }} />
@@ -331,7 +318,7 @@ export default function BuchungsWerk({ gastModus = false }) {
             initialConfig={skipFirma ? config : null}
             onFirmaWaehlen={skipFirma ? () => { clearBlur(); setSkipFirma(false); setConfigVersion(v => v + 1); setSchritt(2); } : null}
           />}
-          {schritt === 2 && <SchrittFirma config={config} currentFirmaId={firma?.id} onWeiter={f => { clearBlur(); setFirma(f); setConfigVersion(v => v + 1); setSchritt(3); if (!gastModus) setStreak(aktualisiereStreak()); }} onZurueck={() => { clearBlur(); setSchritt(1); }} />}
+          {schritt === 2 && <SchrittFirma config={config} currentFirmaId={firma?.id} onWeiter={f => { clearBlur(); setFirma(f); setConfigVersion(v => v + 1); setSchritt(3); if (!gastModus) setStreak(aktualisiereStreak()); }} onZurueck={() => { clearBlur(); setSkipFirma(true); setSchritt(1); }} />}
           {schritt === 3 && <ErrorBoundary><SchrittAufgaben key={configVersion} config={config} firma={firma} initialAufgaben={initialAufgaben} onNeu={reset} onMaterialLaden={materialLaden} onThemen={zuThemen} onFirma={zuFirma} aufgabenRef={aufgabenForQuizRef} /></ErrorBoundary>}
           {schritt === 4 && <ErrorBoundary><SimulationModus onZurueck={reset} onVonURLDetected={() => setIsVonURL(true)} onRegisterReset={fn => { simResetFnRef.current = fn; }} /></ErrorBoundary>}
         </div>
