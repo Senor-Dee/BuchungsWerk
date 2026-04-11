@@ -199,10 +199,10 @@ export default function SchrittAufgaben({ config, firma, initialAufgaben, onNeu,
                 setKiHistorie(ki);
               } catch { setKiHistorie([]); }
               setExportOffen(true);
-            }} className="bw-btn bw-btn-primary" style={{ ...S.btnPrimary, display:"flex", alignItems:"center", gap:"7px" }}>
-              <Download size={14} strokeWidth={1.5}/>Export
+            }} className="bw-btn" style={{ display:"flex", alignItems:"center", gap:6, padding:"9px 14px", borderRadius:9, background:"rgba(232,96,10,0.09)", border:"1.5px solid rgba(232,96,10,0.35)", color:"#e8600a", fontWeight:700, fontSize:12, cursor:"pointer", boxShadow:"0 0 10px rgba(232,96,10,0.1)", fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}>
+              <Download size={13} strokeWidth={1.5}/>Export
             </button>
-            <button onClick={() => setH5pOffen(true)} className="bw-btn" style={{ ...S.btnSecondary, display:"flex", alignItems:"center", gap:6, padding:"10px 16px", fontSize:"13px" }}><Monitor size={14} strokeWidth={1.5}/>H5P</button>
+            <button onClick={() => setH5pOffen(true)} className="bw-btn" style={{ display:"flex", alignItems:"center", gap:6, padding:"9px 14px", borderRadius:9, background:"rgba(232,96,10,0.06)", border:"1px solid rgba(232,96,10,0.25)", color:"rgba(232,96,10,0.75)", fontWeight:700, fontSize:12, cursor:"pointer", fontFamily:"'IBM Plex Sans',system-ui,sans-serif" }}><Monitor size={13} strokeWidth={1.5}/>H5P</button>
             <button onClick={() => setMaterialienOffen(true)} className="bw-btn" style={{ ...S.btnSecondary, display:"flex", alignItems:"center", gap:6 }}><Library size={14} strokeWidth={1.5}/>Materialien</button>
             <button onClick={onFirma} className="bw-btn" style={{ padding:"6px 14px", borderRadius:"8px", border:"1px solid rgba(240,236,227,0.15)", background:"rgba(240,236,227,0.05)", color:"rgba(240,236,227,0.45)", fontWeight:700, fontSize:12, cursor:"pointer", display:"flex", alignItems:"center", gap:5 }}>‹ Unternehmen</button>
             <button onClick={onThemen} className="bw-btn" style={{ padding:"6px 14px", borderRadius:"8px", border:"1px solid rgba(240,236,227,0.15)", background:"rgba(240,236,227,0.05)", color:"rgba(240,236,227,0.45)", fontWeight:700, fontSize:12, cursor:"pointer", display:"flex", alignItems:"center", gap:5 }}>‹‹ Themen</button>
@@ -320,13 +320,13 @@ export default function SchrittAufgaben({ config, firma, initialAufgaben, onNeu,
             setKiHistorie(ki);
           } catch { setKiHistorie([]); }
           setExportOffen(true);
-        }} className="bw-btn bw-btn-primary" style={{ ...S.btnPrimary, display:"flex", alignItems:"center", gap:"7px" }}>
-          <FilePen size={15} strokeWidth={2}/>
-          <Printer size={15} strokeWidth={2}/>
+        }} className="bw-btn" style={{ display:"flex", alignItems:"center", gap:7, padding:"11px 20px", borderRadius:"10px", background:"rgba(232,96,10,0.10)", border:"1.5px solid rgba(232,96,10,0.4)", color:"#e8600a", fontWeight:700, fontSize:13, cursor:"pointer", boxShadow:"0 0 14px rgba(232,96,10,0.12)", fontFamily:"'IBM Plex Sans',system-ui,sans-serif", minHeight:44 }}>
+          <FilePen size={14} strokeWidth={2}/>
+          <Printer size={14} strokeWidth={2}/>
           Exportieren
         </button>
-        <button onClick={() => setH5pOffen(true)} className="bw-btn bw-btn-primary" style={{ ...S.btnPrimary, display:"flex", alignItems:"center", gap:"7px" }}>
-          <Monitor size={15} strokeWidth={2}/>
+        <button onClick={() => setH5pOffen(true)} className="bw-btn" style={{ display:"flex", alignItems:"center", gap:7, padding:"11px 20px", borderRadius:"10px", background:"rgba(232,96,10,0.07)", border:"1px solid rgba(232,96,10,0.28)", color:"rgba(232,96,10,0.8)", fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"'IBM Plex Sans',system-ui,sans-serif", minHeight:44 }}>
+          <Monitor size={14} strokeWidth={2}/>
           H5P exportieren
         </button>
       </div>

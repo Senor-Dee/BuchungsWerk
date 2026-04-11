@@ -1088,9 +1088,10 @@ export function SchrittTyp({ onWeiter, onBelegEditor, onEigeneBelege, onSimulati
 
               {/* Wiederholungs-Themen aus Vorklassen */}
               {wiederholungAn && vorklassen.length > 0 && (
-                <div style={{ marginTop:8, borderTop:"2px dashed rgba(232,96,10,0.35)", paddingTop:8 }}>
-                  <div style={{ fontSize:10, fontWeight:700, color:"rgba(240,236,227,0.5)", letterSpacing:".1em", textTransform:"uppercase", marginBottom:6, display:"flex", alignItems:"center", gap:6 }}>
-                    🔁 Wiederholungsstoff aus {vorklassen.map(k=>`Klasse ${k}`).join(" + ")}
+                <div style={{ marginTop:8, borderTop:"1px solid rgba(232,96,10,0.25)", paddingTop:10 }}>
+                  <div style={{ fontSize:10, fontWeight:700, color:"rgba(232,96,10,0.7)", letterSpacing:".1em", textTransform:"uppercase", marginBottom:8, display:"flex", alignItems:"center", gap:6 }}>
+                    <RefreshCw size={11} strokeWidth={2} style={{ color:"rgba(232,96,10,0.7)" }} />
+                    Wiederholungsstoff aus {vorklassen.map(k=>`Klasse ${k}`).join(" + ")}
                   </div>
                   {vorLernbereiche.map(({ lb, k }) => {
                     const meta = LB_INFO[lb] || { icon: "📌", farbe: "#e8600a" };
@@ -1100,23 +1101,23 @@ export function SchrittTyp({ onWeiter, onBelegEditor, onEigeneBelege, onSimulati
                     const vorSelCount = Object.values(selSet).filter(c => c > 0).length;
                     const isExpanded = expandedLBs[lb + "_vor"];
                     return (
-                      <div key={`vor_${k}_${lb}`} style={{ border:`2px solid ${isActive ? "#e8600a" : "#fde68a"}`, borderRadius:12, overflow:"hidden", background: isActive ? "#fffbeb" : "#fffdf5", marginBottom:5 }}>
+                      <div key={`vor_${k}_${lb}`} style={{ border:`1.5px solid ${isActive ? "rgba(232,96,10,0.55)" : "rgba(240,236,227,0.12)"}`, borderRadius:12, overflow:"hidden", background: isActive ? "rgba(232,96,10,0.08)" : "rgba(20,14,6,0.6)", backdropFilter:"blur(10px)", WebkitBackdropFilter:"blur(10px)", marginBottom:5 }}>
                         <div style={{ display:"flex", alignItems:"center", gap:8, padding:"10px 14px", cursor:"pointer" }}
                           onClick={() => setExpandedLBs(p => ({ ...p, [lb+"_vor"]: !p[lb+"_vor"] }))}>
-                          <div style={{ width:16, height:16, borderRadius:4, border:`2px solid ${isActive?"#e8600a":"#fbbf24"}`, background:isActive?"#e8600a":"#fff", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+                          <div style={{ width:16, height:16, borderRadius:4, border:`1.5px solid ${isActive?"#e8600a":"rgba(240,236,227,0.25)"}`, background:isActive?"#e8600a":"rgba(240,236,227,0.06)", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
                             {isActive && <span style={{ color:"#fff", fontSize:10 }}>✓</span>}
                           </div>
-                          <span style={{ color: isActive ? "#92400e" : "#b45309", display:"flex", alignItems:"center" }}><IconFor name={meta.icon} size={14} /></span>
-                          <span style={{ fontWeight:700, fontSize:12, color:"#92400e", flex:1 }}>{lb}</span>
-                          <span style={{ fontSize:10, fontWeight:800, background:"#fef3c7", color:"#92400e", padding:"1px 7px", borderRadius:10, border:"1px solid #fde68a" }}>Kl. {k}</span>
-                          {isActive && <span style={{ fontSize:10, color:"#92400e", fontWeight:700 }}>{vorSelCount}/{tasks.length}</span>}
-                          <span style={{ color:"#fbbf24", fontSize:12 }}>{isExpanded ? "▲" : "▼"}</span>
+                          <span style={{ color: isActive ? "#e8600a" : "rgba(240,236,227,0.45)", display:"flex", alignItems:"center" }}><IconFor name={meta.icon} size={14} /></span>
+                          <span style={{ fontWeight:700, fontSize:12, color: isActive ? "rgba(240,236,227,0.85)" : "rgba(240,236,227,0.55)", flex:1 }}>{lb}</span>
+                          <span style={{ fontSize:10, fontWeight:800, background:"rgba(232,96,10,0.15)", color:"rgba(232,96,10,0.85)", padding:"1px 7px", borderRadius:10, border:"1px solid rgba(232,96,10,0.3)" }}>Kl. {k}</span>
+                          {isActive && <span style={{ fontSize:10, color:"rgba(232,96,10,0.75)", fontWeight:700 }}>{vorSelCount}/{tasks.length}</span>}
+                          <span style={{ color:"rgba(240,236,227,0.3)", fontSize:11 }}>{isExpanded ? "▲" : "▼"}</span>
                         </div>
                         {isExpanded && (
-                          <div style={{ borderTop:"1px solid #fde68a", padding:"8px 12px", background:"#fff" }}>
+                          <div style={{ borderTop:"1px solid rgba(240,236,227,0.08)", padding:"8px 12px", background:"rgba(14,10,4,0.5)" }}>
                             <div style={{ display:"flex", gap:6, marginBottom:6 }}>
-                              <button onClick={() => setSelectedThemen(p => { const m = {}; tasks.forEach(t => { m[t.id] = 1; }); return { ...p, [lb]: m }; })} style={{ fontSize:10, fontWeight:700, color:"#92400e", background:"#fef3c7", border:"1px solid #fde68a", borderRadius:5, padding:"2px 7px", cursor:"pointer" }}>✓ Alle</button>
-                              <button onClick={() => setSelectedThemen(p => ({ ...p, [lb]: {} }))} style={{ fontSize:10, fontWeight:600, color:"#94a3b8", background:"#f1f5f9", border:"1px solid #e2e8f0", borderRadius:5, padding:"2px 7px", cursor:"pointer" }}>✗ Keine</button>
+                              <button onClick={() => setSelectedThemen(p => { const m = {}; tasks.forEach(t => { m[t.id] = 1; }); return { ...p, [lb]: m }; })} style={{ fontSize:10, fontWeight:700, color:"#e8600a", background:"rgba(232,96,10,0.1)", border:"1px solid rgba(232,96,10,0.3)", borderRadius:5, padding:"2px 7px", cursor:"pointer" }}>✓ Alle</button>
+                              <button onClick={() => setSelectedThemen(p => ({ ...p, [lb]: {} }))} style={{ fontSize:10, fontWeight:600, color:"rgba(240,236,227,0.4)", background:"rgba(240,236,227,0.05)", border:"1px solid rgba(240,236,227,0.12)", borderRadius:5, padding:"2px 7px", cursor:"pointer" }}>✗ Keine</button>
                             </div>
                             {tasks.map(task => {
                               const cnt = selSet[task.id] || 0;
@@ -1125,13 +1126,13 @@ export function SchrittTyp({ onWeiter, onBelegEditor, onEigeneBelege, onSimulati
                                 <div key={task.id} style={{ display:"flex", alignItems:"center", gap:8, padding:"5px 4px", borderRadius:6 }}>
                                   <input type="checkbox" checked={checked} onChange={() => toggleThema(lb, task.id)}
                                     style={{ width:15, height:15, accentColor:"#e8600a", cursor:"pointer" }} />
-                                  <span onClick={() => toggleThema(lb, task.id)} style={{ fontSize:12, color:"#374151", flex:1, cursor:"pointer" }}>{task.titel}</span>
-                                  <span style={{ fontSize:10, color:"#94a3b8" }}>{task.nrPunkte||2}P</span>
+                                  <span onClick={() => toggleThema(lb, task.id)} style={{ fontSize:12, color:"rgba(240,236,227,0.75)", flex:1, cursor:"pointer" }}>{task.titel}</span>
+                                  <span style={{ fontSize:10, color:"rgba(240,236,227,0.35)", fontFamily:"'Fira Code',monospace" }}>{task.nrPunkte||2}P</span>
                                   {checked && (
                                     <div style={{ display:"flex", alignItems:"center", gap:2 }}>
-                                      <button onClick={() => adjustCount(lb, task.id, -1)} style={{ width:18, height:18, borderRadius:3, border:"1.5px solid #fbbf24", background:"#fffbeb", color:"#92400e", fontWeight:900, fontSize:13, lineHeight:1, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>−</button>
-                                      <span style={{ fontSize:11, fontWeight:800, minWidth:16, textAlign:"center", color:"#92400e", fontFamily:"'Fira Code',monospace" }}>{cnt}×</span>
-                                      <button onClick={() => adjustCount(lb, task.id, +1)} style={{ width:18, height:18, borderRadius:3, border:"1.5px solid #fbbf24", background:"#fffbeb", color:"#92400e", fontWeight:900, fontSize:13, lineHeight:1, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>+</button>
+                                      <button onClick={() => adjustCount(lb, task.id, -1)} style={{ width:18, height:18, borderRadius:3, border:"1px solid rgba(232,96,10,0.4)", background:"rgba(232,96,10,0.1)", color:"#e8600a", fontWeight:900, fontSize:13, lineHeight:1, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>−</button>
+                                      <span style={{ fontSize:11, fontWeight:800, minWidth:16, textAlign:"center", color:"rgba(240,236,227,0.7)", fontFamily:"'Fira Code',monospace" }}>{cnt}×</span>
+                                      <button onClick={() => adjustCount(lb, task.id, +1)} style={{ width:18, height:18, borderRadius:3, border:"1px solid rgba(232,96,10,0.4)", background:"rgba(232,96,10,0.1)", color:"#e8600a", fontWeight:900, fontSize:13, lineHeight:1, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>+</button>
                                     </div>
                                   )}
                                 </div>

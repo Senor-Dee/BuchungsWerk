@@ -101,6 +101,11 @@ export default function BuchungsWerk({ gastModus = false }) {
 
   const isSimulation = schritt === 4;
 
+  // Guard: schritt=2 ohne config → Black-Screen-Prävention (z.B. nach Page-Reload in laufender Session)
+  useEffect(() => {
+    if (schritt === 2 && !config) setSchritt(1);
+  }, [schritt, config]);
+
   // Custom Events: UserBadge (main.jsx) kann Mastery + Einstellungen öffnen + Dropdown-Blur
   useEffect(() => {
     const openMastery   = () => setMasteryOffen(true);
@@ -251,32 +256,30 @@ export default function BuchungsWerk({ gastModus = false }) {
               <BookMarked size={14} strokeWidth={1.5}/>Kontenplan
             </button>
           </div>
-        ) : (
-          /* Lehrer-Stepper */
-          <div style={{ flex:1, display:"flex", justifyContent:"center", alignItems:"center", overflow:"hidden", padding:"0 12px" }}>
+        ) : schritt === 1 ? (
+          /* Hero / Themenauswahl: kein Stepper – eigene Identität */
+          null
+        ) : schritt === 2 ? (
+          /* Firma-Auswahl: kompakter 3-Schritt-Indikator */
+          <div style={{ flex:1, display:"flex", justifyContent:"center", alignItems:"center", overflow:"hidden", padding:"0 8px" }}>
             <div style={{ display:"flex", alignItems:"center", gap:0 }}>
-              {[["Thema","1"],["Unternehmen","2"],["Aufgaben","3"],["Export","4"]].map(([label], i) => {
-                const s = i + 1;
+              {[["Thema",1],["Unternehmen",2],["Aufgaben",3]].map(([label, s], i) => {
                 const done = schritt > s;
                 const active = schritt === s;
                 return (
                   <React.Fragment key={s}>
-                    {i > 0 && (
-                      <div style={{ width:32, height:2, background: done?"rgba(240,236,227,0.25)":"rgba(240,236,227,0.08)", flexShrink:0 }} />
-                    )}
+                    {i > 0 && <div style={{ width:24, height:1.5, background: done?"rgba(240,236,227,0.22)":"rgba(240,236,227,0.08)", flexShrink:0 }} />}
                     <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:3 }}>
-                      <div style={{
-                        width:26, height:26, borderRadius:"50%", display:"flex", alignItems:"center", justifyContent:"center",
-                        fontSize: done?12:11, fontWeight:800,
-                        background: done?"rgba(240,236,227,0.18)": active?"linear-gradient(180deg,#f07320,#e8600a)":"rgba(240,236,227,0.06)",
-                        color: done?"rgba(240,236,227,0.6)": active?"#fff":"rgba(240,236,227,0.3)",
-                        border: active?"1px solid rgba(255,170,60,0.3)": done?"none":"1px solid rgba(240,236,227,0.12)",
-                        boxShadow: active?"0 0 14px rgba(232,96,10,0.5), 0 2px 0 rgba(0,0,0,0.4)":"none",
-                        transition:"all 0.2s"
-                      }}>
+                      <div style={{ width:22, height:22, borderRadius:"50%", display:"flex", alignItems:"center", justifyContent:"center",
+                        fontSize: done?11:10, fontWeight:800,
+                        background: done?"rgba(240,236,227,0.16)": active?"linear-gradient(180deg,#f07320,#e8600a)":"rgba(240,236,227,0.05)",
+                        color: done?"rgba(240,236,227,0.55)": active?"#fff":"rgba(240,236,227,0.25)",
+                        border: active?"1px solid rgba(255,170,60,0.3)": done?"none":"1px solid rgba(240,236,227,0.1)",
+                        boxShadow: active?"0 0 12px rgba(232,96,10,0.45)":"none",
+                        transition:"all 0.2s" }}>
                         {done?"✓":s}
                       </div>
-                      <span style={{ fontSize:8, fontWeight:active?700:500, color:active?"#e8600a":done?"rgba(240,236,227,0.45)":"rgba(240,236,227,0.25)", letterSpacing:".05em", textTransform:"uppercase", whiteSpace:"nowrap" }}>
+                      <span style={{ fontSize:7, fontWeight:active?700:500, color:active?"#e8600a":done?"rgba(240,236,227,0.4)":"rgba(240,236,227,0.2)", letterSpacing:".06em", textTransform:"uppercase", whiteSpace:"nowrap" }}>
                         {label}
                       </span>
                     </div>
@@ -285,7 +288,24 @@ export default function BuchungsWerk({ gastModus = false }) {
               })}
             </div>
           </div>
-        )}
+        ) : schritt === 3 && firma ? (
+          /* Aufgaben: Firma-Kontext — nützlicher als Schritt-Nummern */
+          <div style={{ flex:1, display:"flex", justifyContent:"center", alignItems:"center", gap:9, overflow:"hidden", padding:"0 12px" }}>
+            <div style={{ width:26, height:26, borderRadius:8, background: firma.farbe+"22", border:`1px solid ${firma.farbe}44`, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+              <span style={{ fontSize:12, fontWeight:900, color: firma.farbe, lineHeight:1 }}>{firma.name.charAt(0)}</span>
+            </div>
+            <div style={{ overflow:"hidden", minWidth:0 }}>
+              <div style={{ fontSize:13, fontWeight:800, color:"rgba(240,236,227,0.82)", letterSpacing:"-.01em", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
+                {firma.name}
+              </div>
+              {config && (
+                <div style={{ fontSize:9, fontWeight:600, color:"rgba(240,236,227,0.3)", textTransform:"uppercase", letterSpacing:".08em", whiteSpace:"nowrap" }}>
+                  {config.typ}{config.pruefungsart ? " · " + config.pruefungsart : ""} · Kl. {config.klasse}
+                </div>
+              )}
+            </div>
+          </div>
+        ) : null}
 
         {/* Rechts: Spacer damit der Stepper visuell zentriert bleibt (UserBadge aus main.jsx liegt darüber) */}
         <div style={{ flexShrink:0, minWidth:130 }} />
