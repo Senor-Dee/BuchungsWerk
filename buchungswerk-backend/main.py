@@ -1970,10 +1970,12 @@ async def payment_create_order(
             "description": "BuchungsWerk Pro-Lizenz (1 Monat)",
         }],
         "application_context": {
-            "return_url": f"{APP_URL}/payment/return",
-            "cancel_url":  f"{APP_URL}/buchungswerk",
-            "brand_name":  "BuchungsWerk",
-            "user_action": "PAY_NOW",
+            "return_url":          f"{APP_URL}/payment/return",
+            "cancel_url":           f"{APP_URL}/buchungswerk",
+            "brand_name":           "BuchungsWerk",
+            "user_action":          "PAY_NOW",
+            "shipping_preference":  "NO_SHIPPING",   # Digitales Produkt – keine Lieferadresse
+            "landing_page":         "LOGIN",
         },
     }
     async with httpx.AsyncClient(timeout=20.0) as client:
