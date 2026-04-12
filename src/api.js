@@ -20,7 +20,7 @@ export function userKey(key) {
   return key; // nicht eingeloggt – kein Scoping möglich
 }
 
-export async function apiFetch(path, method = "GET", body = null, timeoutMs = 10000, throwOnError = false) {
+export async function apiFetch(path, method = "GET", body = null, timeoutMs = 12000, throwOnError = false) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   const token = getToken();
@@ -37,8 +37,16 @@ export async function apiFetch(path, method = "GET", body = null, timeoutMs = 10
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return method === "DELETE" ? null : res.json();
   } catch (e) {
-    const msg = e.name === "AbortError" ? `Timeout nach ${timeoutMs}ms (${path})` : e.message;
-    console.warn("BuchungsWerk API:", msg);
+    let msg;
+    if (e.name === "AbortError") {
+      msg = `Timeout nach ${timeoutMs}ms (${path})`;
+    } else if (e instanceof TypeError && (e.message === "Load failed" || e.message === "Failed to fetch" || e.message === "NetworkError when attempting to fetch resource.")) {
+      // iOS Safari gibt "Load failed" bei Netzwerkfehlern – deutschen Text zeigen
+      msg = "Keine Verbindung zum Server. Bitte Internetverbindung prüfen.";
+    } else {
+      msg = e.message;
+    }
+    console.warn("BuchungsWerk API:", msg, path);
     if (throwOnError) throw new Error(msg);
     return null;
   } finally {

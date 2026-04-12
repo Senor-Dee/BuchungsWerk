@@ -51,8 +51,8 @@ export const setAuth    = (t,u) => { try { localStorage.setItem("bw_token",t); l
 export const clearAuth  = () => { try { localStorage.removeItem("bw_token"); localStorage.removeItem("bw_user"); } catch {} };
 export const isLoggedIn = () => !!getToken();
 
-async function apiAuth(path, body) {
-  const c = new AbortController(), t = setTimeout(() => c.abort(), 12000);
+async function apiAuth(path, body, _retry = 0) {
+  const c = new AbortController(), t = setTimeout(() => c.abort(), 15000);
   try {
     const res = await fetch(API_URL + path, { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body), signal:c.signal });
     if (!res.ok) {
@@ -65,6 +65,14 @@ async function apiAuth(path, body) {
     return res.json();
   } catch (e) {
     if (e.name === "AbortError") throw new Error("Keine Serververbindung – bitte erneut versuchen.");
+    // iOS Safari wirft TypeError mit "Load failed" bei Netzwerkproblemen (z.B. CORS-Preflight-Fehler,
+    // schwache Verbindung). Einmal automatisch wiederholen, dann deutschen Fehlertext zeigen.
+    const isNetworkError = e instanceof TypeError && (e.message === "Load failed" || e.message === "Failed to fetch" || e.message === "NetworkError when attempting to fetch resource.");
+    if (isNetworkError && _retry === 0) {
+      await new Promise(r => setTimeout(r, 800));
+      return apiAuth(path, body, 1);
+    }
+    if (isNetworkError) throw new Error("Keine Verbindung zum Server. Bitte Internetverbindung prüfen und erneut versuchen.");
     throw e;
   } finally { clearTimeout(t); }
 }
