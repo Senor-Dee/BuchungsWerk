@@ -31,7 +31,7 @@ function fmtBS(soll, haben) {
 }
 
 // Konvertiert BuchungsWerk-Aufgaben → Quiz-Fragen mit 4 Antwortoptionen
-function aufgabenZuQuizFragen(aufgaben) {
+export function aufgabenZuQuizFragen(aufgaben) {
   // Plausible Ablenkungskonten für Falschantworten (mit Kontonr.)
   const COMMON_SOLL = [
     { nr: "2880", name: "Kasse (KA)" },

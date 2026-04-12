@@ -52,6 +52,10 @@ export async function quizErgebnisse(code) {
   return tFetch(`/quiz/live/${code.toUpperCase()}/ergebnisse`);
 }
 
+export async function quizLoeschen(code) {
+  return tFetch(`/quiz/live/${code.toUpperCase()}`, "DELETE");
+}
+
 // ── Live-Quiz Schüler ────────────────────────────────────────────────────────
 
 export async function quizJoinen(code, spieler) {
