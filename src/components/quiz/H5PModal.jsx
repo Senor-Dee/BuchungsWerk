@@ -6,7 +6,7 @@ import React, { useState, useEffect, useRef, useMemo } from "react";
 import { Zap, Download, Eye, Monitor, QrCode, GraduationCap } from "lucide-react";
 import { S } from "../../styles.js";
 import { apiFetch, API_URL } from "../../api.js";
-import { generiereAlleQuizFragen, generateQuizHTML } from "../../utils/quizGenerator.js";
+import { generiereAlleQuizFragen, generateQuizHTML, bestimmeFragetyp } from "../../utils/quizGenerator.js";
 
 // ── H5PModal ──────────────────────────────────────────────────────────────────
 const QUIZ_TYPEN = [

@@ -486,7 +486,6 @@ export default function ExportModal({ aufgaben, config, firma, kiHistorie, onSch
 
   return (
     <>
-    {h5pOffen && <H5PModal aufgaben={aufgaben} config={config} firma={firma} onSchliessen={() => setH5pOffen(false)} />}
     <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.7)", backdropFilter:"blur(8px)", WebkitBackdropFilter:"blur(8px)", zIndex:1000, display:"flex", alignItems:"center", justifyContent:"center", padding:"16px" }}>
       <div style={{ background:"rgba(22,16,8,0.97)", backdropFilter:"blur(24px)", WebkitBackdropFilter:"blur(24px)", border:"1px solid rgba(240,236,227,0.12)", borderRadius:"16px", width:"100%", maxWidth:"520px", overflow:"hidden", boxShadow:"0 25px 50px rgba(0,0,0,0.5)" }}>
         {/* Header */}
@@ -580,6 +579,7 @@ export default function ExportModal({ aufgaben, config, firma, kiHistorie, onSch
         </div>
       </div>
     </div>
+    {h5pOffen && <H5PModal aufgaben={aufgaben} config={config} firma={firma} onSchliessen={() => setH5pOffen(false)} />}
     </>
   );
 }
