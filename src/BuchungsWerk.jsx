@@ -327,7 +327,7 @@ export default function BuchungsWerk({ gastModus = false }) {
             }}
           >
             <Crown size={13} strokeWidth={2} />
-            Pro · €9/Mo
+            Pro · 4,99 €/Monat
           </button>
         ) : (
           <div style={{ flexShrink:0, minWidth:130 }} />

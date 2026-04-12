@@ -65,7 +65,7 @@ export function LizenzGate({ klasse, children, onLocked, onBack }) {
           Klasse {klasse} ist in der <strong style={{ color: "#f0ece3" }}>Pro-Version</strong> verfügbar.
         </p>
         <p style={{ color: "#e8600a", fontWeight: 700, fontSize: 18, marginBottom: 24 }}>
-          Nur €9 / Monat
+          4,99 €/Monat
         </p>
 
         <PaymentButton

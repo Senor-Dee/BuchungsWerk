@@ -133,7 +133,7 @@ export function TeacherPanel({ onClose }) {
                       color: "rgba(240,236,227,0.4)", fontSize: 12,
                       marginTop: 8, textAlign: "center",
                     }}>
-                      Klassen 8–10 freischalten · einmalig €9/Monat
+                      Klassen 8–10 freischalten · 4,99 €/Monat
                     </p>
                   </div>
                 )}

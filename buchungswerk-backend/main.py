@@ -1966,7 +1966,7 @@ async def payment_create_order(
         "intent": "CAPTURE",
         "purchase_units": [{
             "reference_id": f"bw_{user['id']}_{int(_time.time())}",
-            "amount": {"currency_code": "EUR", "value": "9.00"},
+            "amount": {"currency_code": "EUR", "value": "4.99"},
             "description": "BuchungsWerk Pro-Lizenz (1 Monat)",
         }],
         "application_context": {

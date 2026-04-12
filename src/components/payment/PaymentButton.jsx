@@ -1,5 +1,5 @@
 // ══════════════════════════════════════════════════════════════════════════════
-// PaymentButton – Leitet zu PayPal weiter (Pro-Lizenz €9/Monat)
+// PaymentButton – Leitet zu PayPal weiter (Pro-Lizenz 4,99 €/Monat)
 // ══════════════════════════════════════════════════════════════════════════════
 import { useState } from "react";
 import { apiFetch } from "../../api.js";
@@ -44,7 +44,7 @@ export function PaymentButton({ onError }) {
         width: "100%",
       }}
     >
-      {loading ? "Wird weitergeleitet …" : "Jetzt Pro-Lizenz kaufen (€9 / Monat)"}
+      {loading ? "Wird weitergeleitet …" : "Jetzt Pro-Lizenz kaufen (4,99 €/Monat)"}
     </button>
   );
 }
