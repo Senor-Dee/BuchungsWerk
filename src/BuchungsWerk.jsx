@@ -5,7 +5,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { Factory, BookOpen, GraduationCap, BookMarked,
          Users, FolderOpen, Check,
          Zap, Star, Trophy, Flame, Sprout,
-         ListChecks, Dices, Play, BarChart2, Building2, TrendingUp } from "lucide-react";
+         ListChecks, Dices, Play, BarChart2, Building2, TrendingUp, Crown } from "lucide-react";
 import { useStreak } from "./hooks/useStreak.js";
 import { useLevel } from "./hooks/useLevel.js";
 import { S } from "./styles.js";
@@ -307,8 +307,31 @@ export default function BuchungsWerk({ gastModus = false }) {
           </div>
         )}
 
-        {/* Rechts: Spacer damit der Stepper visuell zentriert bleibt (UserBadge aus main.jsx liegt darüber) */}
-        <div style={{ flexShrink:0, minWidth:130 }} />
+        {/* Rechts: Pro-Button für Free-User – sonst Spacer (UserBadge aus main.jsx liegt darüber) */}
+        {!gastModus && !isProLizenz(getBwUser()) ? (
+          <button
+            onClick={() => { window.dispatchEvent(new CustomEvent("bw:teacher-panel")); }}
+            className="bw-btn"
+            style={{
+              flexShrink: 0,
+              display: "flex", alignItems: "center", gap: 6,
+              padding: "5px 11px",
+              border: "1px solid rgba(232,96,10,0.35)",
+              borderRadius: 8,
+              background: "rgba(232,96,10,0.1)",
+              color: "#e8600a",
+              fontSize: 12, fontWeight: 700,
+              cursor: "pointer",
+              whiteSpace: "nowrap",
+              marginRight: 132,
+            }}
+          >
+            <Crown size={13} strokeWidth={2} />
+            Pro · €9/Mo
+          </button>
+        ) : (
+          <div style={{ flexShrink:0, minWidth:130 }} />
+        )}
       </div>
 
       {/* ── Backdrop-Blur Overlay (ersetzt CSS-filter auf content div) ── */}

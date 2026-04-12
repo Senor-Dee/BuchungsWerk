@@ -954,6 +954,12 @@ function UserBadge({ user, onLogout, onUserUpdate }) {
   const [profileTab, setProfileTab]   = useState("profil");
   const [showAdmin, setShowAdmin]     = useState(false);
   const [showTeacherPanel, setShowTeacherPanel] = useState(false);
+
+  useEffect(() => {
+    const h = () => setShowTeacherPanel(true);
+    window.addEventListener("bw:teacher-panel", h);
+    return () => window.removeEventListener("bw:teacher-panel", h);
+  }, []);
   const dropRef                       = useRef(null);
   const name = [user?.vorname, user?.nachname ? user.nachname[0] + "." : ""].filter(Boolean).join(" ");
 
