@@ -25,11 +25,24 @@ import { SchrittTyp } from "./components/wizard/SchrittTyp.jsx";
 import { SchrittFirma } from "./components/wizard/SchrittFirma.jsx";
 import SchrittAufgaben from "./components/wizard/SchrittAufgaben.jsx";
 import SimulationModus from "./components/simulation/SimulationModus.jsx";
+import { LizenzGate } from "./components/LizenzGate.jsx";
+
+function getBwUser() {
+  try { return JSON.parse(localStorage.getItem("bw_user") || "null"); } catch { return null; }
+}
+
+function isProLizenz(u) {
+  if (!u) return false;
+  if (u.lizenz_typ === "schule") return true;
+  if (u.lizenz_typ === "pro" && u.lizenz_bis && new Date() < new Date(u.lizenz_bis)) return true;
+  return false;
+}
 
 export default function BuchungsWerk({ gastModus = false }) {
   const [schritt, setSchritt] = useState(() =>
     new URLSearchParams(window.location.search).get("session") ? 4 : 1
   );
+  const [lizenzGateKlasse, setLizenzGateKlasse] = useState(null); // blockierte Klasse
   const [config, setConfig] = useState(null);
   const [firma, setFirma] = useState(null);
   const [eigeneBelegeOffen, setEigeneBelegeOffen] = useState(false);
@@ -118,6 +131,11 @@ export default function BuchungsWerk({ gastModus = false }) {
     <SettingsContext.Provider value={settings}>
     <div style={S.page}>
       {masteryOffen && <MasteryModal onSchliessen={() => setMasteryOffen(false)} />}
+      {lizenzGateKlasse && (
+        <LizenzGate klasse={lizenzGateKlasse} onBack={() => setLizenzGateKlasse(null)}>
+          <span style={{ display: "none" }} />
+        </LizenzGate>
+      )}
       {klasseZimmerOffen && <TeacherDashboard aufgaben={klasseZimmerAufgaben} user={(() => { try { return JSON.parse(localStorage.getItem("bw_user")); } catch { return null; } })()} onClose={() => setKlasseZimmerOffen(false)} />}
       {disclaimerOffen && <DisclaimerModal onSchliessen={() => { try { localStorage.setItem("bw_disclaimer_ok","1"); } catch {} setDisclaimerOffen(false); }} />}
       {einstellungenOffen && <EinstellungenModal settings={settings} setSettings={setSettings} onSchliessen={() => setEinstellungenOffen(false)} />}
@@ -309,7 +327,15 @@ export default function BuchungsWerk({ gastModus = false }) {
       <div style={{ ...S.container, paddingBottom: 16 }}>
         <div>
           {schritt === 1 && <SchrittTyp
-            onWeiter={cfg => { clearBlur(); setConfig(cfg); if (skipFirma) { setSkipFirma(false); setSchritt(3); if (!gastModus) setStreak(aktualisiereStreak()); } else setSchritt(2); }}
+            onWeiter={cfg => {
+              // Lizenz-Check für Klasse 8–10
+              if (!gastModus && (cfg.klasse || 0) >= 8 && !isProLizenz(getBwUser())) {
+                setLizenzGateKlasse(cfg.klasse);
+                return;
+              }
+              clearBlur(); setConfig(cfg);
+              if (skipFirma) { setSkipFirma(false); setSchritt(3); if (!gastModus) setStreak(aktualisiereStreak()); } else setSchritt(2);
+            }}
             onBelegEditor={() => setBelegEditorOffen(true)}
             onEigeneBelege={() => setEigeneBelegeOffen(true)}
             onSimulation={() => setSchritt(4)}

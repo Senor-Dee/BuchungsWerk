@@ -29,7 +29,10 @@ ADMIN_EMAIL     = os.environ.get("BW_ADMIN_EMAIL", "")
 APP_URL         = os.environ.get("BW_APP_URL", "https://buchungswerk.org")
 DB_PATH         = os.environ.get("BW_DB", "buchungswerk.db")
 REQUIRE_VERIFY  = os.environ.get("BW_REQUIRE_VERIFY", "true").lower() == "true" and bool(RESEND_KEY)
-ANTHROPIC_KEY   = os.environ.get("BW_ANTHROPIC_KEY", "")
+ANTHROPIC_KEY    = os.environ.get("BW_ANTHROPIC_KEY", "")
+PAYPAL_CLIENT_ID = os.environ.get("PAYPAL_CLIENT_ID", "")
+PAYPAL_SECRET    = os.environ.get("PAYPAL_SECRET", "")
+PAYPAL_BASE_URL  = "https://api.sandbox.paypal.com" if os.environ.get("PAYPAL_MODE", "sandbox") == "sandbox" else "https://api.paypal.com"
 
 # ── App ────────────────────────────────────────────────────────────────────────
 app = FastAPI(
@@ -44,10 +47,11 @@ CORS_ORIGINS = ["https://buchungswerk.org", "https://www.buchungswerk.org", "htt
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=CORS_ORIGINS,
-    allow_credentials=True,
+    allow_origins=["*"],          # iOS-Fix: wildcard erlaubt (kein Credential-Modus → sicher)
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
 
 # Rate limiter – verwendet echte Client-IP aus X-Forwarded-For (Cloudflare)
@@ -67,16 +71,10 @@ app.state.limiter = limiter
 # Rate-Limit-Handler mit CORS-Headern (damit Browser kein "Load failed" sieht)
 def cors_rate_limit_handler(request: Request, exc):
     from fastapi.responses import JSONResponse
-    origin = request.headers.get("origin", "")
-    resp_origin = origin if origin in CORS_ORIGINS else CORS_ORIGINS[0]
-    headers = {
-        "access-control-allow-origin": resp_origin,
-        "access-control-allow-credentials": "true",
-    }
     return JSONResponse(
         status_code=429,
         content={"detail": "Zu viele Anfragen – bitte kurz warten und erneut versuchen."},
-        headers=headers,
+        headers={"access-control-allow-origin": "*"},
     )
 
 app.add_exception_handler(RateLimitExceeded, cors_rate_limit_handler)
@@ -86,18 +84,17 @@ app.add_exception_handler(RateLimitExceeded, cors_rate_limit_handler)
 @app.options("/{full_path:path}")
 async def global_options(full_path: str, request: Request):
     from fastapi.responses import Response
-    origin = request.headers.get("origin", "")
-    resp_origin = origin if origin in CORS_ORIGINS else CORS_ORIGINS[0]
-    return Response(
-        status_code=200,
-        headers={
-            "access-control-allow-origin": resp_origin,
-            "access-control-allow-credentials": "true",
-            "access-control-allow-methods": "GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD",
-            "access-control-allow-headers": "Content-Type, Authorization, X-Requested-With",
-            "access-control-max-age": "86400",
-        }
-    )
+    origin = request.headers.get("origin") or "*"
+    headers = {
+        "access-control-allow-origin": origin,
+        "access-control-allow-methods": "GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD",
+        "access-control-allow-headers": "Content-Type, Authorization, X-Requested-With, Accept, Origin",
+        "access-control-max-age": "86400",
+        "vary": "Origin",
+    }
+    if request.headers.get("access-control-request-private-network"):
+        headers["access-control-allow-private-network"] = "true"
+    return Response(status_code=200, headers=headers)
 
 security_scheme = HTTPBearer(auto_error=False)
 
@@ -277,6 +274,14 @@ def init_db():
         letzte_aktivitaet    TEXT,
         erstellt_am          TEXT DEFAULT (datetime('now')),
         UNIQUE(schueler_name, lernbereich)
+    );
+    CREATE TABLE IF NOT EXISTS payment_orders (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        order_id    TEXT UNIQUE NOT NULL,
+        user_id     INTEGER NOT NULL REFERENCES users(id),
+        status      TEXT DEFAULT 'CREATED',
+        created_at  TEXT DEFAULT (datetime('now')),
+        captured_at TEXT
     );
     """)
     conn.commit()
@@ -1446,6 +1451,21 @@ def live_quiz_ergebnisse(code: str, user=Depends(get_current_user),
     return [dict(r) for r in rows]
 
 
+@app.delete("/quiz/live/{code}", status_code=204)
+def live_quiz_loeschen(code: str, user=Depends(get_current_user),
+                       db: sqlite3.Connection = Depends(get_db)):
+    code = code.upper()
+    quiz = db.execute("SELECT lehrer_id FROM live_quizze WHERE code=?", (code,)).fetchone()
+    if not quiz:
+        raise HTTPException(404, "Quiz nicht gefunden")
+    if quiz["lehrer_id"] != user["id"]:
+        raise HTTPException(403, "Keine Berechtigung")
+    db.execute("DELETE FROM live_quiz_antworten WHERE quiz_code=?", (code,))
+    db.execute("DELETE FROM live_quiz_teilnehmer WHERE quiz_code=?", (code,))
+    db.execute("DELETE FROM live_quizze WHERE code=?", (code,))
+    db.commit()
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 # STREAK-SYSTEM
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1916,3 +1936,161 @@ async def ki_buchung(req: KiRequest, _=Depends(get_current_user)):
     einsparnis = round((1 - input_t / 3000) * 100) if input_t < 3000 else 0
     print(f"[KI] {engine_mode} | input={input_t}t output={output_t}t | Einsparnis≈{einsparnis}% (Baseline 3000t)")
     return data
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# PAYMENT (PayPal)
+# ══════════════════════════════════════════════════════════════════════════════
+
+class PaymentCreateReq(BaseModel):
+    product_type: str = "pro_monthly"
+
+class PaymentVerifyReq(BaseModel):
+    order_id: str
+
+def _paypal_auth_header() -> str:
+    import base64
+    return "Basic " + base64.b64encode(f"{PAYPAL_CLIENT_ID}:{PAYPAL_SECRET}".encode()).decode()
+
+@app.post("/payment/create-order")
+async def payment_create_order(
+    data: PaymentCreateReq,
+    user: dict = Depends(get_current_user),
+    db: sqlite3.Connection = Depends(get_db),
+):
+    """Erstellt eine PayPal-Order und gibt die approval_url zurück."""
+    if not PAYPAL_CLIENT_ID or not PAYPAL_SECRET:
+        raise HTTPException(503, "PayPal nicht konfiguriert – PAYPAL_CLIENT_ID/SECRET fehlen")
+    import time as _time
+    order_data = {
+        "intent": "CAPTURE",
+        "purchase_units": [{
+            "reference_id": f"bw_{user['id']}_{int(_time.time())}",
+            "amount": {"currency_code": "EUR", "value": "9.00"},
+            "description": "BuchungsWerk Pro-Lizenz (1 Monat)",
+        }],
+        "application_context": {
+            "return_url": f"{APP_URL}/payment/return",
+            "cancel_url":  f"{APP_URL}/buchungswerk",
+            "brand_name":  "BuchungsWerk",
+            "user_action": "PAY_NOW",
+        },
+    }
+    async with httpx.AsyncClient(timeout=20.0) as client:
+        r = await client.post(
+            f"{PAYPAL_BASE_URL}/v2/checkout/orders",
+            headers={"Content-Type": "application/json", "Authorization": _paypal_auth_header()},
+            json=order_data,
+        )
+    if r.status_code not in (200, 201):
+        raise HTTPException(502, f"PayPal-Fehler {r.status_code}: {r.text[:200]}")
+    order = r.json()
+    approval_url = next(
+        (link["href"] for link in order.get("links", []) if link["rel"] == "approve"),
+        None,
+    )
+    if not approval_url:
+        raise HTTPException(502, "Keine approval_url von PayPal erhalten")
+    db.execute(
+        "INSERT OR IGNORE INTO payment_orders (order_id, user_id, status) VALUES (?,?,?)",
+        (order["id"], user["id"], "CREATED"),
+    )
+    db.commit()
+    return {"success": True, "approval_url": approval_url}
+
+
+@app.post("/payment/verify-order")
+async def payment_verify_order(
+    data: PaymentVerifyReq,
+    background_tasks: BackgroundTasks,
+    user: dict = Depends(get_current_user),
+    db: sqlite3.Connection = Depends(get_db),
+):
+    """Captured eine PayPal-Order und aktualisiert die Lizenz des Users."""
+    if not PAYPAL_CLIENT_ID or not PAYPAL_SECRET:
+        raise HTTPException(503, "PayPal nicht konfiguriert")
+    # Sicherstellen dass die Order zu diesem User gehört
+    row = db.execute(
+        "SELECT user_id, status FROM payment_orders WHERE order_id=?",
+        (data.order_id,),
+    ).fetchone()
+    if row and row["user_id"] != user["id"]:
+        raise HTTPException(403, "Order gehört nicht zu diesem Account")
+    if row and row["status"] == "CAPTURED":
+        return {"success": True, "message": "Lizenz bereits aktiv"}
+    # PayPal: Order capturen
+    async with httpx.AsyncClient(timeout=20.0) as client:
+        r = await client.post(
+            f"{PAYPAL_BASE_URL}/v2/checkout/orders/{data.order_id}/capture",
+            headers={"Content-Type": "application/json", "Authorization": _paypal_auth_header()},
+            json={},
+        )
+    if r.status_code not in (200, 201):
+        raise HTTPException(502, f"PayPal Capture-Fehler {r.status_code}: {r.text[:200]}")
+    order = r.json()
+    if order.get("status") != "COMPLETED":
+        return {"success": False, "message": f"Zahlung nicht abgeschlossen (Status: {order.get('status')})"}
+    # Lizenz updaten
+    lizenz_bis = (datetime.now() + timedelta(days=30)).strftime("%Y-%m-%d %H:%M:%S")
+    db.execute(
+        "UPDATE users SET lizenz_typ='pro', lizenz_bis=? WHERE id=?",
+        (lizenz_bis, user["id"]),
+    )
+    db.execute(
+        "UPDATE payment_orders SET status='CAPTURED', captured_at=datetime('now') WHERE order_id=?",
+        (data.order_id,),
+    )
+    db.commit()
+    # Bestätigungs-Email
+    background_tasks.add_task(
+        send_email,
+        user["email"],
+        "Glückwunsch! Deine BuchungsWerk Pro-Lizenz ist aktiv",
+        f"""<div style="font-family:Arial,sans-serif;color:#333;max-width:480px">
+        <h1 style="color:#e8600a">Zahlung erfolgreich!</h1>
+        <p>Hallo {user.get('vorname','')},</p>
+        <p>deine Pro-Lizenz ist jetzt aktiv. Du hast Zugriff auf alle Klassen 7–10!</p>
+        <p><strong>Gültig bis:</strong> {datetime.strptime(lizenz_bis,'%Y-%m-%d %H:%M:%S').strftime('%d.%m.%Y')}</p>
+        <p><a href="{APP_URL}/buchungswerk"
+              style="display:inline-block;padding:12px 24px;background:#e8600a;color:#fff;text-decoration:none;border-radius:8px">
+           Jetzt starten
+        </a></p>
+        <p style="font-size:12px;color:#999">Fragen? Antworte auf diese E-Mail oder schreib an info@buchungswerk.org</p>
+        </div>""",
+    )
+    return {"success": True, "message": "Lizenz wurde aktiviert", "lizenz_bis": lizenz_bis}
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TEACHER DASHBOARD
+# ══════════════════════════════════════════════════════════════════════════════
+
+@app.get("/teacher/dashboard")
+def teacher_dashboard(
+    user: dict = Depends(get_current_user),
+    db: sqlite3.Connection = Depends(get_db),
+):
+    """Lehrer-Dashboard: Lizenz-Info + Schüler-Anzahl + Quiz-Statistik."""
+    schueler_count = db.execute(
+        """SELECT COUNT(*) as cnt FROM schueler s
+           JOIN klassen k ON s.klasse_id = k.id
+           WHERE k.user_id = ?""",
+        (user["id"],),
+    ).fetchone()["cnt"]
+    klassen_count = db.execute(
+        "SELECT COUNT(*) as cnt FROM klassen WHERE user_id=?",
+        (user["id"],),
+    ).fetchone()["cnt"]
+    quiz_count = db.execute(
+        "SELECT COUNT(*) as cnt FROM live_quizze WHERE lehrer_id=?",
+        (user["id"],),
+    ).fetchone()["cnt"]
+    return {
+        "lizenz_info": {
+            "typ": user.get("lizenz_typ") or "free",
+            "bis": user.get("lizenz_bis"),
+        },
+        "schueler_count": schueler_count,
+        "klassen_count":  klassen_count,
+        "quiz_count":     quiz_count,
+    }

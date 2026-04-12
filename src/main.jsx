@@ -8,6 +8,8 @@ import Landing, { isLoggedIn, getUser, clearAuth, setAuth } from "./Landing.jsx"
 import StudentJoin from "./components/StudentJoin.jsx";
 import Impressum from "./pages/Impressum.jsx";
 import Datenschutz from "./pages/Datenschutz.jsx";
+import PaymentReturn from "./pages/PaymentReturn.jsx";
+import { TeacherPanel } from "./components/teacher/AdminPanel.jsx";
 import { InfiniteGrid } from "./components/ui/InfiniteGrid.jsx";
 
 // ── Globale Button-Hover CSS ──────────────────────────────────────────────────
@@ -951,6 +953,7 @@ function UserBadge({ user, onLogout, onUserUpdate }) {
   const [showProfile, setShowProfile] = useState(false);
   const [profileTab, setProfileTab]   = useState("profil");
   const [showAdmin, setShowAdmin]     = useState(false);
+  const [showTeacherPanel, setShowTeacherPanel] = useState(false);
   const dropRef                       = useRef(null);
   const name = [user?.vorname, user?.nachname ? user.nachname[0] + "." : ""].filter(Boolean).join(" ");
 
@@ -1082,6 +1085,7 @@ function UserBadge({ user, onLogout, onUserUpdate }) {
 
               {menuItem(<TrendingUp size={14} strokeWidth={1.5}/>, "Fortschritt", () => window.dispatchEvent(new CustomEvent("bw:mastery")))}
               {menuItem(<SlidersHorizontal size={14} strokeWidth={1.5}/>, "Einstellungen", () => window.dispatchEvent(new CustomEvent("bw:settings")))}
+              {menuItem(<Crown size={14} strokeWidth={1.5}/>, "Mein Dashboard", () => setShowTeacherPanel(true))}
 
               <div style={{ borderTop: "1px solid rgba(240,236,227,0.07)", marginTop: "6px", paddingTop: "6px" }}/>
               {menuItem(<Settings size={14} strokeWidth={1.5}/>, "Profil bearbeiten", () => { setProfileTab("profil"); setShowProfile(true); })}
@@ -1107,6 +1111,9 @@ function UserBadge({ user, onLogout, onUserUpdate }) {
       {showAdmin && user?.is_admin && (
         <AdminPanel onClose={() => setShowAdmin(false)} />
       )}
+      {showTeacherPanel && (
+        <TeacherPanel onClose={() => setShowTeacherPanel(false)} />
+      )}
     </>
   );
 }
@@ -1129,10 +1136,11 @@ function App() {
   const handleLogout = () => { clearAuth(); setUser(null); setLoggedIn(false); };
   const handleUserUpdate = u => { setUser(u); };
 
-  // Statische Seiten: /impressum und /datenschutz (kein Login nötig)
+  // Statische Seiten (kein Login nötig)
   const path = window.location.pathname;
-  if (path === "/impressum") return <Impressum />;
-  if (path === "/datenschutz") return <Datenschutz />;
+  if (path === "/impressum")     return <Impressum />;
+  if (path === "/datenschutz")   return <Datenschutz />;
+  if (path === "/payment/return") return <PaymentReturn />;
 
   // Schüler tritt einem Live-Quiz bei – kein Login nötig
   if (joinCode) return <StudentJoin initialCode={joinCode.toUpperCase()} />;
