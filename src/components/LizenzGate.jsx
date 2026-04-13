@@ -7,12 +7,17 @@ import { Lock } from "lucide-react";
 import { useAuth } from "../hooks/useAuth.js";
 import { PaymentButton } from "./payment/PaymentButton.jsx";
 
+// TODO: Beta-Flag – alle Klassenstufen für Free-User freigegeben (fachliche Tests)
+// Auf false setzen sobald Beta abgeschlossen und Monetarisierung aktiv
+const BETA_ALLE_KLASSEN_FREI = true;
+
 export function LizenzGate({ klasse, children, onLocked, onBack }) {
   const { user } = useAuth();
   const [allowed, setAllowed] = useState(null); // null = prüfe noch
 
   useEffect(() => {
     if (!user) { setAllowed(false); onLocked?.(); return; }
+    if (BETA_ALLE_KLASSEN_FREI)        { setAllowed(true); return; }
     if (user.lizenz_typ === "schule") { setAllowed(true); return; }
     if (!klasse || klasse <= 7)       { setAllowed(true); return; }
     if (user.lizenz_typ === "pro" && user.lizenz_bis) {

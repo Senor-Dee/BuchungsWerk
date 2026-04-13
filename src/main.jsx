@@ -9,6 +9,7 @@ import StudentJoin from "./components/StudentJoin.jsx";
 import Impressum from "./pages/Impressum.jsx";
 import Datenschutz from "./pages/Datenschutz.jsx";
 import PaymentReturn from "./pages/PaymentReturn.jsx";
+import StripeReturn  from "./pages/StripeReturn.jsx";
 import { TeacherPanel } from "./components/teacher/AdminPanel.jsx";
 import { InfiniteGrid } from "./components/ui/InfiniteGrid.jsx";
 
@@ -486,6 +487,13 @@ function AdminPanel({ onClose }) {
   const [eMsg,      setEMsg]      = useState("");
   const [sending,   setSending]   = useState(false);
   const [sendRes,   setSendRes]   = useState("");
+  // Tabs
+  const [adminTab,  setAdminTab]  = useState("users"); // "users" | "invoices"
+  // Invoice Management
+  const [invoices,   setInvoices]   = useState([]);
+  const [invLoading, setInvLoading] = useState(false);
+  const [invFilter,  setInvFilter]  = useState("pending");
+  const [invMsg,     setInvMsg]     = useState("");
 
   useEffect(() => {
     Promise.all([
@@ -500,11 +508,43 @@ function AdminPanel({ onClose }) {
     }).catch(e => { setError(e.message); setLoading(false); });
   }, []);
 
+  async function loadInvoices(status) {
+    setInvLoading(true); setInvMsg("");
+    try {
+      const q = status !== "alle" ? `?status=${status}` : "";
+      const data = await authFetch(`/admin/invoices${q}`);
+      setInvoices(data || []);
+    } catch (e) { setInvMsg(e.message || "Fehler"); }
+    finally { setInvLoading(false); }
+  }
+
+  useEffect(() => {
+    if (adminTab === "invoices") loadInvoices(invFilter);
+  }, [adminTab, invFilter]);
+
+  async function confirmInvoicePaid(invoice_number) {
+    if (!confirm(`Rechnung ${invoice_number} als bezahlt markieren?\nDer User erhält 30 Tage Pro-Zugang.`)) return;
+    setInvMsg("");
+    try {
+      await authFetch("/admin/invoice/confirm-paid", "POST", { invoice_number, lizenz_tage: 30 });
+      setInvMsg(`✅ ${invoice_number} als bezahlt markiert.`);
+      loadInvoices(invFilter);
+    } catch (e) { setInvMsg(e.message || "Fehler"); }
+  }
+
+  async function resendInvoiceEmail(invoice_number) {
+    setInvMsg("");
+    try {
+      await authFetch("/admin/invoice/resend-email", "POST", { invoice_number, lizenz_tage: 0 });
+      setInvMsg(`📧 Erinnerung für ${invoice_number} gesendet.`);
+    } catch (e) { setInvMsg(e.message || "Fehler"); }
+  }
+
   function expand(u) {
     if (expanded === u.id) { setExpanded(null); return; }
     setExpanded(u.id);
     setEditLiz(u.lizenz_typ || "free");
-    setEditBis(u.lizenz_bis || "");
+    setEditBis((u.lizenz_bis || "").slice(0, 10));
     setEditNotiz(u.notiz || "");
     setLizMsg("");
   }
@@ -698,7 +738,22 @@ function AdminPanel({ onClose }) {
           </button>
         </div>
 
-        {/* Toolbar */}
+        {/* Tab-Navigation */}
+        <div style={{ display:"flex", borderBottom:"1px solid rgba(240,236,227,0.08)", flexShrink:0 }}>
+          {[["users","Benutzer"],["invoices","Rechnungen"]].map(([key,label]) => (
+            <button key={key} onClick={() => setAdminTab(key)} style={{
+              padding:"8px 18px", fontSize:12, fontWeight:700,
+              fontFamily:"'IBM Plex Sans',sans-serif",
+              background:"none", border:"none",
+              borderBottom: adminTab===key ? "2px solid #e8600a" : "2px solid transparent",
+              color: adminTab===key ? "#e8600a" : "rgba(240,236,227,0.35)",
+              cursor:"pointer", transition:"color .12s",
+            }}>{label}</button>
+          ))}
+        </div>
+
+        {/* Toolbar – nur für Benutzer-Tab */}
+        {adminTab === "users" && (
         <div style={{ padding:"9px 14px", display:"flex", gap:7, flexShrink:0, flexWrap:"wrap",
           borderBottom:"1px solid rgba(240,236,227,0.06)", alignItems:"center" }}>
           <div style={{ flex:1, minWidth:150, position:"relative" }}>
@@ -730,8 +785,84 @@ function AdminPanel({ onClose }) {
             {displayed.length}/{users.length}
           </span>
         </div>
+        )}
 
-        {/* Liste */}
+        {/* Rechnungs-Tab */}
+        {adminTab === "invoices" && (
+        <div style={{ overflowY:"auto", flex:1, padding:"12px 14px",
+          fontFamily:"'IBM Plex Sans',sans-serif" }}>
+          {/* Filter + Feedback */}
+          <div style={{ display:"flex", gap:7, marginBottom:10, alignItems:"center" }}>
+            {["pending","paid","expired","alle"].map(s => (
+              <button key={s} onClick={() => setInvFilter(s)} style={{
+                padding:"5px 12px", borderRadius:6, fontSize:11, fontWeight:700,
+                border:"1px solid rgba(240,236,227,0.12)",
+                background: invFilter===s ? "rgba(232,96,10,0.15)" : "rgba(240,236,227,0.04)",
+                color: invFilter===s ? "#e8600a" : "rgba(240,236,227,0.45)",
+                cursor:"pointer",
+              }}>
+                {{pending:"Ausstehend",paid:"Bezahlt",expired:"Abgelaufen",alle:"Alle"}[s]}
+              </button>
+            ))}
+            {invMsg && <span style={{ fontSize:12, color:"rgba(74,222,128,0.8)", marginLeft:8 }}>{invMsg}</span>}
+          </div>
+          {invLoading && <div style={{ color:"rgba(240,236,227,0.3)", fontSize:13 }}>Lade…</div>}
+          {!invLoading && invoices.length === 0 && (
+            <div style={{ color:"rgba(240,236,227,0.2)", fontSize:13, textAlign:"center", padding:"28px 0" }}>
+              Keine Rechnungen gefunden.
+            </div>
+          )}
+          {invoices.map(inv => (
+            <div key={inv.invoice_number} style={{
+              background:"rgba(240,236,227,0.03)",
+              border:"1px solid rgba(240,236,227,0.07)",
+              borderRadius:10, padding:"12px 14px", marginBottom:8,
+              display:"flex", alignItems:"flex-start", gap:12,
+            }}>
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
+                  <span style={{ fontFamily:"'Fira Code',monospace", fontSize:12, color:"#e8600a" }}>
+                    {inv.invoice_number}
+                  </span>
+                  <span style={{
+                    fontSize:10, fontWeight:700, padding:"2px 6px", borderRadius:4,
+                    background: inv.status==="paid" ? "rgba(74,222,128,0.15)"
+                              : inv.status==="expired" ? "rgba(200,50,50,0.15)"
+                              : "rgba(232,96,10,0.15)",
+                    color: inv.status==="paid" ? "#4ade80"
+                         : inv.status==="expired" ? "#e05555"
+                         : "#e8600a",
+                  }}>{inv.status.toUpperCase()}</span>
+                </div>
+                <div style={{ fontSize:12, color:"rgba(240,236,227,0.55)", marginTop:3 }}>
+                  {inv.vorname} {inv.nachname} · {inv.email}
+                </div>
+                <div style={{ fontSize:11, color:"rgba(240,236,227,0.35)", marginTop:2 }}>
+                  {inv.amount_eur?.toFixed(2).replace(".",",")} € · Fällig: {(inv.due_date||"").slice(0,10)}
+                  {inv.paid_at && ` · Bezahlt: ${inv.paid_at.slice(0,10)}`}
+                </div>
+              </div>
+              <div style={{ display:"flex", flexDirection:"column", gap:5, flexShrink:0 }}>
+                {inv.status === "pending" && (
+                  <button onClick={() => confirmInvoicePaid(inv.invoice_number)} style={{
+                    padding:"6px 11px", borderRadius:6, fontSize:11, fontWeight:700,
+                    border:"1px solid rgba(74,222,128,0.3)",
+                    background:"rgba(74,222,128,0.1)", color:"#4ade80", cursor:"pointer",
+                  }}>✅ Bezahlt</button>
+                )}
+                <button onClick={() => resendInvoiceEmail(inv.invoice_number)} style={{
+                  padding:"6px 11px", borderRadius:6, fontSize:11, fontWeight:700,
+                  border:"1px solid rgba(240,236,227,0.12)",
+                  background:"rgba(240,236,227,0.04)", color:"rgba(240,236,227,0.5)", cursor:"pointer",
+                }}>📧 Erinnern</button>
+              </div>
+            </div>
+          ))}
+        </div>
+        )}
+
+        {/* Liste – nur für Benutzer-Tab */}
+        {adminTab === "users" && (
         <div style={{ overflowY:"auto", flex:1, padding:"6px 8px" }}>
           {loading && (
             <div style={{ padding:28, textAlign:"center", color:"rgba(240,236,227,0.3)",
@@ -931,6 +1062,7 @@ function AdminPanel({ onClose }) {
             </div>
           )}
         </div>
+        )}
 
         {/* Footer */}
         <div style={{ padding:"9px 18px", borderTop:"1px solid rgba(240,236,227,0.06)",
@@ -1146,7 +1278,8 @@ function App() {
   const path = window.location.pathname;
   if (path === "/impressum")     return <Impressum />;
   if (path === "/datenschutz")   return <Datenschutz />;
-  if (path === "/payment/return") return <PaymentReturn />;
+  if (path === "/payment/return")        return <PaymentReturn />;
+  if (path === "/payment/stripe/return") return <StripeReturn />;
 
   // Schüler tritt einem Live-Quiz bei – kein Login nötig
   if (joinCode) return <StudentJoin initialCode={joinCode.toUpperCase()} />;

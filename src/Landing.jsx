@@ -1108,8 +1108,11 @@ function AuthModal({ mode, onSwitch, onClose, onSuccess }) {
 
   const handleResetConfirm = async e => {
     e.preventDefault(); setError("");
-    if (resetPw !== resetPw2) { setError("Die Passwörter stimmen nicht überein."); return; }
-    if (resetPw.length < 8)  { setError("Passwort muss mind. 8 Zeichen haben."); return; }
+    if (resetPw !== resetPw2)           { setError("Die Passwörter stimmen nicht überein."); return; }
+    if (resetPw.length < 8)             { setError("Passwort muss mindestens 8 Zeichen haben."); return; }
+    if (!/[A-Z]/.test(resetPw))         { setError("Passwort muss mindestens einen Großbuchstaben enthalten."); return; }
+    if (!/[0-9]/.test(resetPw))         { setError("Passwort muss mindestens eine Zahl enthalten."); return; }
+    if (!/[^a-zA-Z0-9]/.test(resetPw)) { setError("Passwort muss mindestens ein Sonderzeichen enthalten (z. B. !, @, #, $)."); return; }
     setLoading(true);
     try {
       await apiAuth("/auth/reset-confirm",
@@ -1151,9 +1154,15 @@ function AuthModal({ mode, onSwitch, onClose, onSuccess }) {
     e.preventDefault(); setError(""); setNeedsVerify(false); setLoading(true);
     try {
       if (!isLogin) {
+        if (!vn_v.trim() || vn_v.trim().length < 2)  throw new Error("Vorname muss mindestens 2 Zeichen haben.");
+        if (!nn_v.trim() || nn_v.trim().length < 2)  throw new Error("Nachname muss mindestens 2 Zeichen haben.");
+        if (!/^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/.test(email_v.trim()))
+          throw new Error("Ungültige E-Mail-Adresse.");
         if (p_v !== pw2_v)   throw new Error("Die Passwörter stimmen nicht überein.");
-        if (p_v.length < 8)  throw new Error("Das Passwort muss mindestens 8 Zeichen haben.");
-        if (!vn_v.trim())    throw new Error("Bitte Vornamen eingeben.");
+        if (p_v.length < 8)  throw new Error("Passwort muss mindestens 8 Zeichen haben.");
+        if (!/[A-Z]/.test(p_v)) throw new Error("Passwort muss mindestens einen Großbuchstaben enthalten.");
+        if (!/[0-9]/.test(p_v)) throw new Error("Passwort muss mindestens eine Zahl enthalten.");
+        if (!/[^a-zA-Z0-9]/.test(p_v)) throw new Error("Passwort muss mindestens ein Sonderzeichen enthalten (z. B. !, @, #, $).");
       }
       const payload = isLogin ? { email:email_v.trim(), passwort:p_v }
         : { vorname:vn_v.trim(), nachname:nn_v.trim(), email:email_v.trim(), schule:sc_v.trim(), passwort:p_v };
