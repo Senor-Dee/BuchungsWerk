@@ -2908,6 +2908,433 @@ async def admin_resend_invoice_email(
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+# ADMIN ANALYTICS (Phase 4.4)
+# ══════════════════════════════════════════════════════════════════════════════
+
+@app.get("/admin/analytics/dashboard")
+async def analytics_dashboard(
+    user: dict = Depends(get_current_user),
+    db: sqlite3.Connection = Depends(get_db),
+):
+    """Haupt-KPIs: MRR, Abos, Nutzer, Churn, LTV, ARPU, ausstehende Rechnungen."""
+    if not user.get("is_admin"):
+        raise HTTPException(403, "Nur für Admins")
+
+    # ── Revenue ────────────────────────────────────────────────────────────────
+    mrr_row = db.execute("""
+        SELECT COALESCE(SUM(
+            CASE WHEN interval='month' THEN amount_eur
+                 WHEN interval='year'  THEN amount_eur / 12.0
+                 ELSE 0 END
+        ), 0) AS mrr
+        FROM payment_subscriptions
+        WHERE status = 'active' AND provider != 'manual'
+    """).fetchone()
+    mrr = round(mrr_row["mrr"], 2)
+    arr = round(mrr * 12, 2)
+
+    total_paid_this_month = db.execute("""
+        SELECT COALESCE(SUM(amount_eur), 0) AS total
+        FROM invoices WHERE status='paid'
+          AND paid_at >= datetime('now', 'start of month')
+    """).fetchone()["total"] or 0.0
+
+    total_lifetime_invoices = db.execute(
+        "SELECT COALESCE(SUM(amount_eur), 0) AS t FROM invoices WHERE status='paid'"
+    ).fetchone()["t"] or 0.0
+    # Approximation: lifetime = paid invoices + (sub months elapsed × amount)
+    sub_lifetime = db.execute("""
+        SELECT COALESCE(SUM(
+            amount_eur *
+            CASE WHEN interval='month' THEN
+                MAX(1, CAST((julianday(COALESCE(cancelled_at, datetime('now'))) - julianday(created_at)) / 30 AS INTEGER))
+            WHEN interval='year' THEN
+                MAX(1, CAST((julianday(COALESCE(cancelled_at, datetime('now'))) - julianday(created_at)) / 365 AS INTEGER))
+            ELSE 1 END
+        ), 0) AS sub_total
+        FROM payment_subscriptions WHERE provider != 'manual'
+    """).fetchone()["sub_total"] or 0.0
+    total_lifetime = round(total_lifetime_invoices + sub_lifetime, 2)
+
+    # ── Subscriptions ──────────────────────────────────────────────────────────
+    subs = db.execute("""
+        SELECT
+            COUNT(*) FILTER(WHERE status='active')                             AS active,
+            COUNT(*) FILTER(WHERE status='active' AND provider='stripe')       AS active_stripe,
+            COUNT(*) FILTER(WHERE status='active' AND provider='paypal')       AS active_paypal,
+            COUNT(*) FILTER(WHERE status='active' AND provider='manual')       AS active_invoice,
+            COUNT(*) FILTER(WHERE status='paused')                             AS paused,
+            COUNT(*) FILTER(WHERE status='cancelled'
+                            AND cancelled_at >= datetime('now', '-30 days'))   AS cancelled_this_month
+        FROM payment_subscriptions
+    """).fetchone()
+
+    # ── Users ──────────────────────────────────────────────────────────────────
+    users_row = db.execute("""
+        SELECT
+            COUNT(*)                                       AS total,
+            COUNT(*) FILTER(WHERE lizenz_typ='free')       AS free,
+            COUNT(*) FILTER(WHERE lizenz_typ='pro')        AS pro,
+            COUNT(*) FILTER(WHERE lizenz_typ='schule')     AS schule
+        FROM users WHERE ist_aktiv=1
+    """).fetchone()
+    total_users = users_row["total"] or 1
+    pro_users   = users_row["pro"]
+
+    # ── Health ─────────────────────────────────────────────────────────────────
+    # Churn Rate: cancelled last 30d / (active now + cancelled last 30d)
+    active_now    = subs["active"] or 0
+    churn_count   = subs["cancelled_this_month"] or 0
+    base_for_churn = active_now + churn_count
+    churn_rate = round((churn_count / base_for_churn * 100), 1) if base_for_churn > 0 else 0.0
+
+    # LTV: average revenue per paying user ever
+    paying_ever = db.execute(
+        "SELECT COUNT(DISTINCT user_id) AS c FROM payment_subscriptions WHERE provider != 'manual'"
+    ).fetchone()["c"] or 0
+    ltv = round(sub_lifetime / paying_ever, 2) if paying_ever > 0 else 0.0
+
+    arpu = round(mrr / total_users, 2) if total_users > 0 else 0.0
+
+    # ── Pending invoices ───────────────────────────────────────────────────────
+    inv_row = db.execute("""
+        SELECT COUNT(*) AS cnt, COALESCE(SUM(amount_eur), 0) AS total
+        FROM invoices WHERE status='pending'
+    """).fetchone()
+
+    return {
+        "revenue": {
+            "mrr":                   mrr,
+            "arr":                   arr,
+            "total_paid_this_month": round(total_paid_this_month, 2),
+            "total_lifetime":        total_lifetime,
+        },
+        "subscriptions": {
+            "active":               subs["active"],
+            "active_stripe":        subs["active_stripe"],
+            "active_paypal":        subs["active_paypal"],
+            "active_invoice":       subs["active_invoice"],
+            "paused":               subs["paused"],
+            "cancelled_this_month": subs["cancelled_this_month"],
+        },
+        "users": {
+            "total":          users_row["total"],
+            "free":           users_row["free"],
+            "pro":            pro_users,
+            "schule":         users_row["schule"],
+            "pro_percentage": round(pro_users / total_users * 100, 1) if total_users > 0 else 0,
+        },
+        "health": {
+            "churn_rate_30d":      churn_rate,
+            "ltv":                 ltv,
+            "arpu":                arpu,
+        },
+        "invoices_pending": {
+            "count":  inv_row["cnt"],
+            "amount": round(inv_row["total"], 2),
+        },
+    }
+
+
+@app.get("/admin/analytics/subscriptions")
+async def analytics_subscriptions(
+    user: dict = Depends(get_current_user),
+    db: sqlite3.Connection = Depends(get_db),
+):
+    """Abo-Breakdown nach Provider und Status."""
+    if not user.get("is_admin"):
+        raise HTTPException(403, "Nur für Admins")
+
+    rows = db.execute("""
+        SELECT provider,
+               COUNT(*) FILTER(WHERE status='active')    AS active,
+               COUNT(*) FILTER(WHERE status='paused')    AS paused,
+               COUNT(*) FILTER(WHERE status='cancelled') AS cancelled,
+               COALESCE(SUM(CASE WHEN status='active' AND interval='month' THEN amount_eur
+                                 WHEN status='active' AND interval='year'  THEN amount_eur/12.0
+                                 ELSE 0 END), 0) AS monthly_revenue
+        FROM payment_subscriptions
+        GROUP BY provider
+    """).fetchall()
+
+    by_provider = {}
+    for r in rows:
+        by_provider[r["provider"]] = {
+            "active":          r["active"],
+            "paused":          r["paused"],
+            "cancelled":       r["cancelled"],
+            "monthly_revenue": round(r["monthly_revenue"], 2),
+        }
+
+    status_row = db.execute("""
+        SELECT
+            COUNT(*) FILTER(WHERE status='active')    AS active,
+            COUNT(*) FILTER(WHERE status='paused')    AS paused,
+            COUNT(*) FILTER(WHERE status='cancelled') AS cancelled
+        FROM payment_subscriptions
+    """).fetchone()
+
+    return {
+        "by_provider": by_provider,
+        "by_status": dict(status_row),
+    }
+
+
+@app.get("/admin/analytics/transactions")
+async def analytics_transactions(
+    status: str | None = None,
+    provider: str | None = None,
+    limit: int = 100,
+    user: dict = Depends(get_current_user),
+    db: sqlite3.Connection = Depends(get_db),
+):
+    """Alle Transaktionen (Abos + bezahlte Rechnungen) mit optionalen Filtern."""
+    if not user.get("is_admin"):
+        raise HTTPException(403, "Nur für Admins")
+
+    # Abos
+    sub_where = "1=1"
+    sub_params = []
+    if status:
+        sub_where += " AND ps.status=?"
+        sub_params.append(status)
+    if provider and provider != "invoice":
+        sub_where += " AND ps.provider=?"
+        sub_params.append(provider)
+
+    subs = db.execute(f"""
+        SELECT
+            ps.subscription_id AS id,
+            u.email            AS user_email,
+            ps.provider,
+            'subscription'     AS type,
+            ps.amount_eur      AS amount,
+            'EUR'              AS currency,
+            ps.status,
+            ps.created_at      AS date,
+            ps.current_period_end AS next_billing,
+            ps.interval
+        FROM payment_subscriptions ps
+        JOIN users u ON u.id = ps.user_id
+        WHERE {sub_where} AND ps.provider != 'manual'
+        ORDER BY ps.created_at DESC
+        LIMIT ?
+    """, sub_params + [limit]).fetchall()
+
+    # Rechnungen
+    inv_where = "1=1"
+    inv_params = []
+    if status == "active":
+        inv_where += " AND i.status='paid'"
+    elif status and status not in ("active",):
+        inv_where += " AND i.status=?"
+        inv_params.append(status)
+    if provider == "invoice" or not provider:
+        pass  # include invoices
+    elif provider:
+        # Wenn explizit ein anderer Provider gefiltert wird, keine Rechnungen
+        inv_where += " AND 1=0"
+
+    invs = db.execute(f"""
+        SELECT
+            i.invoice_number   AS id,
+            u.email            AS user_email,
+            'manual'           AS provider,
+            'invoice'          AS type,
+            i.amount_eur       AS amount,
+            'EUR'              AS currency,
+            i.status,
+            i.created_at       AS date,
+            i.due_date         AS next_billing,
+            'month'            AS interval
+        FROM invoices i
+        JOIN users u ON u.id = i.user_id
+        WHERE {inv_where}
+        ORDER BY i.created_at DESC
+        LIMIT ?
+    """, inv_params + [limit]).fetchall()
+
+    # Kombinieren + sortieren
+    combined = [dict(r) for r in subs] + [dict(r) for r in invs]
+    combined.sort(key=lambda x: x.get("date") or "", reverse=True)
+    return combined[:limit]
+
+
+@app.get("/admin/analytics/invoice-summary")
+async def analytics_invoice_summary(
+    user: dict = Depends(get_current_user),
+    db: sqlite3.Connection = Depends(get_db),
+):
+    """Invoice-Statistik: Counts + ausstehende Rechnungen mit Fälligkeit."""
+    if not user.get("is_admin"):
+        raise HTTPException(403, "Nur für Admins")
+
+    counts = db.execute("""
+        SELECT
+            COUNT(*)                                            AS total_issued,
+            COUNT(*) FILTER(WHERE status='pending')            AS pending,
+            COUNT(*) FILTER(WHERE status='paid')               AS paid,
+            COUNT(*) FILTER(WHERE status='expired')            AS expired,
+            COALESCE(SUM(CASE WHEN status='pending' THEN amount_eur END), 0) AS pending_amount
+        FROM invoices
+    """).fetchone()
+
+    pending_list = db.execute("""
+        SELECT i.invoice_number, u.email AS user_email, i.amount_eur AS amount,
+               i.due_date,
+               CAST(julianday(i.due_date) - julianday(date('now')) AS INTEGER) AS days_until_expiry
+        FROM invoices i JOIN users u ON u.id = i.user_id
+        WHERE i.status = 'pending'
+        ORDER BY i.due_date ASC
+    """).fetchall()
+
+    return {
+        "total_issued":   counts["total_issued"],
+        "pending":        counts["pending"],
+        "paid":           counts["paid"],
+        "expired":        counts["expired"],
+        "pending_amount": round(counts["pending_amount"], 2),
+        "pending_list":   [dict(r) for r in pending_list],
+    }
+
+
+@app.get("/admin/analytics/users")
+async def analytics_users(
+    user: dict = Depends(get_current_user),
+    db: sqlite3.Connection = Depends(get_db),
+):
+    """Nutzer-Demografie: Gesamt, aktiv, neu, nach Lizenz."""
+    if not user.get("is_admin"):
+        raise HTTPException(403, "Nur für Admins")
+
+    row = db.execute("""
+        SELECT
+            COUNT(*)                                                      AS total,
+            COUNT(*) FILTER(WHERE letzter_login >= datetime('now','-7 days'))  AS active_this_week,
+            COUNT(*) FILTER(WHERE letzter_login >= datetime('now','-30 days')) AS active_this_month,
+            COUNT(*) FILTER(WHERE erstellt      >= datetime('now','-7 days'))  AS new_this_week,
+            COUNT(*) FILTER(WHERE erstellt      >= datetime('now','-30 days')) AS new_this_month,
+            COUNT(*) FILTER(WHERE lizenz_typ='free')   AS free,
+            COUNT(*) FILTER(WHERE lizenz_typ='pro')    AS pro,
+            COUNT(*) FILTER(WHERE lizenz_typ='schule') AS schule
+        FROM users WHERE ist_aktiv = 1
+    """).fetchone()
+
+    quiz_row = db.execute("""
+        SELECT COUNT(*) AS total_quizze,
+               COUNT(DISTINCT lehrer_id) AS lehrer_mit_quiz
+        FROM live_quizze
+    """).fetchone()
+
+    return {
+        "total":            row["total"],
+        "active_this_week": row["active_this_week"],
+        "active_this_month":row["active_this_month"],
+        "new_this_week":    row["new_this_week"],
+        "new_this_month":   row["new_this_month"],
+        "by_license": {
+            "free":   row["free"],
+            "pro":    row["pro"],
+            "schule": row["schule"],
+        },
+        "quizze_gesamt":          quiz_row["total_quizze"],
+        "lehrer_mit_quiz":        quiz_row["lehrer_mit_quiz"],
+    }
+
+
+@app.get("/admin/failed-payments")
+async def failed_payments(
+    user: dict = Depends(get_current_user),
+    db: sqlite3.Connection = Depends(get_db),
+):
+    """Fehlgeschlagene Zahlungen (Stripe reicht intern weiter – wir tracken keine Fehler)."""
+    if not user.get("is_admin"):
+        raise HTTPException(403, "Nur für Admins")
+    return {
+        "failed_this_week": 0,
+        "failed_list":      [],
+        "note": "Stripe retried fehlgeschlagene Zahlungen automatisch. Fehler werden in Stripe Dashboard angezeigt.",
+    }
+
+
+from fastapi.responses import StreamingResponse as _StreamingResponse
+
+@app.get("/admin/export/transactions.csv")
+async def export_transactions_csv(
+    user: dict = Depends(get_current_user),
+    db: sqlite3.Connection = Depends(get_db),
+):
+    """Alle Transaktionen als CSV (UTF-8 BOM für Excel)."""
+    if not user.get("is_admin"):
+        raise HTTPException(403, "Nur für Admins")
+    import csv as _csv, io as _io
+    rows = db.execute("""
+        SELECT ps.created_at AS datum, u.email, ps.provider, ps.interval,
+               ps.amount_eur, ps.status, ps.subscription_id,
+               ps.current_period_end, ps.cancelled_at
+        FROM payment_subscriptions ps
+        JOIN users u ON u.id = ps.user_id
+        ORDER BY ps.created_at DESC
+    """).fetchall()
+    inv_rows = db.execute("""
+        SELECT i.created_at AS datum, u.email, 'manual' AS provider,
+               'invoice' AS interval, i.amount_eur, i.status,
+               i.invoice_number AS subscription_id,
+               i.due_date AS current_period_end, i.paid_at AS cancelled_at
+        FROM invoices i JOIN users u ON u.id = i.user_id
+        ORDER BY i.created_at DESC
+    """).fetchall()
+
+    buf = _io.StringIO()
+    fieldnames = ["datum","email","provider","interval","amount_eur","status",
+                  "subscription_id","current_period_end","cancelled_at"]
+    writer = _csv.DictWriter(buf, fieldnames=fieldnames)
+    writer.writeheader()
+    for r in list(rows) + list(inv_rows):
+        writer.writerow({k: dict(r).get(k, "") for k in fieldnames})
+
+    content = "\ufeff" + buf.getvalue()  # UTF-8 BOM für Excel
+    return _StreamingResponse(
+        iter([content.encode("utf-8")]),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": "attachment; filename=buchungswerk-transaktionen.csv"},
+    )
+
+
+@app.get("/admin/export/invoices.csv")
+async def export_invoices_csv(
+    user: dict = Depends(get_current_user),
+    db: sqlite3.Connection = Depends(get_db),
+):
+    """Alle Rechnungen als CSV (UTF-8 BOM für Excel)."""
+    if not user.get("is_admin"):
+        raise HTTPException(403, "Nur für Admins")
+    import csv as _csv, io as _io
+    rows = db.execute("""
+        SELECT i.invoice_number, u.email, u.vorname, u.nachname,
+               i.amount_eur, i.status, i.created_at,
+               i.due_date, i.paid_at, i.payment_reference
+        FROM invoices i JOIN users u ON u.id = i.user_id
+        ORDER BY i.created_at DESC
+    """).fetchall()
+
+    buf = _io.StringIO()
+    fieldnames = ["invoice_number","email","vorname","nachname","amount_eur",
+                  "status","created_at","due_date","paid_at","payment_reference"]
+    writer = _csv.DictWriter(buf, fieldnames=fieldnames)
+    writer.writeheader()
+    for r in rows:
+        writer.writerow({k: dict(r).get(k, "") for k in fieldnames})
+
+    content = "\ufeff" + buf.getvalue()
+    return _StreamingResponse(
+        iter([content.encode("utf-8")]),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": "attachment; filename=buchungswerk-rechnungen.csv"},
+    )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # TEACHER DASHBOARD
 # ══════════════════════════════════════════════════════════════════════════════
 

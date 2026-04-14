@@ -9,7 +9,8 @@ import StudentJoin from "./components/StudentJoin.jsx";
 import Impressum from "./pages/Impressum.jsx";
 import Datenschutz from "./pages/Datenschutz.jsx";
 import PaymentReturn from "./pages/PaymentReturn.jsx";
-import StripeReturn  from "./pages/StripeReturn.jsx";
+import StripeReturn    from "./pages/StripeReturn.jsx";
+import AdminDashboard from "./pages/AdminDashboard.jsx";
 import { TeacherPanel } from "./components/teacher/AdminPanel.jsx";
 import { InfiniteGrid } from "./components/ui/InfiniteGrid.jsx";
 
@@ -1229,6 +1230,7 @@ function UserBadge({ user, onLogout, onUserUpdate }) {
               {menuItem(<Settings size={14} strokeWidth={1.5}/>, "Profil bearbeiten", () => { setProfileTab("profil"); setShowProfile(true); })}
               {menuItem(<Lock size={14} strokeWidth={1.5}/>, "Passwort ändern", () => { setProfileTab("passwort"); setShowProfile(true); })}
               {user?.is_admin && menuItem(<Crown size={14} strokeWidth={1.5}/>, "Registrierungen (Admin)", () => setShowAdmin(true))}
+              {user?.is_admin && menuItem(<TrendingUp size={14} strokeWidth={1.5}/>, "Analytics Dashboard", () => { window.location.href = "/admin-dashboard"; })}
 
               <div style={{ borderTop: "1px solid rgba(240,236,227,0.07)", marginTop: "6px", paddingTop: "6px" }}/>
               {menuItem(<LogOut size={14} strokeWidth={1.5}/>, "Abmelden", onLogout, true)}
@@ -1280,6 +1282,7 @@ function App() {
   if (path === "/datenschutz")   return <Datenschutz />;
   if (path === "/payment/return")        return <PaymentReturn />;
   if (path === "/payment/stripe/return") return <StripeReturn />;
+  if (path === "/admin-dashboard")       return <AdminDashboard />;
 
   // Schüler tritt einem Live-Quiz bei – kein Login nötig
   if (joinCode) return <StudentJoin initialCode={joinCode.toUpperCase()} />;
