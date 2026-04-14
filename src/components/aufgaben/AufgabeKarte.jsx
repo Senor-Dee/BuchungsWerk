@@ -5,7 +5,7 @@
 import React, { useState, useRef } from "react";
 import { FileText, ArrowLeftRight, CheckSquare, PenLine,
          ClipboardList, BarChart2, Save, RefreshCw, Zap,
-         MessageSquare, AlertTriangle } from "lucide-react";
+         MessageSquare, AlertTriangle, Lightbulb } from "lucide-react";
 import { anrede, berechnePunkte } from "../../utils.js";
 import { S } from "../../styles.js";
 import { apiFetch } from "../../api.js";
@@ -379,8 +379,9 @@ export function KomplexKarte({ aufgabe, nr, showLoesung, globalMode, klasse = 10
                     : <TKonten soll={schritt.soll} haben={schritt.haben} />
                   }
                   {schritt.erklaerung && (
-                    <div style={{ marginTop: "10px", padding: "8px 12px", background: "rgba(232,96,10,0.06)", borderRadius: "8px", border: "1px solid rgba(232,96,10,0.2)", fontSize: "12px", color: "rgba(240,236,227,0.8)", lineHeight: 1.6 }}>
-                      💡 {schritt.erklaerung}
+                    <div style={{ marginTop: "10px", padding: "8px 12px", background: "rgba(232,96,10,0.06)", borderRadius: "8px", border: "1px solid rgba(232,96,10,0.2)", fontSize: "12px", color: "rgba(240,236,227,0.8)", lineHeight: 1.6, display: "flex", alignItems: "flex-start", gap: 6 }}>
+                      <Lightbulb size={13} strokeWidth={1.8} style={{ flexShrink: 0, marginTop: 1, color: "#e8600a" }} />
+                      <span>{schritt.erklaerung}</span>
                     </div>
                   )}
                 </div>
@@ -392,8 +393,9 @@ export function KomplexKarte({ aufgabe, nr, showLoesung, globalMode, klasse = 10
                   <div style={{ fontSize: "11px", fontWeight: 800, color: "#4ade80", marginBottom: "8px", textTransform: "uppercase", letterSpacing: "0.05em", display:"flex", alignItems:"center", gap:4 }}><BarChart2 size={11} strokeWidth={1.5}/>Lösung – Kalkulationsschema</div>
                   <AngebotsVergleichLoesung angebote={schritt.angebote} gewinner={schritt.gewinner} />
                   {schritt.erklaerung && (
-                    <div style={{ marginTop: "8px", padding: "6px 10px", background: "rgba(232,96,10,0.06)", borderRadius: "7px", border: "1px solid rgba(232,96,10,0.2)", fontSize: "12px", color: "rgba(240,236,227,0.8)", lineHeight: 1.6 }}>
-                      💡 {schritt.erklaerung}
+                    <div style={{ marginTop: "8px", padding: "6px 10px", background: "rgba(232,96,10,0.06)", borderRadius: "7px", border: "1px solid rgba(232,96,10,0.2)", fontSize: "12px", color: "rgba(240,236,227,0.8)", lineHeight: 1.6, display: "flex", alignItems: "flex-start", gap: 6 }}>
+                      <Lightbulb size={13} strokeWidth={1.8} style={{ flexShrink: 0, marginTop: 1, color: "#e8600a" }} />
+                      <span>{schritt.erklaerung}</span>
                     </div>
                   )}
                 </div>
@@ -407,8 +409,9 @@ export function KomplexKarte({ aufgabe, nr, showLoesung, globalMode, klasse = 10
                   </div>
                   <SchemaTabelle rows={schritt.schema} />
                   {schritt.erklaerung && (
-                    <div style={{ marginTop: "8px", padding: "6px 10px", background: "rgba(232,96,10,0.08)", borderRadius: "7px", border: "1px solid rgba(232,96,10,0.25)", fontSize: "12px", color: "rgba(240,236,227,0.85)" }}>
-                      💡 {schritt.erklaerung}
+                    <div style={{ marginTop: "8px", padding: "6px 10px", background: "rgba(232,96,10,0.08)", borderRadius: "7px", border: "1px solid rgba(232,96,10,0.25)", fontSize: "12px", color: "rgba(240,236,227,0.85)", display: "flex", alignItems: "flex-start", gap: 6 }}>
+                      <Lightbulb size={13} strokeWidth={1.8} style={{ flexShrink: 0, marginTop: 1, color: "#e8600a" }} />
+                      <span>{schritt.erklaerung}</span>
                     </div>
                   )}
                 </div>
@@ -662,8 +665,9 @@ export function AufgabeKarte({ aufgabe, nr, showLoesung, globalMode, klasse = 10
                 ? <BuchungsSatz soll={aufgabe.soll} haben={aufgabe.haben} />
                 : <TKonten soll={aufgabe.soll} haben={aufgabe.haben} />
             )}
-            <div style={{ marginTop: "10px", padding: "8px 12px", background: "rgba(232,96,10,0.12)", borderRadius: "8px", border: "1px solid rgba(232,96,10,0.3)", fontSize: "13px", color: "rgba(240,236,227,0.85)", lineHeight: 1.6 }}>
-              💡 {renderMitTooltips(aufgabe.erklaerung)}
+            <div style={{ marginTop: "10px", padding: "8px 12px", background: "rgba(232,96,10,0.12)", borderRadius: "8px", border: "1px solid rgba(232,96,10,0.3)", fontSize: "13px", color: "rgba(240,236,227,0.85)", lineHeight: 1.6, display: "flex", alignItems: "flex-start", gap: 7 }}>
+              <Lightbulb size={14} strokeWidth={1.8} style={{ flexShrink: 0, marginTop: 2, color: "#e8600a" }} />
+              <span>{renderMitTooltips(aufgabe.erklaerung)}</span>
             </div>
           </div>
         )}

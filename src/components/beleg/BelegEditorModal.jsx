@@ -3,7 +3,7 @@
 // Extrahiert aus BuchungsWerk.jsx – Phase C4 Refactoring
 // ══════════════════════════════════════════════════════════════════════════════
 import React, { useState, useRef } from "react";
-import { PenLine, Zap, Download, Upload, Mail, Landmark, ArrowLeftRight, Receipt } from "lucide-react";
+import { PenLine, Zap, Download, Upload, Mail, Landmark, ArrowLeftRight, Receipt, Printer, Eye, Lightbulb, AlertCircle, CheckCircle } from "lucide-react";
 import { apiFetch, userKey } from "../../api.js";
 import { UNTERNEHMEN } from "../../data/stammdaten.js";
 import { r2 } from "../../utils.js";
@@ -854,16 +854,37 @@ function BelegEditorModal({ onSchliessen }) {
   const [dataQU, setDataQU] = useState(defaultQuittung);
   const [belegTitel, setBelegTitel] = useState("");
   const [saveState, setSaveState] = useState(null);
-  const previewRef = React.useRef(null);
+  const belegOnlyRef = React.useRef(null); // nur Beleg-Vorschau (ohne KI-Sektion)
 
   const handlePrint = () => {
-    const html = previewRef.current?.innerHTML || "";
+    const html = belegOnlyRef.current?.innerHTML || "";
+    const titel = belegTitel ? `${typLabel} – ${belegTitel}` : `BuchungsWerk · ${typLabel}`;
     const w = window.open("", "_blank");
     if (!w) return;
-    w.document.write(`<!DOCTYPE html><html lang="de"><head><meta charset="utf-8"><title>BuchungsWerk · Beleg</title><style>${BE_CSS}\nbody{background:#fff;margin:0;padding:24px;}</style></head><body>${html}</body></html>`);
+    w.document.write(`<!DOCTYPE html><html lang="de"><head>
+<meta charset="utf-8">
+<title>${titel}</title>
+<style>
+${BE_CSS}
+@page { size: A4; margin: 18mm 20mm 18mm 20mm; }
+@media print {
+  body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .be-preview-wrap { padding: 0 !important; background: #fff !important; max-height: none !important; }
+  .be-no-print { display: none !important; }
+}
+body { background: #fff; margin: 0; padding: 24px; font-family: 'IBM Plex Sans', Arial, sans-serif; }
+.print-header { font-size: 10px; color: #94a3b8; margin-bottom: 16px; display: flex; justify-content: space-between; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px; }
+</style>
+</head><body>
+<div class="print-header">
+  <span>BuchungsWerk · ${typLabel}${belegTitel ? ' · ' + belegTitel : ''}</span>
+  <span>${new Date().toLocaleDateString('de-DE')}</span>
+</div>
+<div class="be-preview-wrap">${html}</div>
+</body></html>`);
     w.document.close();
     w.focus();
-    setTimeout(() => { w.print(); }, 350);
+    setTimeout(() => { w.print(); }, 400);
   };
 
   const [beKiLaden,   setBeKiLaden]   = useState(false);
@@ -908,20 +929,27 @@ BELEG: ${belegText}${buchungsHinweis}
 
 AUFGABENTEXT-REGEL: Da der Beleg sichtbar ist, KEINE Belegdaten wiederholen!
 RICHTIG: "Buche die Eingangsrechnung in die Bücher der [Firma] ein."
-FALSCH: "...19% USt, Zahlungsziel 30 Tage, Beträge..."
+FALSCH: "Rohstoffe à 12,00 € netto, 19 % USt, Zahlungsziel 30 Tage..."
 
 NR-PUNKTE (ISB-Handreichung BwR 2025):
 - Klasse 7: nebenrechnung_punkte=1 wenn Brutto→Netto gerechnet werden muss.
-- Klasse 8+: nebenrechnung_punkte=0 für einfache ER/AR (USt- und Brutto-Berechnung = KEIN Punkt ab Kl.8!).
+- Klasse 8+: nebenrechnung_punkte=0 für einfache ER/AR (USt- und Brutto-Berechnung ist KEIN eigener Punkt ab Kl.8).
 - Klasse 8+ Ausnahmen mit NR-Punkt: Skonto-Berechnung, EWB/PWB, Disagio/Auszahlungsbetrag, Periodenabgrenzung.
-- Im Zweifel: nebenrechnung_punkte=0 setzen.
+- Im Zweifel: nebenrechnung_punkte=0.
+
+ERKLÄRUNG-REGEL (das "erklaerung"-Feld):
+Schreibe eine kompakte, didaktisch präzise Lehrernotiz (1–2 Sätze) die enthält:
+1. Lernbereichsbezug nach ISB LehrplanPLUS Bayern, z. B. "LB 2 Kl. 8: Wareneinkauf auf Ziel – Buchung Eingangsrechnung"
+2. Typische Schülerfehler (konkret!), z. B. "Häufiger Fehler: Vorsteuer wird vergessen oder mit USt-Konto 4800 verwechselt."
+3. Kurze fachliche Begründung des Buchungssatzes, falls nicht selbsterklärend.
+Kein Emoji, keine allgemeinen Floskeln wie "Guter LB-Bezug" – nur fachlich Substanzielles.
 
 Antworte NUR mit reinem JSON:
 {
   "aufgabe": "1 Satz Aufgabentext (ohne Belegdaten!)",
-  "nebenrechnung": "Rechenweg nur wenn ISB-relevant, sonst leer string",
+  "nebenrechnung": "Rechenweg nur wenn ISB-relevant, sonst leerer string",
   "nebenrechnung_punkte": 0,
-  "erklaerung": "LB-Bezug (z.B. LB2 Kl.8: Wareneinkauf auf Ziel), typische Schülerfehler"
+  "erklaerung": "LB X Kl. ${klasse}: [Thema]. [Typischer Schülerfehler oder fachliche Begründung.]"
 }`
         // VOLLER Prompt als Fallback wenn Engine fehlgeschlagen
         : `Du bist bwr-sensei – BwR-Fachlehrer an einer bayerischen Realschule (Klasse ${klasse}, ISB LehrplanPLUS Bayern).
@@ -944,14 +972,21 @@ BUCHUNGSREGEL AUSGANGSRECHNUNG: gruppe=1: 2400 FO netto an 5000 UEFE; gruppe=2: 
 AUFGABENTEXT: KEINE Belegdaten wiederholen! Nur: "Buche die [Belegtyp] in die Bücher der [Firma] ein."
 Klasse 7: soll_nr="" haben_nr="" · Klasse 8+: Kontonummern angeben
 
+ERKLÄRUNG-REGEL (das "erklaerung"-Feld des Buchungssatzes und des Gesamtobjekts):
+Formuliere eine didaktisch präzise Lehrernotiz (1–2 Sätze) mit:
+1. Lernbereichsbezug nach ISB LehrplanPLUS, z. B. "LB 2 Kl. 8: Wareneinkauf auf Ziel"
+2. Typischen Schülerfehlern (konkret!), z. B. "Häufig: Vorsteuer-Konto (2600) wird mit USt-Konto (4800) verwechselt."
+3. Fachlicher Begründung wo nötig.
+Kein Emoji, keine allgemeinen Floskeln.
+
 Antworte NUR mit reinem JSON:
 {
   "aufgabe": "1 Satz",
-  "buchungssatz": [{"gruppe":1,"soll_nr":"XXXX","soll_name":"KÜRZEL","haben_nr":"XXXX","haben_name":"KÜRZEL","betrag":0.00,"punkte":1,"erklaerung":"Grund"}],
+  "buchungssatz": [{"gruppe":1,"soll_nr":"XXXX","soll_name":"KÜRZEL","haben_nr":"XXXX","haben_name":"KÜRZEL","betrag":0.00,"punkte":1,"erklaerung":"fachliche Begründung dieser Buchungszeile"}],
   "nebenrechnung": "",
   "nebenrechnung_punkte": 0,
   "punkte_gesamt": 2,
-  "erklaerung": "LB-Bezug"
+  "erklaerung": "LB X Kl. ${klasse}: [Thema]. [Typischer Schülerfehler oder fachliche Begründung.]"
 }`;
 
       const maxTokens = engineBuchungssatz ? 400 : 1400;
@@ -1055,31 +1090,42 @@ Antworte NUR mit reinem JSON:
                 value={belegTitel} onChange={e => setBelegTitel(e.target.value)} style={{fontSize:12}} />
               <div style={{ display:"flex", gap:8 }}>
                 <button className="be-btn-save"
-                  style={saveState === "ok" ? {background:"#16a34a",flex:1} : saveState === "error" ? {background:"#dc2626",flex:1} : {flex:1}}
+                  style={saveState === "ok" ? {background:"#16a34a",flex:1,display:"flex",alignItems:"center",gap:6,justifyContent:"center"} : saveState === "error" ? {background:"#dc2626",flex:1,display:"flex",alignItems:"center",gap:6,justifyContent:"center"} : {flex:1,display:"flex",alignItems:"center",gap:6,justifyContent:"center"}}
                   onClick={handleSaveToPool}>
-                  {saveState === "ok" ? "✓ In Eigene Belege gespeichert!" : saveState === "error" ? "⚠ Fehler" : "📥 In BuchungsWerk übernehmen"}
+                  {saveState === "ok"
+                    ? <><CheckCircle size={13} /> In Eigene Belege gespeichert!</>
+                    : saveState === "error"
+                    ? <><AlertCircle size={13} /> Fehler beim Speichern</>
+                    : <><Download size={13} /> In BuchungsWerk übernehmen</>}
                 </button>
-                <button className="be-btn-print" onClick={handlePrint} style={{flexShrink:0}}>🖨</button>
+                <button className="be-btn-print" onClick={handlePrint} style={{flexShrink:0,display:"flex",alignItems:"center",gap:6}}>
+                  <Printer size={14} /> Drucken / PDF
+                </button>
               </div>
             </div>
           </div>
           {/* Vorschau + KI */}
           <div className="be-panel" style={{ display:"flex", flexDirection:"column" }}>
-            <div className="be-panel-head" style={{ flexShrink:0 }}>👁 Live-Vorschau · {typLabel}</div>
-            {/* Einziger Scroll-Container für Vorschau + KI */}
-            <div ref={previewRef} style={{ flex:1, overflowY:"auto", minHeight:0 }}>
-              <div className="be-preview-wrap" style={{ overflowY:"visible", maxHeight:"none" }}>
-                {typ === "eingangsrechnung" && <BeVorschauRechnung data={dataER} typ="eingangsrechnung" />}
-                {typ === "ausgangsrechnung" && <BeVorschauRechnung data={dataAR} typ="ausgangsrechnung" />}
-                {typ === "kontoauszug"      && <BeVorschauKontoauszug data={dataKA} />}
-                {typ === "ueberweisung"     && <BeVorschauUeberweisung data={dataUB} />}
-                {typ === "email"            && <BeVorschauEmail data={dataEM} />}
-                {typ === "quittung"         && <BeVorschauQuittung data={dataQU} />}
+            <div className="be-panel-head" style={{ flexShrink:0, display:"flex", alignItems:"center", gap:6 }}>
+              <Eye size={12} strokeWidth={1.5} /> Live-Vorschau · {typLabel}
+            </div>
+            {/* Scroll-Container: Vorschau + KI */}
+            <div style={{ flex:1, overflowY:"auto", minHeight:0 }}>
+              {/* Beleg-Vorschau (nur dieser Teil wird gedruckt) */}
+              <div ref={belegOnlyRef}>
+                <div className="be-preview-wrap" style={{ overflowY:"visible", maxHeight:"none" }}>
+                  {typ === "eingangsrechnung" && <BeVorschauRechnung data={dataER} typ="eingangsrechnung" />}
+                  {typ === "ausgangsrechnung" && <BeVorschauRechnung data={dataAR} typ="ausgangsrechnung" />}
+                  {typ === "kontoauszug"      && <BeVorschauKontoauszug data={dataKA} />}
+                  {typ === "ueberweisung"     && <BeVorschauUeberweisung data={dataUB} />}
+                  {typ === "email"            && <BeVorschauEmail data={dataEM} />}
+                  {typ === "quittung"         && <BeVorschauQuittung data={dataQU} />}
+                </div>
               </div>
               {/* ── KI-Aufgabe ── */}
               <div style={{ padding:"12px 16px", borderTop:"1px solid #e2e8f0", background:"#f8fafc" }}>
                 <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom: beKiErgebnis ? 10 : 0 }}>
-                  <span style={{ fontWeight:700, fontSize:13, color:"#0f172a", flex:1 }}>🤖 KI-Aufgabe generieren</span>
+                  <span style={{ fontWeight:700, fontSize:13, color:"#0f172a", flex:1, display:"flex", alignItems:"center", gap:5 }}><Zap size={13} strokeWidth={2} color="#e8600a" /> KI-Aufgabe generieren</span>
                   {["7","8","9","10"].map(k => (
                     <button key={k} onClick={() => setBeKiKlasse(k)}
                       style={{ padding:"3px 10px", borderRadius:20, border:"1.5px solid", borderColor:beKiKlasse===k?"#0f172a":"#e2e8f0", background:beKiKlasse===k?"#0f172a":"#fff", color:beKiKlasse===k?"#fff":"#475569", fontWeight:700, cursor:"pointer", fontSize:12 }}>
@@ -1121,7 +1167,12 @@ Antworte NUR mit reinem JSON:
                         );
                       });
                     })()}
-                    {beKiErgebnis.erklaerung && <div style={{ marginTop:6, fontSize:11, color:"#92400e", background:"#fffbeb", borderRadius:5, padding:"4px 8px" }}>💡 {beKiErgebnis.erklaerung}</div>}
+                    {beKiErgebnis.erklaerung && (
+                      <div style={{ marginTop:6, fontSize:11, color:"#92400e", background:"#fffbeb", borderRadius:5, padding:"5px 8px", display:"flex", alignItems:"flex-start", gap:5, lineHeight:1.5 }}>
+                        <Lightbulb size={12} strokeWidth={2} style={{ flexShrink:0, marginTop:1 }} />
+                        <span>{beKiErgebnis.erklaerung}</span>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
