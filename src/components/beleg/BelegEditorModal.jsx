@@ -3,7 +3,7 @@
 // Extrahiert aus BuchungsWerk.jsx – Phase C4 Refactoring
 // ══════════════════════════════════════════════════════════════════════════════
 import React, { useState, useRef } from "react";
-import { PenLine, Zap, Download, Upload, Mail, Landmark, ArrowLeftRight, Receipt, Printer, Eye, AlertCircle, CheckCircle } from "lucide-react";
+import { PenLine, Zap, Download, Upload, Mail, Landmark, ArrowLeftRight, Receipt, Printer, Eye, AlertCircle, CheckCircle, Package, CreditCard, User, Building2 } from "lucide-react";
 import { apiFetch, userKey } from "../../api.js";
 import { UNTERNEHMEN } from "../../data/stammdaten.js";
 import { r2 } from "../../utils.js";
@@ -118,6 +118,7 @@ const defaultQuittung = () => ({
   betrag: "119,00", zweck: "Druckerpapier und Büromaterial",
   datum: new Date().toISOString().slice(0, 10), barzahlung: true,
   quittungsNr: `Q-${Math.floor(100 + Math.random()*900)}`,
+  ustSatz: "19", ort: "München",
 });
 
 // ── CSS (als scoped <style> im Modal) ────────────────────────────────────────
@@ -131,9 +132,9 @@ const BE_CSS = `
   .be-typ-tab.active { color: #0f172a; border-bottom-color: #e8600a; }
   .be-body { display: grid; grid-template-columns: 360px 1fr; gap: 16px; padding: 16px 20px; flex: 1; overflow: hidden; align-items: stretch; }
   .be-panel { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden; }
-  .be-panel-form { display: flex; flex-direction: column; height: 100%; }
-  .be-panel-head { background: #f8fafc; border-bottom: 1px solid #e2e8f0; padding: 10px 16px; font-size: 10px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: #94a3b8; flex-shrink: 0; }
-  .be-panel-body { padding: 16px; overflow-y: auto; flex: 1; min-height: 0; }
+  .be-panel-form { display: grid; grid-template-rows: auto 1fr auto; }
+  .be-panel-head { background: #f8fafc; border-bottom: 1px solid #e2e8f0; padding: 10px 16px; font-size: 10px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: #94a3b8; }
+  .be-panel-body { padding: 16px; overflow-y: auto; min-height: 0; }
   .be-field-group { margin-bottom: 14px; }
   .be-field-label { display: block; font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #64748b; margin-bottom: 4px; }
   .be-field-input { width: 100%; padding: 7px 9px; border: 1.5px solid #e2e8f0; border-radius: 6px; font-size: 12px; font-family: inherit; color: #0f172a; background: #fff; transition: border-color .15s; outline: none; }
@@ -405,7 +406,7 @@ function BeFormEingangsrechnung({ data, setData }) {
         <BeField label="Skonto innerhalb (Tage)" value={data.skontoTage} onChange={v => set("skontoTage", v)} />
       </div>
       <BeRabattBlock data={data} set={set} />
-      <div className="be-panel-head" style={{margin:"0 -16px 10px",padding:"7px 16px",fontSize:9}}>📦 POSITIONEN · Gelbe Zeile = zu buchende Position</div>
+      <div className="be-panel-head" style={{margin:"0 -16px 10px",padding:"7px 16px",fontSize:9,display:"flex",alignItems:"center",gap:4}}><Package size={9} strokeWidth={2}/>POSITIONEN · Gelbe Zeile = zu buchende Position</div>
       <BePositionenEditor positionen={data.positionen} onChange={v => set("positionen", v)} />
     </>
   );
@@ -445,7 +446,7 @@ function BeFormAusgangsrechnung({ data, setData }) {
         <BeField label="Skonto innerhalb (Tage)" value={data.skontoTage} onChange={v => set("skontoTage", v)} />
       </div>
       <BeRabattBlock data={data} set={set} />
-      <div className="be-panel-head" style={{margin:"0 -16px 10px",padding:"7px 16px",fontSize:9}}>📦 POSITIONEN</div>
+      <div className="be-panel-head" style={{margin:"0 -16px 10px",padding:"7px 16px",fontSize:9,display:"flex",alignItems:"center",gap:4}}><Package size={9} strokeWidth={2}/>POSITIONEN</div>
       <BePositionenEditor positionen={data.positionen} onChange={v => set("positionen", v)} />
     </>
   );
@@ -465,7 +466,7 @@ function BeFormKontoauszug({ data, setData }) {
         <BeField label="Saldo Vortrag (€)" value={data.saldoVor} onChange={v => set("saldoVor", v)} />
       </div>
       <hr className="be-divider" />
-      <div className="be-panel-head" style={{margin:"0 -16px 10px",padding:"7px 16px",fontSize:9}}>💳 BUCHUNGEN · Gelbe Zeile = Buchungsaufgabe</div>
+      <div className="be-panel-head" style={{margin:"0 -16px 10px",padding:"7px 16px",fontSize:9,display:"flex",alignItems:"center",gap:4}}><CreditCard size={9} strokeWidth={2}/>BUCHUNGEN · Gelbe Zeile = Buchungsaufgabe</div>
       <BeBuchungenEditor buchungen={data.buchungen} onChange={v => set("buchungen", v)} />
     </>
   );
@@ -475,13 +476,13 @@ function BeFormUeberweisung({ data, setData }) {
   const set = (k, v) => setData(d => ({ ...d, [k]: v }));
   return (
     <>
-      <div className="be-panel-head" style={{margin:"0 -16px 10px",padding:"7px 16px",fontSize:9}}>👤 AUFTRAGGEBER</div>
+      <div className="be-panel-head" style={{margin:"0 -16px 10px",padding:"7px 16px",fontSize:9,display:"flex",alignItems:"center",gap:4}}><User size={9} strokeWidth={2}/>AUFTRAGGEBER</div>
       <div className="be-field-row be-field-row-2">
         <BeField label="Name" value={data.auftraggeberName} onChange={v => set("auftraggeberName", v)} />
         <BeField label="IBAN" value={data.auftraggeberIban} onChange={v => set("auftraggeberIban", v)} />
       </div>
       <hr className="be-divider" />
-      <div className="be-panel-head" style={{margin:"0 -16px 10px",padding:"7px 16px",fontSize:9}}>🏢 EMPFÄNGER</div>
+      <div className="be-panel-head" style={{margin:"0 -16px 10px",padding:"7px 16px",fontSize:9,display:"flex",alignItems:"center",gap:4}}><Building2 size={9} strokeWidth={2}/>EMPFÄNGER</div>
       <div className="be-field-row be-field-row-2">
         <BeField label="Name" value={data.empfaengerName} onChange={v => set("empfaengerName", v)} />
         <BeField label="IBAN" value={data.empfaengerIban} onChange={v => set("empfaengerIban", v)} />
@@ -524,7 +525,15 @@ function BeFormQuittung({ data, setData }) {
       </div>
       <BeField label="Aussteller (Empfänger des Geldes)" value={data.aussteller} onChange={v => set("aussteller", v)} />
       <BeField label="Zahlender (Unternehmen)" value={data.empfaenger} onChange={v => set("empfaenger", v)} />
-      <BeField label="Betrag (€ brutto)" value={data.betrag} onChange={v => set("betrag", v)} />
+      <div className="be-field-row be-field-row-2">
+        <BeField label="Betrag (€ brutto)" value={data.betrag} onChange={v => set("betrag", v)} />
+        <BeField label="USt-Satz (%)" value={data.ustSatz||"19"} type="select" onChange={v => set("ustSatz", v)}
+          options={[{value:"19",label:"19 %"},{value:"7",label:"7 %"},{value:"0",label:"0 % (steuerfrei)"}]} />
+      </div>
+      <div className="be-field-row be-field-row-2">
+        <BeField label="Ort" value={data.ort||""} onChange={v => set("ort", v)} />
+        <div />
+      </div>
       <BeField label="Verwendungszweck / Ware" value={data.zweck} onChange={v => set("zweck", v)} />
     </>
   );
@@ -592,9 +601,8 @@ function BeVorschauRechnung({ data, typ }) {
           {absender.ustId && absender.ustId !== "—" && <div style={R.adrsub}>USt-IdNr: {absender.ustId}</div>}
         </div>
         <div style={{textAlign:"right"}}>
-          <div style={R.typBadge(true)}>{isAusgang ? "RECHNUNG" : "EINGANGSRECHNUNG"}</div>
-          <div style={{fontSize:11,color:"#64748b",marginTop:8}}>Nr. <strong style={{color:"#0f172a"}}>{data.rechnungsNr}</strong></div>
-          <div style={{fontSize:11,color:"#64748b"}}>Datum: <strong style={{color:"#0f172a"}}>{fmtDatum(data.datum)}</strong></div>
+          <div style={{fontSize:11,color:"#64748b"}}>Nr. <strong style={{color:"#0f172a"}}>{data.rechnungsNr}</strong></div>
+          <div style={{fontSize:11,color:"#64748b",marginTop:4}}>Datum: <strong style={{color:"#0f172a"}}>{fmtDatum(data.datum)}</strong></div>
         </div>
       </div>
       <div style={R.body}>
@@ -802,43 +810,67 @@ function BeVorschauEmail({ data }) {
 }
 
 function BeVorschauQuittung({ data }) {
+  const betragNum = parseGeld(data.betrag);
+  const ustRate   = Number(data.ustSatz || 19) / 100;
+  const netto     = r2(betragNum / (1 + ustRate));
+  const ustBetrag = r2(betragNum - netto);
+  const lineStyle = { borderBottom:"1px solid #64748b", padding:"3px 0 4px", minHeight:22 };
+  const labelStyle = { fontSize:10, color:"#64748b", fontWeight:600, marginBottom:2 };
   return (
-    <div style={{fontFamily:"'IBM Plex Sans',system-ui,sans-serif",fontSize:12,background:"#fff",border:"2px solid #0f172a",borderRadius:10,overflow:"hidden",boxShadow:"0 1px 6px rgba(0,0,0,.07)"}}>
-      {/* Quittungs-Kopf */}
-      <div style={{background:"#0f172a",padding:"16px 20px",display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
-        <div>
-          <div style={{fontSize:22,fontWeight:900,letterSpacing:"-.02em",color:"#fff"}}>QUITTUNG</div>
-          <div style={{fontSize:10,color:"#94a3b8",marginTop:2}}>Nr. {data.quittungsNr}</div>
-        </div>
-        <div style={{textAlign:"right"}}>
-          <div style={{background:"#22c55e",color:"#fff",fontSize:10,fontWeight:800,padding:"4px 12px",borderRadius:20,marginBottom:4}}>✓ BEZAHLT</div>
-          <div style={{fontSize:10,color:"#94a3b8"}}>{fmtDatum(data.datum)}</div>
-        </div>
+    <div style={{fontFamily:"'IBM Plex Sans',system-ui,sans-serif",fontSize:12,background:"#fff",border:"1px solid #cbd5e1",borderRadius:6,padding:"22px 26px",maxWidth:460,margin:"0 auto",boxShadow:"0 1px 4px rgba(0,0,0,.1)"}}>
+      {/* Kopfzeile */}
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",borderBottom:"2px solid #0f172a",paddingBottom:10,marginBottom:14}}>
+        <span style={{fontSize:24,fontWeight:900,letterSpacing:"-.02em"}}>Quittung</span>
+        <span style={{fontSize:12,color:"#64748b"}}>Nr.&nbsp;<strong style={{color:"#0f172a"}}>{data.quittungsNr}</strong></span>
       </div>
-      {/* Quittungs-Body */}
-      <div style={{padding:"16px 20px"}}>
+      {/* Betragsblock */}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",border:"1px solid #94a3b8",marginBottom:12}}>
         {[
-          ["Ausgestellt von", data.aussteller],
-          ["Erhalten von",    data.empfaenger],
-          ["Verwendungszweck", data.zweck],
-        ].map(([l,v]) => (
-          <div key={l} style={{display:"flex",gap:12,marginBottom:12,alignItems:"baseline"}}>
-            <span style={{fontSize:10,color:"#64748b",width:130,flexShrink:0,fontWeight:700}}>{l}</span>
-            <span style={{fontWeight:600,flex:1,borderBottom:"1px solid #e2e8f0",paddingBottom:2}}>{v}</span>
+          ["Währung","EUR"],
+          ["Betrag in Ziffern", <span style={{fontFamily:"'IBM Plex Mono',monospace",fontWeight:700}}>{be_fmt(betragNum)}</span>],
+          ["Nettowert", <span style={{fontFamily:"'IBM Plex Mono',monospace"}}>{be_fmt(netto)}</span>],
+          [`+ ${data.ustSatz||19} % MwSt.`, <span style={{fontFamily:"'IBM Plex Mono',monospace"}}>{be_fmt(ustBetrag)}</span>],
+        ].map(([l,v],i) => (
+          <div key={i} style={{padding:"5px 10px",borderRight:i%2===0?"1px solid #94a3b8":"none",borderBottom:"1px solid #94a3b8"}}>
+            <div style={{fontSize:9,color:"#64748b",fontWeight:700,textTransform:"uppercase",letterSpacing:".05em",marginBottom:2}}>{l}</div>
+            <div style={{fontWeight:600}}>{v}</div>
           </div>
         ))}
-        <div style={{background:"#f8fafc",border:"2px solid #0f172a",borderRadius:8,padding:"12px 16px",display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:4}}>
-          <span style={{fontSize:11,color:"#64748b",fontWeight:700}}>Betrag (inkl. MwSt.)</span>
-          <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:22,fontWeight:900,color:"#0f172a"}}>{data.betrag} €</span>
+        <div style={{gridColumn:"1/-1",padding:"6px 10px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <span style={{fontWeight:700,fontSize:11}}>Gesamtbetrag</span>
+          <span style={{fontFamily:"'IBM Plex Mono',monospace",fontWeight:900,fontSize:16}}>{be_fmt(betragNum)} €</span>
         </div>
       </div>
-      {/* Footer */}
-      <div style={{borderTop:"1px solid #e2e8f0",padding:"10px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",background:"#f8fafc"}}>
-        <span style={{fontSize:10,color:"#64748b"}}>Barzahlung bestätigt</span>
-        <div style={{textAlign:"center"}}>
-          <div style={{width:140,borderBottom:"1px solid #0f172a",marginBottom:3}} />
-          <span style={{fontSize:9,color:"#94a3b8"}}>Unterschrift Aussteller</span>
+      {/* Betrag in Worten */}
+      <div style={{marginBottom:10}}>
+        <div style={labelStyle}>Gesamtbetrag in Worten</div>
+        <div style={lineStyle}>&nbsp;</div>
+      </div>
+      {/* von / für */}
+      {[["von", data.empfaenger],["für", data.zweck]].map(([l,v]) => (
+        <div key={l} style={{display:"flex",gap:8,alignItems:"baseline",marginBottom:8}}>
+          <span style={{fontSize:12,fontWeight:600,color:"#475569",minWidth:20}}>{l}</span>
+          <div style={{flex:1,...lineStyle,fontWeight:600}}>{v}</div>
         </div>
+      ))}
+      <div style={{fontSize:11,color:"#475569",marginBottom:14}}>richtig erhalten zu haben, bestätigt</div>
+      {/* Ort / Datum / Unterschrift */}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:14}}>
+        <div>
+          <div style={labelStyle}>Ort</div>
+          <div style={lineStyle}>{data.ort||""}</div>
+          <div style={{...labelStyle,marginTop:8}}>Datum</div>
+          <div style={lineStyle}>{fmtDatum(data.datum)}</div>
+        </div>
+        <div>
+          <div style={{...lineStyle,height:50,marginTop:14}} />
+          <div style={{fontSize:9,color:"#64748b",marginTop:4}}>Stempel / Unterschrift<br/>{data.aussteller}</div>
+        </div>
+      </div>
+      {/* Buchungsvermerke */}
+      <div style={{borderTop:"1px solid #e2e8f0",paddingTop:8}}>
+        <div style={{fontSize:9,fontWeight:700,textTransform:"uppercase",letterSpacing:".08em",color:"#94a3b8",marginBottom:4}}>Buchungsvermerke</div>
+        <div style={{borderBottom:"1px solid #e2e8f0",height:18}} />
       </div>
     </div>
   );
@@ -1081,7 +1113,7 @@ Antworte NUR mit reinem JSON:
                     ? <><CheckCircle size={13} /> In Eigene Belege gespeichert!</>
                     : saveState === "error"
                     ? <><AlertCircle size={13} /> Fehler beim Speichern</>
-                    : <><Download size={13} /> In BuchungsWerk übernehmen</>}
+                    : <><Download size={13} /> In eigene Belege speichern</>}
                 </button>
                 <button className="be-btn-print" onClick={handlePrint} style={{flexShrink:0,display:"flex",alignItems:"center",gap:6}}>
                   <Printer size={14} /> Drucken / PDF
@@ -1122,7 +1154,7 @@ Antworte NUR mit reinem JSON:
                     {beKiLaden ? "Generiere…" : beKiErgebnis ? "Neue Aufgabe" : "Generieren"}
                   </button>
                 </div>
-                {beKiError && <div style={{ fontSize:12, color:"#dc2626", padding:"6px 10px", background:"#fee2e2", borderRadius:6 }}>⚠ {beKiError}</div>}
+                {beKiError && <div style={{ fontSize:12, color:"#dc2626", padding:"6px 10px", background:"#fee2e2", borderRadius:6, display:"flex", alignItems:"center", gap:6 }}><AlertCircle size={13}/>{beKiError}</div>}
                 {beKiErgebnis && (
                   <div style={{ background:"#fff", border:"1px solid #e2e8f0", borderRadius:10, padding:"10px 12px", fontSize:12 }}>
                     <div style={{ fontWeight:700, color:"#0f172a", marginBottom:5 }}>{beKiErgebnis.punkte_gesamt ?? "?"} P · {beKiErgebnis.aufgabe}</div>
