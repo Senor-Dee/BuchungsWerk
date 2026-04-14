@@ -3,11 +3,12 @@
 // Extrahiert aus BuchungsWerk.jsx – Phase C4 Refactoring
 // ══════════════════════════════════════════════════════════════════════════════
 import React, { useState, useRef } from "react";
-import { PenLine, Zap, Download, Upload, Mail, Landmark, ArrowLeftRight, Receipt, Printer, Eye, AlertCircle, CheckCircle, Package, CreditCard, User, Building2 } from "lucide-react";
+import { PenLine, Zap, Download, Upload, Mail, Landmark, ArrowLeftRight, Receipt, Printer, Eye, AlertCircle, CheckCircle, Package, CreditCard, User, Building2, FileDown } from "lucide-react";
 import { apiFetch, userKey } from "../../api.js";
 import { UNTERNEHMEN } from "../../data/stammdaten.js";
 import { r2 } from "../../utils.js";
 import { belegToBuchungssatz, buchungssatzToText } from "../../utils/buchungsEngine.js";
+import { makeBelegDocx } from "../../utils/exportFunctions.js";
 
 // APP ROOT
 // ══════════════════════════════════════════════════════════════════════════════
@@ -910,7 +911,7 @@ body { background: #fff; margin: 0; padding: 24px; font-family: 'IBM Plex Sans',
 </style>
 </head><body>
 <div class="print-header">
-  <span>BuchungsWerk · ${typLabel}${belegTitel ? ' · ' + belegTitel : ''}</span>
+  <span>${belegTitel || typLabel}</span>
   <span>${new Date().toLocaleDateString('de-DE')}</span>
 </div>
 <div class="be-preview-wrap">${html}</div>
@@ -918,6 +919,86 @@ body { background: #fff; margin: 0; padding: 24px; font-family: 'IBM Plex Sans',
     w.document.close();
     w.focus();
     setTimeout(() => { w.print(); }, 400);
+  };
+
+  const handleWordExport = async () => {
+    try {
+      const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
+              WidthType, BorderStyle, AlignmentType, ShadingType, LevelFormat,
+              VerticalAlign } = await import("docx");
+      const belegToDocx = makeBelegDocx({ Table, TableRow, TableCell, Paragraph, TextRun,
+        WidthType, BorderStyle, AlignmentType, ShadingType });
+
+      // ── Daten in docx-Beleg-Format umwandeln ──
+      const pg = s => {
+        if (!s) return 0;
+        return parseFloat(String(s).replace(/\./g,"").replace(",",".")) || 0;
+      };
+      let beleg;
+      if (typ === "eingangsrechnung") {
+        const d = dataER;
+        let ww = 0;
+        const pos = (d.positionen||[]).map(p => {
+          const netto = r2(pg(p.menge) * pg(p.ep));
+          ww += netto;
+          return { beschr: p.artikel, menge: p.menge, einheit: p.einheit, ep: pg(p.ep), netto };
+        });
+        const rab = d.rabattAktiv ? r2(ww * pg(d.rabattPct) / 100) : 0;
+        if (rab > 0) pos.push({ beschr: `${d.rabattArt} ${d.rabattPct} %`, isRabatt: true, netto: -rab });
+        const bezug = pg(d.bezugskosten);
+        const netto = r2(ww - rab + bezug);
+        const ustBetrag = r2(netto * Number(d.ustSatz) / 100);
+        const zt = `${d.zahlungsziel} Tage${pg(d.skontoPct)>0?` · Skonto: ${d.skontoPct} % in ${d.skontoTage} Tagen`:""}`;
+        beleg = { typ:"eingangsrechnung", lief:{ name:d.lieferantName, strasse:d.lieferantStrasse, plz_ort:`${d.lieferantPlz} ${d.lieferantOrt}` }, empfaenger:{ name:d.empfaengerName, strasse:d.empfaengerStrasse, plz_ort:`${d.empfaengerPlz} ${d.empfaengerOrt}` }, rgnr:d.rechnungsNr, datum:fmtDatum(d.datum), zahlungsziel:zt, ustPct:d.ustSatz, ustBetrag, brutto:r2(netto+ustBetrag), positionen:pos };
+      } else if (typ === "ausgangsrechnung") {
+        const d = dataAR;
+        let ww = 0;
+        const pos = (d.positionen||[]).map(p => {
+          const netto = r2(pg(p.menge) * pg(p.ep));
+          ww += netto;
+          return { beschr: p.artikel, menge: p.menge, einheit: p.einheit, ep: pg(p.ep), netto };
+        });
+        const rab = d.rabattAktiv ? r2(ww * pg(d.rabattPct) / 100) : 0;
+        if (rab > 0) pos.push({ beschr: `${d.rabattArt} ${d.rabattPct} %`, isRabatt: true, netto: -rab });
+        const netto = r2(ww - rab);
+        const ustBetrag = r2(netto * Number(d.ustSatz) / 100);
+        const zt = `${d.zahlungsziel} Tage${pg(d.skontoPct)>0?` · Skonto: ${d.skontoPct} % in ${d.skontoTage} Tagen`:""}`;
+        beleg = { typ:"ausgangsrechnung", firma:{ name:d.absenderName, strasse:d.absenderStrasse, plz_ort:`${d.absenderPlz} ${d.absenderOrt}` }, kunde:{ name:d.kundeName, strasse:d.kundeStrasse, plz_ort:`${d.kundePlz} ${d.kundeOrt}` }, rgnr:d.rechnungsNr, datum:fmtDatum(d.datum), zahlungsziel:zt, ustPct:d.ustSatz, ustBetrag, brutto:r2(netto+ustBetrag), positionen:pos };
+      } else if (typ === "kontoauszug") {
+        const d = dataKA;
+        let saldo = pg(d.saldoVor);
+        const buchungen = (d.buchungen||[]).map(b => {
+          const raw = String(b.betrag||"0").replace(/\s/g,"");
+          const neg = raw.startsWith("-");
+          const num = pg(neg ? raw.slice(1) : (raw.startsWith("+") ? raw.slice(1) : raw)) * (neg?-1:1);
+          saldo = r2(saldo + num);
+          return { datum:fmtDatum(b.datum), art: num>=0?"Gutschrift":"Belastung", text:b.text, betrag:num, saldo, highlight:b.highlight };
+        });
+        beleg = { typ:"kontoauszug", bank:d.bank, kontoinhaber:d.inhaber, iban:d.iban, buchungen };
+      } else if (typ === "ueberweisung") {
+        const d = dataUB;
+        beleg = { typ:"ueberweisung", absender:{ name:d.auftraggeberName, iban:d.auftraggeberIban }, empfaenger:{ name:d.empfaengerName, iban:d.empfaengerIban }, betrag:r2(pg(d.betrag)-pg(d.skontoBetrag)), skontoBetrag:pg(d.skontoBetrag), verwendungszweck:d.verwendung, ausfuehrungsdatum:fmtDatum(d.datum) };
+      } else if (typ === "email") {
+        const d = dataEM;
+        beleg = { typ:"email", von:d.von, an:d.an, betreff:d.betreff, datum:fmtDatum(d.datum), text:d.text };
+      } else if (typ === "quittung") {
+        const d = dataQU;
+        beleg = { typ:"quittung", aussteller:d.aussteller, empfaenger:d.empfaenger, betrag:pg(d.betrag), ustSatz:d.ustSatz||"19", zweck:d.zweck, datum:fmtDatum(d.datum), ort:d.ort||"", quittungsNr:d.quittungsNr };
+      }
+
+      const children = belegToDocx(beleg, null);
+      const doc = new Document({
+        styles: { default: { document: { run: { font:"Arial", size:22 } } } },
+        sections: [{ properties:{ page:{ size:{ width:11906, height:16838 }, margin:{ top:1134, right:1134, bottom:1134, left:1134 } } }, children }],
+      });
+      const blob = await Packer.toBlob(doc);
+      const url = URL.createObjectURL(blob);
+      const el = document.createElement("a");
+      el.href = url;
+      el.download = `${belegTitel || typLabel}_${new Date().toISOString().slice(0,10)}.docx`;
+      document.body.appendChild(el); el.click(); document.body.removeChild(el);
+      setTimeout(() => URL.revokeObjectURL(url), 15000);
+    } catch(err) { alert("Word-Export Fehler: " + err.message); }
   };
 
   const [beKiLaden,   setBeKiLaden]   = useState(false);
@@ -1115,8 +1196,11 @@ Antworte NUR mit reinem JSON:
                     ? <><AlertCircle size={13} /> Fehler beim Speichern</>
                     : <><Download size={13} /> In eigene Belege speichern</>}
                 </button>
+                <button className="be-btn-print" onClick={handleWordExport} style={{flexShrink:0,display:"flex",alignItems:"center",gap:6}}>
+                  <FileDown size={14} /> Word
+                </button>
                 <button className="be-btn-print" onClick={handlePrint} style={{flexShrink:0,display:"flex",alignItems:"center",gap:6}}>
-                  <Printer size={14} /> Drucken / PDF
+                  <Printer size={14} /> PDF
                 </button>
               </div>
             </div>
