@@ -137,8 +137,8 @@ const BE_CSS = `
   .be-panel-body { padding: 16px; overflow-y: auto; min-height: 0; }
   .be-field-group { margin-bottom: 14px; }
   .be-field-label { display: block; font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #64748b; margin-bottom: 4px; }
-  .be-field-input { width: 100%; padding: 7px 9px; border: 1.5px solid #e2e8f0; border-radius: 6px; font-size: 12px; font-family: inherit; color: #0f172a; background: #fff; transition: border-color .15s; outline: none; }
-  .be-field-input:focus { border-color: #0f172a; }
+  .be-field-input { width: 100%; padding: 7px 9px; border: 1.5px solid #e2e8f0; border-radius: 6px; font-size: 12px; font-family: inherit; color: #0f172a; background: #f1f5f9; transition: border-color .15s, background .15s; outline: none; }
+  .be-field-input:focus { border-color: #0f172a; background: #fff; }
   .be-field-row { display: grid; gap: 8px; }
   .be-field-row-2 { grid-template-columns: 1fr 1fr; }
   .be-field-row-3 { grid-template-columns: 1fr 1fr 1fr; }
@@ -148,8 +148,8 @@ const BE_CSS = `
   .be-pos-table { width: 100%; border-collapse: collapse; font-size: 11px; margin-bottom: 6px; }
   .be-pos-table th { background: #f8fafc; padding: 5px 6px; text-align: left; font-size: 9px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #94a3b8; border-bottom: 1px solid #e2e8f0; }
   .be-pos-table td { padding: 4px 5px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
-  .be-pos-input { width: 100%; padding: 4px 6px; border: 1.5px solid #e2e8f0; border-radius: 4px; font-size: 11px; font-family: 'IBM Plex Mono', monospace; outline: none; background: #fff; }
-  .be-pos-input:focus { border-color: #0f172a; }
+  .be-pos-input { width: 100%; padding: 4px 6px; border: 1.5px solid #e2e8f0; border-radius: 4px; font-size: 11px; font-family: 'IBM Plex Mono', monospace; outline: none; background: #f1f5f9; transition: border-color .15s, background .15s; }
+  .be-pos-input:focus { border-color: #0f172a; background: #fff; }
   .be-pos-input.wide { font-family: inherit; }
   .be-btn-del { background: none; border: none; color: #ef4444; cursor: pointer; font-size: 13px; padding: 2px 4px; border-radius: 3px; }
   .be-btn-del:hover { background: #fee2e2; }
