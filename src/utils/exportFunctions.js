@@ -994,63 +994,87 @@ export function makeBelegDocx({ Table, TableRow, TableCell, Paragraph, TextRun,
       const brutto  = Number(beleg.betrag||0);
       const netto   = Math.round(brutto / (1 + ustRate) * 100) / 100;
       const ust     = Math.round((brutto - netto) * 100) / 100;
-      const cL=2400, cR=PW-cL;
-      const lineRow = (label, val, bold) => row([
-        cell(p(label, {sz:17,b:bold}), cL, {brd:botTh, mt:80, mb:60}),
-        cell(p(val||"", {sz:17,b:bold}), cR, {brd:botTh, mt:80, mb:60}),
+      // Handschrift: Aussteller-Name kürzen (Vorname + Nachname → Initiale + Nachname)
+      const austelParts = (beleg.aussteller||"").trim().split(" ");
+      const austelShort = austelParts.length > 1
+        ? austelParts[0][0] + ". " + austelParts.slice(1).join(" ")
+        : beleg.aussteller||"";
+      // Spalten: schmale Beschriftung links, breiter Wert rechts
+      const cL=2800, cR=PW-cL;
+      // Trennlinie-Zeile mit Label + Wert unterstrichen
+      const fieldRow = (label, val) => row([
+        cell(p(label, {sz:18,col:"666666",b:true}), cL, {brd:botTh, mt:100, mb:80}),
+        cell(p(val||"", {sz:20}), cR, {brd:botTh, mt:100, mb:80}),
       ]);
       const rows = [
-        // Kopfzeile
+        // ── Kopf ──────────────────────────────────────────
         row([cell([
-          para([run("Quittung", {sz:36,b:true})], {sp:6}),
-          p("Nr. "+(beleg.quittungsNr||""), {sz:17,col:"555555"}),
-        ], PW, {brd:hdrBrd,mt:80,mb:80,fill:"FAFAFA",span:2})]),
-        // Betragsblock
+          para([run("Quittung", {sz:48,b:true})], {sp:10}),
+          p("Nr. "+(beleg.quittungsNr||""), {sz:20,col:"555555"}),
+        ], PW, {brd:hdrBrd, mt:120, mb:100, fill:"FAFAFA", span:2})]),
+        // ── Betragsblock ──────────────────────────────────
         row([
-          cell(p("Währung", {sz:15,col:"777777",b:true}), cL, {brd:allTh,fill:"F4F4F4",mt:60,mb:40}),
-          cell(p("EUR", {sz:17,b:true}), cR, {brd:allTh,fill:"F4F4F4",mt:60,mb:40}),
+          cell(p("Währung",  {sz:18,col:"555555",b:true}), cL, {brd:allTh, fill:"F0F0F0", mt:80, mb:60}),
+          cell(p("Betrag in Ziffern", {sz:18,col:"555555",b:true}), cR, {brd:allTh, fill:"F0F0F0", mt:80, mb:60}),
         ]),
         row([
-          cell(p("Nettowert", {sz:15,col:"777777",b:true}), cL, {brd:allTh,mt:40,mb:40}),
-          cell(p(fmtNum(netto)+" €", {sz:17}), cR, {brd:allTh,mt:40,mb:40}),
+          cell(p("EUR", {sz:22,b:true}), cL, {brd:allTh, mt:60, mb:60}),
+          cell(p(fmtNum(brutto), {sz:28,b:true}), cR, {brd:allTh, mt:60, mb:60}),
         ]),
         row([
-          cell(p("+ "+(beleg.ustSatz||19)+" % MwSt.", {sz:15,col:"777777",b:true}), cL, {brd:allTh,mt:40,mb:40}),
-          cell(p(fmtNum(ust)+" €", {sz:17}), cR, {brd:allTh,mt:40,mb:40}),
+          cell(p("Nettowert",  {sz:17,col:"777777",b:true}), cL, {brd:allTh, mt:40, mb:40}),
+          cell(p(fmtNum(netto)+" €", {sz:19}), cR, {brd:allTh, mt:40, mb:40}),
         ]),
         row([
-          cell(p("Gesamtbetrag", {sz:17,b:true}), cL, {brd:allTh,fill:"EEEEEE",mt:60,mb:60}),
-          cell(p(fmtNum(brutto)+" €", {sz:20,b:true}), cR, {brd:allTh,fill:"EEEEEE",mt:60,mb:60}),
+          cell(p("+ "+(beleg.ustSatz||19)+" % MwSt.", {sz:17,col:"777777",b:true}), cL, {brd:allTh, mt:40, mb:40}),
+          cell(p(fmtNum(ust)+" €", {sz:19}), cR, {brd:allTh, mt:40, mb:40}),
         ]),
-        // Gesamtbetrag in Worten (leere Zeile)
         row([
-          cell(p("Gesamtbetrag in Worten", {sz:15,col:"777777",b:true}), PW, {brd:{top:bNo,bottom:bTh,left:bNo,right:bNo},mt:100,mb:100,span:2}),
+          cell(p("Gesamtbetrag", {sz:20,b:true}), cL, {brd:allTh, fill:"EBEBEB", mt:80, mb:80}),
+          cell(p(fmtNum(brutto)+" €", {sz:26,b:true}), cR, {brd:allTh, fill:"EBEBEB", mt:80, mb:80}),
         ]),
-        // von / für
-        lineRow("von",  beleg.empfaenger||""),
-        lineRow("für",  beleg.zweck||""),
-        row([cell(p("richtig erhalten zu haben, bestätigt", {sz:16,i:true,col:"555555"}), PW, {mt:80,mb:80,span:2})]),
-        // Ort / Datum / Unterschrift
+        // ── Betrag in Worten ──────────────────────────────
+        row([cell([
+          p("Gesamtbetrag in Worten", {sz:17,col:"777777",b:true}),
+          new Paragraph({ spacing:{after:2}, border:{ bottom:{style:BorderStyle.SINGLE,size:4,color:"AAAAAA"} }, children:[new TextRun({text:"\u00a0",size:20,font:"Arial"})] }),
+        ], PW, {mt:120, mb:60, span:2})]),
+        // ── von / für ─────────────────────────────────────
+        fieldRow("von",  beleg.empfaenger||""),
+        fieldRow("für",  beleg.zweck||""),
+        row([cell(p("richtig erhalten zu haben, bestätigt", {sz:18,i:true,col:"444444"}), PW, {mt:100, mb:100, span:2})]),
+        // ── Ort, Datum | Unterschrift ─────────────────────
         row([
           cell([
-            p("Ort", {sz:14,col:"777777",b:true}),
-            p(beleg.ort||"", {sz:17}),
+            p("Ort", {sz:16,col:"777777",b:true}),
+            p(beleg.ort||"", {sz:20}),
             empty(),
-            p("Datum", {sz:14,col:"777777",b:true}),
-            p(beleg.datum||"", {sz:17}),
-          ], cL, {mt:80,mb:80}),
+            p("Datum", {sz:16,col:"777777",b:true}),
+            p(beleg.datum||"", {sz:20}),
+          ], cL, {mt:100, mb:80}),
           cell([
-            empty(),
-            p(" ", {sz:20}),
-            p(" ", {sz:20}),
-            new Paragraph({ spacing:{after:2}, border:{ bottom:{style:BorderStyle.SINGLE,size:4,color:"AAAAAA"} }, children:[new TextRun({text:"\u00a0",size:8,font:"Arial"})] }),
-            p("Stempel / Unterschrift  ·  "+beleg.aussteller, {sz:14,col:"777777"}),
-          ], cR, {mt:80,mb:80}),
+            // Handschrift-Unterschrift
+            new Paragraph({ spacing:{after:4}, children:[
+              new TextRun({ text: austelShort, size:36, italic:true, color:"1a3a6b", font:"Segoe Script" }),
+            ]}),
+            // Unterschriftslinie
+            new Paragraph({ spacing:{after:6},
+              border:{ bottom:{style:BorderStyle.SINGLE, size:4, color:"999999"} },
+              children:[new TextRun({text:"\u00a0", size:10, font:"Arial"})],
+            }),
+            new Paragraph({ spacing:{after:2}, children:[
+              new TextRun({ text: beleg.aussteller||"", size:18, color:"222222", font:"Arial" }),
+            ]}),
+            new Paragraph({ spacing:{after:0}, children:[
+              new TextRun({ text:"Aussteller (Empfänger des Geldes)", size:15, color:"888888", font:"Arial" }),
+            ]}),
+          ], cR, {mt:100, mb:80}),
         ]),
-        // Buchungsvermerke
-        hrRow(PW, "CCCCCC"),
-        row([cell(p("Buchungsvermerke", {sz:14,col:"999999",b:true}), PW, {mt:60,mb:80,span:2})]),
-        row([cell(empty(), PW, {brd:{top:bNo,bottom:bTh,left:bNo,right:bNo},mt:0,mb:60,span:2})]),
+        // ── Buchungsvermerke ──────────────────────────────
+        hrRow(PW, "BBBBBB"),
+        row([
+          cell(p("Buchungsvermerke", {sz:16,col:"999999",b:true}), cL, {mt:80,mb:60}),
+          cell(new Paragraph({ spacing:{after:2}, border:{ bottom:{style:BorderStyle.SINGLE,size:4,color:"CCCCCC"} }, children:[new TextRun({text:"\u00a0",size:8,font:"Arial"})] }), cR, {mt:80,mb:60}),
+        ]),
       ];
       return [belegTable(rows, [cL, cR], "888888")];
     }
