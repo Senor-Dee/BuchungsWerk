@@ -789,7 +789,7 @@ export function makeBelegDocx({ Table, TableRow, TableCell, Paragraph, TextRun,
           run(abs.name||"", { sz: 30, b: true, col: absFc }),
         ], { sp: 10 }),
         ...(abs.slogan ? [p(abs.slogan, { sz: 15, i: true, col: "666666", sp: 6 })] : []),
-        p([abs.strasse, (abs.plz||"")+" "+(abs.ort||"")].filter(Boolean).join("  ·  "), { sz: 16, col: "555555", sp: 4 }),
+        p([abs.strasse, abs.plz_ort || ((abs.plz||"")+" "+(abs.ort||"")).trim()].filter(Boolean).join("  ·  "), { sz: 16, col: "555555", sp: 4 }),
         ...(abs.tel   ? [p("Tel.: "+abs.tel,  { sz: 14, col: "777777", sp: 2 })] : []),
         ...(abs.email ? [p(abs.email,          { sz: 14, col: "777777" })] : []),
       ], PW, { brd: hdrBrd, mt: 100, mb: 100, fill: "F9F7F4", span: 5 })]));

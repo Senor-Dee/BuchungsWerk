@@ -949,7 +949,7 @@ body { background: #fff; margin: 0; padding: 24px; font-family: 'IBM Plex Sans',
         const netto = r2(ww - rab + bezug);
         const ustBetrag = r2(netto * Number(d.ustSatz) / 100);
         const zt = `${d.zahlungsziel} Tage${pg(d.skontoPct)>0?` · Skonto: ${d.skontoPct} % in ${d.skontoTage} Tagen`:""}`;
-        beleg = { typ:"eingangsrechnung", lief:{ name:d.lieferantName, strasse:d.lieferantStrasse, plz_ort:`${d.lieferantPlz} ${d.lieferantOrt}` }, empfaenger:{ name:d.empfaengerName, strasse:d.empfaengerStrasse, plz_ort:`${d.empfaengerPlz} ${d.empfaengerOrt}` }, rgnr:d.rechnungsNr, datum:fmtDatum(d.datum), zahlungsziel:zt, ustPct:d.ustSatz, ustBetrag, brutto:r2(netto+ustBetrag), positionen:pos };
+        beleg = { typ:"eingangsrechnung", lief:{ name:d.lieferantName, strasse:d.lieferantStrasse, plz_ort:`${d.lieferantPlz} ${d.lieferantOrt}` }, empfaenger:{ name:d.empfaengerName, strasse:d.empfaengerStrasse, plz_ort:`${d.empfaengerPlz} ${d.empfaengerOrt}`, plz:d.empfaengerPlz, ort:d.empfaengerOrt }, rgnr:d.rechnungsNr, datum:fmtDatum(d.datum), zahlungsziel:zt, ustPct:d.ustSatz, ustBetrag, brutto:r2(netto+ustBetrag), positionen:pos };
       } else if (typ === "ausgangsrechnung") {
         const d = dataAR;
         let ww = 0;
@@ -963,7 +963,7 @@ body { background: #fff; margin: 0; padding: 24px; font-family: 'IBM Plex Sans',
         const netto = r2(ww - rab);
         const ustBetrag = r2(netto * Number(d.ustSatz) / 100);
         const zt = `${d.zahlungsziel} Tage${pg(d.skontoPct)>0?` · Skonto: ${d.skontoPct} % in ${d.skontoTage} Tagen`:""}`;
-        beleg = { typ:"ausgangsrechnung", firma:{ name:d.absenderName, strasse:d.absenderStrasse, plz_ort:`${d.absenderPlz} ${d.absenderOrt}` }, kunde:{ name:d.kundeName, strasse:d.kundeStrasse, plz_ort:`${d.kundePlz} ${d.kundeOrt}` }, rgnr:d.rechnungsNr, datum:fmtDatum(d.datum), zahlungsziel:zt, ustPct:d.ustSatz, ustBetrag, brutto:r2(netto+ustBetrag), positionen:pos };
+        beleg = { typ:"ausgangsrechnung", firma:{ name:d.absenderName, strasse:d.absenderStrasse, plz_ort:`${d.absenderPlz} ${d.absenderOrt}` }, kunde:{ name:d.kundeName, strasse:d.kundeStrasse, plz_ort:`${d.kundePlz} ${d.kundeOrt}`, plz:d.kundePlz, ort:d.kundeOrt }, rgnr:d.rechnungsNr, datum:fmtDatum(d.datum), zahlungsziel:zt, ustPct:d.ustSatz, ustBetrag, brutto:r2(netto+ustBetrag), positionen:pos };
       } else if (typ === "kontoauszug") {
         const d = dataKA;
         let saldo = pg(d.saldoVor);
