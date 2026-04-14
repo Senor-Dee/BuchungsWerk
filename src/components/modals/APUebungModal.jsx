@@ -1279,6 +1279,19 @@ function APUebungModal({ onSchliessen }) {
                           lineHeight:1.7, fontFamily:"'Segoe UI',sans-serif",
                           borderTop:"1px solid rgba(15,23,42,0.6)" }}>
                           {renderMD(editTexte[ta.nr] ?? ta.text)}
+                          {/* Richtig/Falsch-Aussagen */}
+                          {ta.aussagen && (
+                            <div style={{ marginTop:8, display:"flex", flexDirection:"column", gap:5 }}>
+                              {ta.aussagen.map(a => (
+                                <div key={a.buchstabe} style={{ display:"flex", gap:8, alignItems:"baseline",
+                                  background:"rgba(240,236,227,0.04)", borderRadius:6,
+                                  padding:"5px 10px", border:"1px solid rgba(240,236,227,0.07)" }}>
+                                  <span style={{ fontWeight:800, color:"#e8600a", minWidth:18, fontSize:12 }}>{a.buchstabe}</span>
+                                  <span style={{ flex:1, color:"rgba(240,236,227,0.8)", fontSize:12.5 }}>{a.text}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       )}
 

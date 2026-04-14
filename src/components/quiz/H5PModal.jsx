@@ -332,7 +332,7 @@ function H5PModal({ aufgaben, config, firma, onSchliessen }) {
   // RENDER
   // ══════════════════════════════════════════════════════════════════════════
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", zIndex: 4000, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
       <div style={{ background: "#0f172a", borderRadius: "16px", width: "100%", maxWidth: "600px", maxHeight: "92vh", overflow: "hidden", display: "flex", flexDirection: "column", boxShadow: "0 25px 50px rgba(0,0,0,0.5)" }}>
 
         {/* ── Header ────────────────────────────────────────────────────── */}
