@@ -3,7 +3,7 @@
 // Extrahiert aus BuchungsWerk.jsx – Phase C4 Refactoring
 // ══════════════════════════════════════════════════════════════════════════════
 import React, { useState, useRef } from "react";
-import { PenLine, Zap, Download, Upload, Mail, Landmark, ArrowLeftRight, Receipt, Printer, Eye, Lightbulb, AlertCircle, CheckCircle } from "lucide-react";
+import { PenLine, Zap, Download, Upload, Mail, Landmark, ArrowLeftRight, Receipt, Printer, Eye, AlertCircle, CheckCircle } from "lucide-react";
 import { apiFetch, userKey } from "../../api.js";
 import { UNTERNEHMEN } from "../../data/stammdaten.js";
 import { r2 } from "../../utils.js";
@@ -131,8 +131,9 @@ const BE_CSS = `
   .be-typ-tab.active { color: #0f172a; border-bottom-color: #e8600a; }
   .be-body { display: grid; grid-template-columns: 360px 1fr; gap: 16px; padding: 16px 20px; flex: 1; overflow: hidden; align-items: stretch; }
   .be-panel { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden; }
-  .be-panel-head { background: #f8fafc; border-bottom: 1px solid #e2e8f0; padding: 10px 16px; font-size: 10px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: #94a3b8; }
-  .be-panel-body { padding: 16px; overflow-y: auto; max-height: calc(100vh - 240px); }
+  .be-panel-form { display: flex; flex-direction: column; height: 100%; }
+  .be-panel-head { background: #f8fafc; border-bottom: 1px solid #e2e8f0; padding: 10px 16px; font-size: 10px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: #94a3b8; flex-shrink: 0; }
+  .be-panel-body { padding: 16px; overflow-y: auto; flex: 1; min-height: 0; }
   .be-field-group { margin-bottom: 14px; }
   .be-field-label { display: block; font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #64748b; margin-bottom: 4px; }
   .be-field-input { width: 100%; padding: 7px 9px; border: 1.5px solid #e2e8f0; border-radius: 6px; font-size: 12px; font-family: inherit; color: #0f172a; background: #fff; transition: border-color .15s; outline: none; }
@@ -937,19 +938,11 @@ NR-PUNKTE (ISB-Handreichung BwR 2025):
 - Klasse 8+ Ausnahmen mit NR-Punkt: Skonto-Berechnung, EWB/PWB, Disagio/Auszahlungsbetrag, Periodenabgrenzung.
 - Im Zweifel: nebenrechnung_punkte=0.
 
-ERKLÄRUNG-REGEL (das "erklaerung"-Feld):
-Schreibe eine kompakte, didaktisch präzise Lehrernotiz (1–2 Sätze) die enthält:
-1. Lernbereichsbezug nach ISB LehrplanPLUS Bayern, z. B. "LB 2 Kl. 8: Wareneinkauf auf Ziel – Buchung Eingangsrechnung"
-2. Typische Schülerfehler (konkret!), z. B. "Häufiger Fehler: Vorsteuer wird vergessen oder mit USt-Konto 4800 verwechselt."
-3. Kurze fachliche Begründung des Buchungssatzes, falls nicht selbsterklärend.
-Kein Emoji, keine allgemeinen Floskeln wie "Guter LB-Bezug" – nur fachlich Substanzielles.
-
 Antworte NUR mit reinem JSON:
 {
   "aufgabe": "1 Satz Aufgabentext (ohne Belegdaten!)",
   "nebenrechnung": "Rechenweg nur wenn ISB-relevant, sonst leerer string",
-  "nebenrechnung_punkte": 0,
-  "erklaerung": "LB X Kl. ${klasse}: [Thema]. [Typischer Schülerfehler oder fachliche Begründung.]"
+  "nebenrechnung_punkte": 0
 }`
         // VOLLER Prompt als Fallback wenn Engine fehlgeschlagen
         : `Du bist bwr-sensei – BwR-Fachlehrer an einer bayerischen Realschule (Klasse ${klasse}, ISB LehrplanPLUS Bayern).
@@ -972,21 +965,13 @@ BUCHUNGSREGEL AUSGANGSRECHNUNG: gruppe=1: 2400 FO netto an 5000 UEFE; gruppe=2: 
 AUFGABENTEXT: KEINE Belegdaten wiederholen! Nur: "Buche die [Belegtyp] in die Bücher der [Firma] ein."
 Klasse 7: soll_nr="" haben_nr="" · Klasse 8+: Kontonummern angeben
 
-ERKLÄRUNG-REGEL (das "erklaerung"-Feld des Buchungssatzes und des Gesamtobjekts):
-Formuliere eine didaktisch präzise Lehrernotiz (1–2 Sätze) mit:
-1. Lernbereichsbezug nach ISB LehrplanPLUS, z. B. "LB 2 Kl. 8: Wareneinkauf auf Ziel"
-2. Typischen Schülerfehlern (konkret!), z. B. "Häufig: Vorsteuer-Konto (2600) wird mit USt-Konto (4800) verwechselt."
-3. Fachlicher Begründung wo nötig.
-Kein Emoji, keine allgemeinen Floskeln.
-
 Antworte NUR mit reinem JSON:
 {
   "aufgabe": "1 Satz",
-  "buchungssatz": [{"gruppe":1,"soll_nr":"XXXX","soll_name":"KÜRZEL","haben_nr":"XXXX","haben_name":"KÜRZEL","betrag":0.00,"punkte":1,"erklaerung":"fachliche Begründung dieser Buchungszeile"}],
+  "buchungssatz": [{"gruppe":1,"soll_nr":"XXXX","soll_name":"KÜRZEL","haben_nr":"XXXX","haben_name":"KÜRZEL","betrag":0.00,"punkte":1}],
   "nebenrechnung": "",
   "nebenrechnung_punkte": 0,
-  "punkte_gesamt": 2,
-  "erklaerung": "LB X Kl. ${klasse}: [Thema]. [Typischer Schülerfehler oder fachliche Begründung.]"
+  "punkte_gesamt": 2
 }`;
 
       const maxTokens = engineBuchungssatz ? 400 : 1400;
@@ -1167,12 +1152,6 @@ Antworte NUR mit reinem JSON:
                         );
                       });
                     })()}
-                    {beKiErgebnis.erklaerung && (
-                      <div style={{ marginTop:6, fontSize:11, color:"#92400e", background:"#fffbeb", borderRadius:5, padding:"5px 8px", display:"flex", alignItems:"flex-start", gap:5, lineHeight:1.5 }}>
-                        <Lightbulb size={12} strokeWidth={2} style={{ flexShrink:0, marginTop:1 }} />
-                        <span>{beKiErgebnis.erklaerung}</span>
-                      </div>
-                    )}
                   </div>
                 )}
               </div>
