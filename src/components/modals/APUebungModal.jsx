@@ -1292,6 +1292,47 @@ function APUebungModal({ onSchliessen }) {
                               ))}
                             </div>
                           )}
+                          {/* Datentabelle */}
+                          {ta.tabelle && (
+                            <div style={{ marginTop:10, overflowX:"auto" }}>
+                              <table style={{ borderCollapse:"collapse", width:"100%", fontSize:12,
+                                fontFamily:"'Segoe UI',sans-serif" }}>
+                                {ta.tabelle.headers && (
+                                  <thead>
+                                    <tr>
+                                      {ta.tabelle.headers.map((h, i) => (
+                                        <th key={i} style={{ background:"rgba(232,96,10,0.12)", color:"#e8600a",
+                                          padding:"5px 10px", textAlign: i===0 ? "left" : "center",
+                                          border:"1px solid rgba(232,96,10,0.25)", fontWeight:700, fontSize:11,
+                                          whiteSpace:"nowrap" }}>
+                                          {h}
+                                        </th>
+                                      ))}
+                                    </tr>
+                                  </thead>
+                                )}
+                                <tbody>
+                                  {ta.tabelle.rows.map((row, ri) => (
+                                    <tr key={ri} style={{ background: ri%2===0 ? "rgba(240,236,227,0.04)" : "transparent" }}>
+                                      {row.map((cell, ci) => {
+                                        const isPlaceholder = /^[A-C]$/.test(String(cell).trim());
+                                        return (
+                                          <td key={ci} style={{ padding:"5px 10px",
+                                            color: isPlaceholder ? "#e8600a" : "rgba(240,236,227,0.75)",
+                                            textAlign: ci===0 ? "left" : "center",
+                                            border:"1px solid rgba(240,236,227,0.08)",
+                                            fontWeight: isPlaceholder ? 900 : 400,
+                                            fontSize: isPlaceholder ? 14 : 12 }}>
+                                            {isPlaceholder ? `[ ${cell} ]` : cell}
+                                          </td>
+                                        );
+                                      })}
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
                         </div>
                       )}
 
