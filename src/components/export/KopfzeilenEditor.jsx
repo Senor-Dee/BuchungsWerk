@@ -81,7 +81,7 @@ function KopfzeilenEditor({ config, firma, kopfzeile, setKopfzeile }) {
       <div style={{ fontSize:11, fontWeight:700, color:"#94a3b8", textTransform:"uppercase", letterSpacing:".08em", marginBottom:6 }}>
         Vorschau
       </div>
-      <div style={{ border:"1px solid #cbd5e1", borderRadius:8, overflow:"hidden", fontFamily:"Arial,sans-serif", fontSize:11 }}>
+      <div style={{ border:"1px solid #cbd5e1", borderRadius:8, overflow:"hidden", fontFamily:"Arial,sans-serif", fontSize:11, background:"#fff", color:"#0f172a" }}>
         {/* Obere Linie: Schule + Fach */}
         <div style={{ background:"#f1f5f9", padding:"6px 12px", display:"flex", justifyContent:"space-between", borderBottom:"1px solid #e2e8f0" }}>
           <span style={{ fontWeight:700 }}>{k.schulName || "Schule"}</span>
