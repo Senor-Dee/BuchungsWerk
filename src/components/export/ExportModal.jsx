@@ -52,7 +52,9 @@ export default function ExportModal({ aufgaben, config, firma, kiHistorie, onSch
       const isLoesung  = modus === "loesungen";
       const kl = kopfzeile || {};
       const schulName   = kl.schulName   || "";
-      const pruefArt    = kl.pruefungsart || config.typ || "Übung";
+      const pruefArtBase = kl.pruefungsart || config.typ || "Übung";
+      const pruefNr     = kl.pruefungsNr ? kl.pruefungsNr + ". " : "";
+      const pruefArt    = pruefNr + pruefArtBase;
       const klasseStr   = kl.klasse      || String(config.klasse);
       const datumStr    = kl.datum
         ? new Date(kl.datum + "T00:00:00").toLocaleDateString("de-DE", { day:"2-digit", month:"2-digit", year:"numeric" })
@@ -160,11 +162,12 @@ export default function ExportModal({ aufgaben, config, firma, kiHistorie, onSch
             margins: { top: 80, bottom: 80, left: 120, right: 60 },
             verticalAlign: VerticalAlign.CENTER,
             children: [
-              ...(schulName ? [new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 16 }, children: [
+              ...(schulName ? [new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 14 }, children: [
                 new TextRun({ text: schulName, size: 16, color: "666666", font: "Arial" }),
               ]})] : []),
               new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 0 }, children: [
                 new TextRun({ text: (isLoesung ? "Musterl\u00f6sung \u2013 " : "") + pruefArt, size: 30, bold: true, font: "Arial" }),
+                new TextRun({ break: 1, text: "im Fach Betriebswirtschaft/Rechnungswesen", size: 18, bold: false, color: "444444", font: "Arial" }),
               ]}),
             ],
           }),
@@ -487,7 +490,7 @@ export default function ExportModal({ aufgaben, config, firma, kiHistorie, onSch
   return (
     <>
     <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.7)", backdropFilter:"blur(8px)", WebkitBackdropFilter:"blur(8px)", zIndex:1000, display:"flex", alignItems:"center", justifyContent:"center", padding:"16px" }}>
-      <div style={{ background:"rgba(22,16,8,0.97)", backdropFilter:"blur(24px)", WebkitBackdropFilter:"blur(24px)", border:"1px solid rgba(240,236,227,0.12)", borderRadius:"16px", width:"100%", maxWidth:"520px", overflow:"hidden", boxShadow:"0 25px 50px rgba(0,0,0,0.5)" }}>
+      <div style={{ background:"rgba(22,16,8,0.97)", backdropFilter:"blur(24px)", WebkitBackdropFilter:"blur(24px)", border:"1px solid rgba(240,236,227,0.12)", borderRadius:"16px", width:"100%", maxWidth:"680px", overflow:"hidden", boxShadow:"0 25px 50px rgba(0,0,0,0.5)" }}>
         {/* Header */}
         <div style={{ padding:"20px 24px 16px", borderBottom:"1px solid rgba(240,236,227,0.08)", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
           <div>

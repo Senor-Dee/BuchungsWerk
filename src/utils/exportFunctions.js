@@ -103,24 +103,26 @@ export function exportFirmaHTML(config, firma) {
 // ── Kopfzeile HTML für PDF-Export ─────────────────────────────────────────────
 export function buildKopfzeilenHTML(k, gesamtP, klasse) {
   if (!k) return "";
-  const datumStr = k.datum ? new Date(k.datum + "T00:00:00").toLocaleDateString("de-DE", {day:"2-digit",month:"2-digit",year:"numeric"}) : "";
-  const pruefArt = k.pruefungsart || "";
+  const datumStr  = k.datum ? new Date(k.datum + "T00:00:00").toLocaleDateString("de-DE", {day:"2-digit",month:"2-digit",year:"numeric"}) : "";
+  const pruefNr   = k.pruefungsNr ? k.pruefungsNr + ". " : "";
+  const pruefArt  = pruefNr + (k.pruefungsart || "");
   const schulName = k.schulName || "";
   return `<div style="border:1.5px solid #333;margin-bottom:18px;font-family:Arial,sans-serif;font-size:11px">
     <div style="display:flex;align-items:stretch;border-bottom:2px solid #333">
       <div style="flex:1;padding:10px 14px;border-right:1.5px solid #333">
         ${schulName ? `<div style="font-size:10px;color:#666;margin-bottom:4px">${schulName}</div>` : ""}
-        <div style="font-size:15px;font-weight:900">${pruefArt}</div>
+        <div style="font-size:16px;font-weight:900;margin-bottom:2px">${pruefArt}</div>
+        <div style="font-size:11px;color:#374151">im Fach Betriebswirtschaft/Rechnungswesen</div>
       </div>
-      <div style="width:110px;display:flex;flex-direction:column;text-align:center">
-        <div style="flex:1;border-bottom:1.5px solid #333;padding:10px 8px">
-          <div style="font-size:28px;font-weight:900;line-height:1">&nbsp;</div>
-          <div style="font-size:10px;color:#555;margin-top:4px">Note</div>
+      <div style="display:flex;align-items:stretch;border-left:1.5px solid #333;text-align:center">
+        <div style="width:80px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:8px 6px;border-right:1.5px solid #333">
+          <div style="font-size:10px;color:#555;margin-bottom:4px">Note</div>
+          <div style="font-size:24px;font-weight:900;line-height:1">&nbsp;</div>
         </div>
-        <div style="flex:1;padding:8px">
-          <div style="font-size:26px;font-weight:900;line-height:1">${gesamtP}</div>
-          <div style="font-size:10px;color:#555;margin-top:2px">Punkte gesamt</div>
-          <div style="font-size:10px;margin-top:4px">Erreicht: _____ P</div>
+        <div style="width:120px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:8px 6px">
+          <div style="font-size:22px;font-weight:900;line-height:1">${gesamtP}</div>
+          <div style="font-size:10px;color:#555;margin-top:3px">Punkte gesamt</div>
+          <div style="font-size:10px;margin-top:3px">Erreicht: _____ P</div>
         </div>
       </div>
     </div>

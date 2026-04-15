@@ -13,6 +13,7 @@ function gesamtPunkteStr(config) { return config?.maxPunkte ? config.maxPunkte +
 const DEFAULT_KOPFZEILE = {
   schulName: "", // wird aus settings.stammschule vorausgefüllt
   klasse: "",
+  pruefungsNr: "",
   pruefungsart: "Schulaufgabe",
   datum: new Date().toISOString().split("T")[0],
   zeigeNote: true,
@@ -29,12 +30,15 @@ function KopfzeilenEditor({ config, firma, kopfzeile, setKopfzeile }) {
     }
   }, [settings.stammschule]);
   const k = kopfzeile;
-  const inp = (label, field, type="text", placeholder="") => (
-    <div style={{ display:"flex", flexDirection:"column", gap:3, flex:1 }}>
-      <label style={{ fontSize:11, fontWeight:700, color:"#64748b", textTransform:"uppercase", letterSpacing:".06em" }}>{label}</label>
-      <input type={type} value={k[field]} placeholder={placeholder}
+  const lightInput = { fontSize:13, padding:"7px 10px", border:"1.5px solid #cbd5e1", borderRadius:8,
+    background:"#fff", color:"#0f172a", outline:"none", boxSizing:"border-box",
+    fontFamily:"Arial,sans-serif", transition:"border-color 150ms" };
+  const inp = (label, field, type="text", placeholder="", extra={}) => (
+    <div style={{ display:"flex", flexDirection:"column", gap:3, flex:1, ...extra }}>
+      <label style={{ fontSize:11, fontWeight:700, color:"#374151", textTransform:"uppercase", letterSpacing:".06em" }}>{label}</label>
+      <input type={type} value={k[field] ?? ""} placeholder={placeholder}
         onChange={e => setKopfzeile(p => ({ ...p, [field]: e.target.value }))}
-        style={{ ...S.input, fontSize:13, padding:"7px 10px" }} />
+        style={lightInput} />
     </div>
   );
   const chk = (label, field) => (
@@ -59,11 +63,12 @@ function KopfzeilenEditor({ config, firma, kopfzeile, setKopfzeile }) {
       <div style={{ display:"flex", flexDirection:"column", gap:10, marginBottom:14 }}>
         <div style={{ display:"flex", gap:10 }}>
           {inp("Schule", "schulName", "text", "z. B. Städtische Realschule München")}
-          {inp("Klasse", "klasse", "text", `z. B. ${config.klasse}a`)}
+          {inp("Klasse", "klasse", "text", `z. B. ${config.klasse}a`, { maxWidth:90 })}
         </div>
-        <div style={{ display:"flex", gap:10 }}>
-          {inp("Prüfungsart", "pruefungsart", "text", "z. B. Schulaufgabe Nr. 2")}
-          {inp("Datum", "datum", "date")}
+        <div style={{ display:"flex", gap:10, alignItems:"flex-end" }}>
+          {inp("Nr.", "pruefungsNr", "text", "1", { maxWidth:56 })}
+          {inp("Prüfungsart", "pruefungsart", "text", "z. B. Schulaufgabe")}
+          {inp("Datum", "datum", "date", "", { maxWidth:150 })}
         </div>
         <div style={{ display:"flex", gap:16, flexWrap:"wrap", padding:"8px 0" }}>
           {chk("Notenfeld anzeigen", "zeigeNote")}
@@ -85,7 +90,8 @@ function KopfzeilenEditor({ config, firma, kopfzeile, setKopfzeile }) {
         {/* Hauptkopf */}
         <div style={{ padding:"10px 12px", display:"flex", gap:12, flexWrap:"wrap", borderBottom:"2px solid #0f172a" }}>
           <div style={{ flex:2 }}>
-            <div style={{ fontSize:14, fontWeight:800, marginBottom:2 }}>{k.pruefungsart || "Prüfungsart"}</div>
+            <div style={{ fontSize:14, fontWeight:800, marginBottom:2 }}>{(k.pruefungsNr ? k.pruefungsNr + ". " : "") + (k.pruefungsart || "Prüfungsart")}</div>
+            <div style={{ fontSize:10, color:"#374151" }}>im Fach Betriebswirtschaft/Rechnungswesen</div>
             <div style={{ fontSize:11, color:"#475569" }}>
               Klasse: <strong>{k.klasse || config.klasse}</strong>
               {datumStr && <span style={{ marginLeft:14 }}>Datum: <strong>{datumStr}</strong></span>}
