@@ -20,7 +20,16 @@ from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 
 # ── Config ─────────────────────────────────────────────────────────────────────
-JWT_SECRET      = os.environ.get("BW_JWT_SECRET", "change-me-in-production")
+JWT_SECRET = os.environ.get("BW_JWT_SECRET")
+if not JWT_SECRET:
+    raise RuntimeError(
+        "BW_JWT_SECRET MUSS gesetzt sein (in /etc/buchungswerk/.env). "
+        "Startvorgang abgebrochen."
+    )
+if len(JWT_SECRET) < 32:
+    raise RuntimeError(
+        "BW_JWT_SECRET zu kurz (< 32 Zeichen). Mindestens 64 Hex-Zeichen empfohlen."
+    )
 JWT_ALGO        = "HS256"
 JWT_EXPIRE_DAYS = 7
 RESEND_KEY      = os.environ.get("RESEND_API_KEY", "")
@@ -647,7 +656,8 @@ def totp_login(request: Request, data: TotpLoginReq, db: sqlite3.Connection = De
 
 
 @app.post("/auth/verify-email")
-def verify_email_ep(data: VerifyEmailReq, db: sqlite3.Connection = Depends(get_db)):
+@limiter.limit("10/minute")
+def verify_email_ep(request: Request, data: VerifyEmailReq, db: sqlite3.Connection = Depends(get_db)):
     email = data.email.strip().lower()
     user = db.execute("SELECT * FROM users WHERE email=?", (email,)).fetchone()
     if not user:
@@ -674,7 +684,8 @@ def verify_email_ep(data: VerifyEmailReq, db: sqlite3.Connection = Depends(get_d
 
 
 @app.post("/auth/resend-verify")
-def resend_verify(data: ResendVerifyReq, background_tasks: BackgroundTasks, db: sqlite3.Connection = Depends(get_db)):
+@limiter.limit("3/minute")
+def resend_verify(request: Request, data: ResendVerifyReq, background_tasks: BackgroundTasks, db: sqlite3.Connection = Depends(get_db)):
     email = data.email.strip().lower()
     user = db.execute("SELECT * FROM users WHERE email=? AND email_verified=0", (email,)).fetchone()
     if not user:
@@ -712,7 +723,8 @@ def reset_request(request: Request, data: ResetRequestReq, background_tasks: Bac
 
 
 @app.post("/auth/reset-confirm")
-def reset_confirm(data: ResetConfirmReq, db: sqlite3.Connection = Depends(get_db)):
+@limiter.limit("5/minute")
+def reset_confirm(request: Request, data: ResetConfirmReq, db: sqlite3.Connection = Depends(get_db)):
     if len(data.neues_passwort) < 8:
         raise HTTPException(400, "Passwort muss mindestens 8 Zeichen haben")
     email = data.email.strip().lower()
@@ -965,9 +977,17 @@ def create_session(data: SessionCreate, db: sqlite3.Connection = Depends(get_db)
     return {"id": cur.lastrowid, "gestartet": datetime.now().isoformat()}
 
 @app.post("/sessions/{id}/abschliessen")
-def session_abschliessen(id: int, db: sqlite3.Connection = Depends(get_db)):
+def session_abschliessen(id: int, db: sqlite3.Connection = Depends(get_db),
+                         current_user: dict = Depends(get_current_user)):
+    session = db.execute("SELECT * FROM quiz_sessions WHERE id=?", (id,)).fetchone()
+    if not session:
+        raise HTTPException(404, "Session nicht gefunden")
+    s = dict(session)
+    if s.get("user_id") is not None and s.get("user_id") != current_user["id"]:
+        raise HTTPException(403, "Nicht deine Session")
     db.execute("UPDATE quiz_sessions SET beendet=datetime('now') WHERE id=?", (id,))
-    db.commit(); return {"ok": True}
+    db.commit()
+    return {"ok": True}
 
 @app.get("/sessions/{id}/zusammenfassung")
 def session_zusammenfassung(id: int, db: sqlite3.Connection = Depends(get_db),
@@ -1215,7 +1235,13 @@ class SessionKontrolleReq(BaseModel):
 
 @app.post("/session/kontrolle/{code}", status_code=200)
 def set_session_kontrolle(code: str, data: SessionKontrolleReq,
-                           db: sqlite3.Connection = Depends(get_db)):
+                           db: sqlite3.Connection = Depends(get_db),
+                           current_user: dict = Depends(get_current_user)):
+    quiz = db.execute("SELECT lehrer_id FROM live_quizze WHERE code=?", (code,)).fetchone()
+    if not quiz:
+        raise HTTPException(404, "Session nicht gefunden")
+    if dict(quiz).get("lehrer_id") != current_user["id"]:
+        raise HTTPException(403, "Nicht dein Quiz")
     db.execute(
         "INSERT INTO session_kontrolle (session_code, end_in, ts) "
         "VALUES (?,?,datetime('now')) "

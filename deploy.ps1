@@ -54,4 +54,35 @@ if (Test-Path $envFile) {
 Write-Host "Starte Frontend-Container neu..."
 Invoke-SSH $PI "cd ~/buchungswerk-backend && docker compose restart buchungswerk-app"
 
+# 7. DB-Backup einmalig einrichten (nur wenn Cron-Job noch nicht existiert)
+$cronExists = Invoke-SSH $PI "crontab -l 2>/dev/null | grep -c backup-buchungswerk || echo 0"
+if ($cronExists.Trim() -eq "0") {
+    Write-Host "DB-Backup einrichten (einmalig)..."
+    $backupScript = @'
+#!/bin/bash
+set -e
+DB_PATH="/home/senor_d/buchungswerk-backend/data/buchungswerk.db"
+BACKUP_DIR="/home/senor_d/buchungswerk-backend/backups"
+TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+mkdir -p "$BACKUP_DIR"
+if [ -f "$DB_PATH" ]; then
+    sqlite3 "$DB_PATH" ".dump" | gzip > "$BACKUP_DIR/buchungswerk-$TIMESTAMP.sql.gz"
+    echo "[$(date)] Backup erstellt: buchungswerk-$TIMESTAMP.sql.gz"
+else
+    echo "[$(date)] WARNUNG: DB nicht gefunden: $DB_PATH"; exit 1
+fi
+find "$BACKUP_DIR" -name "buchungswerk-*.sql.gz" -mtime +30 -delete
+'@
+    $tmp = [System.IO.Path]::GetTempFileName()
+    $backupScript | Out-File -FilePath $tmp -Encoding utf8 -NoNewline
+    & scp -i $KEY -o StrictHostKeyChecking=accept-new $tmp "${PI}:/home/senor_d/backup-buchungswerk.sh"
+    Remove-Item $tmp
+    Invoke-SSH $PI "chmod +x /home/senor_d/backup-buchungswerk.sh"
+    Invoke-SSH $PI "(crontab -l 2>/dev/null; echo '0 2 * * * /home/senor_d/backup-buchungswerk.sh >> /home/senor_d/buchungswerk-backup.log 2>&1') | crontab -"
+    Invoke-SSH $PI "/home/senor_d/backup-buchungswerk.sh"
+    Write-Host "DB-Backup eingerichtet (taeglicher Cron um 02:00 Uhr)."
+} else {
+    Write-Host "DB-Backup-Cron bereits aktiv."
+}
+
 Write-Host "Fertig! https://buchungswerk.org"

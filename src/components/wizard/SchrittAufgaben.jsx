@@ -107,7 +107,7 @@ export default function SchrittAufgaben({ config, firma, initialAufgaben, onNeu,
         // ── Ende Engine-Safety-Net ─────────────────────────────────────────
 
       } catch(e) {
-        console.warn("BuchungsWerk: Fehler in generate() für", typ.id, e.message);
+        if (import.meta.env?.DEV) console.warn("BuchungsWerk: Fehler in generate() für", typ.id, e.message);
         continue;
       }
       if (!gen) continue;

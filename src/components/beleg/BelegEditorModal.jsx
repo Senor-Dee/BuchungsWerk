@@ -1105,10 +1105,10 @@ Antworte NUR mit reinem JSON:
         _engineWarnings: engineWarnings,
       });
 
-      if (engineWarnings.length > 0) {
+      if (import.meta.env?.DEV && engineWarnings.length > 0) {
         console.info("BuchungsEngine Warnungen:", engineWarnings);
       }
-      if (engineError) {
+      if (import.meta.env?.DEV && engineError) {
         console.warn("BuchungsEngine Fehler (Fallback KI):", engineError);
       }
 
