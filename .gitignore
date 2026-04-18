@@ -33,7 +33,7 @@ npm-debug.log*
 .idea/
 
 # Lokale Arbeitsverzeichnisse – NIEMALS ins Repository!
-.claude/
+.claude/settings.local.json
 TEMP/
 Analysis/
 BuchungsWerk_Roadmap_2026.docx
