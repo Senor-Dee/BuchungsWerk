@@ -6,7 +6,7 @@ $KEY        = "$HOME\.ssh\id_buchungswerk"
 $CLOUDFLARED = "C:\Program Files (x86)\cloudflared\cloudflared.exe"
 
 # ProxyCommand fuer SSH ueber Cloudflare-Tunnel
-$PROXY_CMD  = "`"$CLOUDFLARED`" access ssh --hostname ssh.buchungswerk.org"
+$PROXY_CMD  = "cloudflared access ssh --hostname ssh.buchungswerk.org"
 
 function Invoke-SSH($target, $cmd) {
     if ($script:USE_TUNNEL) {
@@ -42,13 +42,16 @@ function Invoke-SCP($src, $dst, [switch]$Recurse) {
 Write-Host "Netzwerk pruefen..."
 $script:USE_TUNNEL = $false
 
-if (Test-Connection -ComputerName 192.168.68.54 -Count 1 -Quiet -ErrorAction SilentlyContinue) {
+$pingHome = Test-Connection -ComputerName 192.168.68.54 -Count 1 -Quiet -ErrorAction SilentlyContinue
+$hasCloudflared = (Test-Path $CLOUDFLARED) -or ($null -ne (Get-Command cloudflared -ErrorAction SilentlyContinue))
+
+if ($pingHome) {
     $PI = $PI_LOCAL
-    Write-Host "Heimnetz – Direktverbindung." -ForegroundColor Green
-} elseif (Test-Path $CLOUDFLARED) {
+    Write-Host "Heimnetz - Direktverbindung." -ForegroundColor Green
+} elseif ($hasCloudflared) {
     $PI = $PI_TUNNEL
     $script:USE_TUNNEL = $true
-    Write-Host "Kein Heimnetz – Cloudflare-Tunnel wird verwendet." -ForegroundColor Yellow
+    Write-Host "Kein Heimnetz - Cloudflare-Tunnel wird verwendet." -ForegroundColor Yellow
 } else {
     Write-Host "FEHLER: cloudflared nicht gefunden und kein Heimnetz." -ForegroundColor Red
     Write-Host "cloudflared installieren: https://developers.cloudflare.com/cloudflared/install" -ForegroundColor Yellow
@@ -70,7 +73,10 @@ if ($LASTEXITCODE -ne 0) { Write-Error "Build fehlgeschlagen!"; exit 1 }
 
 # 4. Backend hochladen + API-Image neu bauen
 if (Test-Path $MAIN) {
-    Invoke-SCP $MAIN "$ROOT\buchungswerk-backend\docker-compose.yml" "$ROOT\buchungswerk-backend\Dockerfile" "$ROOT\buchungswerk-backend\requirements.txt" "${PI}:~/buchungswerk-backend/"
+    Invoke-SCP $MAIN "${PI}:~/buchungswerk-backend/main.py"
+    Invoke-SCP "$ROOT\buchungswerk-backend\docker-compose.yml" "${PI}:~/buchungswerk-backend/docker-compose.yml"
+    Invoke-SCP "$ROOT\buchungswerk-backend\Dockerfile" "${PI}:~/buchungswerk-backend/Dockerfile"
+    Invoke-SCP "$ROOT\buchungswerk-backend\requirements.txt" "${PI}:~/buchungswerk-backend/requirements.txt"
     Write-Host "Backend-Dateien hochgeladen. Baue API-Container neu..."
     Invoke-SSH $PI "cd ~/buchungswerk-backend && docker compose up --build -d buchungswerk-api"
     if ($LASTEXITCODE -ne 0) { Write-Error "API-Build fehlgeschlagen!"; exit 1 }
@@ -113,7 +119,8 @@ fi
 find "$BACKUP_DIR" -name "buchungswerk-*.sql.gz" -mtime +30 -delete
 '@
     $tmp = [System.IO.Path]::GetTempFileName()
-    $backupScript | Out-File -FilePath $tmp -Encoding utf8 -NoNewline
+    # ASCII (kein BOM) damit der Shebang auf Linux funktioniert
+    [System.IO.File]::WriteAllText($tmp, $backupScript, [System.Text.UTF8Encoding]::new($false))
     Invoke-SCP $tmp "${PI}:/home/senor_d/backup-buchungswerk.sh"
     Remove-Item $tmp
     Invoke-SSH $PI "chmod +x /home/senor_d/backup-buchungswerk.sh"

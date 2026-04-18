@@ -1,0 +1,23 @@
+# Einheitliche Line-Endings für alle Textdateien
+* text=auto eol=lf
+
+# Binärdateien explizit ausschließen
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.ico binary
+*.docx binary
+*.pdf binary
+*.xlsx binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary
+
+# Windows-spezifische Scripts bleiben CRLF
+*.ps1 text eol=crlf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Shell-Scripts LF
+*.sh text eol=lf
