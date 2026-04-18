@@ -431,10 +431,12 @@ buchungswerk/
 
 ## 9. Sicherheit
 
-Ein CISO Security Audit wurde am 2026-04-02 durchgeführt. Alle kritischen und hochpriorisierten Findings sind behoben (Phase F, 2026-04-03):
+Ein CISO Security Audit wurde am 2026-04-02 durchgeführt. Alle kritischen und hochpriorisierten Findings sind behoben (Phase F, 2026-04-03). Phase 5A (2026-04-18) hat die verbleibenden P1-Lücken geschlossen:
 
 - **Auth:** bcrypt-Passwort-Hashing, JWT-Signierung (HS256), TOTP 2FA (pyotp)
-- **Rate-Limiting:** slowapi auf allen Auth-Endpoints (Login: 10/min, Register: 5/min, Reset: 3/min)
+- **JWT Secret:** Kein Fallback — RuntimeError beim Start wenn `BW_JWT_SECRET` fehlt oder < 32 Zeichen
+- **Rate-Limiting:** slowapi auf allen Auth-Endpoints (Login: 10/min, Register: 5/min, Reset: 3/min, E-Mail-Verify: 10/min, Resend: 3/min, Reset-Confirm: 5/min)
+- **Ownership-Checks:** `/sessions/{id}/abschliessen` und `/session/kontrolle/{code}` prüfen user_id (403 bei Fremdzugriff)
 - **SQL:** Ausschließlich parametrisierte SQLite-Queries (kein SQL-Injection-Risiko)
 - **CORS:** Beschränkt auf `buchungswerk.org` und `localhost:5173`
 - **Secrets:** Alle API-Keys in `/etc/buchungswerk/secrets` (nie im Repository)
@@ -448,15 +450,18 @@ Ein CISO Security Audit wurde am 2026-04-02 durchgeführt. Alle kritischen und h
 ## 10. Roadmap
 
 ```
-✅ Phase A–E: Refactoring (14.075 → 175 Zeilen BuchungsWerk.jsx)
-✅ Phase G:   BuchungsEngine (deterministisch, ISB-Bayern, 6 Belegtypen)
-✅ Phase 1:   Credential Rotation
-✅ Phase 2:   CISO Security Audit
-✅ Phase T:   Playwright E2E Tests (14/14 grün)
-✅ Phase F:   Security Hardening (8 Findings behoben)
-✅ Phase 5:   README.md
-⏳ Beta-Launch (blockiert: Impressum/Datenschutz)
-🔜 Phase 6:   Final QA & Production Readiness Check
+✅ Phase A–E:  Refactoring (14.075 → 175 Zeilen BuchungsWerk.jsx)
+✅ Phase G:    BuchungsEngine (deterministisch, ISB-Bayern, 6 Belegtypen)
+✅ Phase 1:    Credential Rotation
+✅ Phase 2:    CISO Security Audit
+✅ Phase T:    Playwright E2E Tests (14/14 grün)
+✅ Phase F:    Security Hardening (17 Findings behoben)
+✅ Phase 3:    Monetarisierung (PayPal, LizenzGate, TeacherPanel)
+✅ Phase 4:    Stripe-Abos, Rechnungen, Admin Analytics Dashboard
+✅ Phase 5A:   P1-Security-Hotfix (JWT, Auth/Ownership, Rate-Limits) — 2026-04-18
+✅ Phase 5B:   Repo-Hygiene (.gitattributes, LF) + CI/CD (GitHub Actions) — 2026-04-18
+⏳ Phase 5C:   Impressum + Datenschutz (blockiert bis Gewerbebescheid)
+🔜 Phase 6:    P2-Security (CORS-Whitelist, TOTP-Enc, CSP-Hardening, bcrypt rounds)
 🔜 Schullizenzen / Freemium-Modell
 🔜 KI-Tutor, Live-Quiz-Erweiterung
 🔜 ARA/PRA-Buchungen (Jg 10, BuchungsEngine v2)

@@ -1,9 +1,18 @@
 # BuchungsWerk – Production Readiness Checklist
-**Stand: 2026-04-03 | Geprüft von: Claude Code (Phase 6 Final QA)**
+**Stand: 2026-04-18 | Geprüft von: Claude Code (Phase 5A/5B)**
 
 ---
 
 ## 🟢 Bereit für Beta-Launch
+
+### Security (Phase 5A – P1-Hotfix 2026-04-18, alle P1-Findings behoben)
+
+- [x] **5A-01:** JWT_SECRET-Fallback entfernt — `RuntimeError` beim Start wenn `BW_JWT_SECRET` fehlt oder < 32 Zeichen (Commit `61aa252`)
+- [x] **5A-02:** Auth + Ownership auf `POST /sessions/{id}/abschliessen` — `Depends(get_current_user)` + 403 bei Fremdzugriff (Commit `61aa252`)
+- [x] **5A-03:** Auth + Ownership auf `POST /session/kontrolle/{code}` — lehrer_id-Check via `live_quizze` (Commit `61aa252`)
+- [x] **5A-04:** Rate-Limits auf E-Mail-Endpoints — `verify-email` 10/min, `resend-verify` 3/min, `reset-confirm` 5/min (Commit `61aa252`)
+- [x] **5A-05:** Debug-Logs aus Production-Build entfernt — `console.warn/info` hinter `import.meta.env?.DEV`-Guard (Commit `61aa252`)
+- [x] **5A-06:** DB-Backup-Cron eingerichtet — `sqlite3 dump | gzip`, täglich 02:00, 30 Tage Retention (Commit `61aa252`)
 
 ### Security (Phase F – CISO Audit 2026-04-02, alle kritischen Findings behoben)
 
@@ -20,16 +29,24 @@
 - [x] **F-12:** `TEMP/` in `.gitignore`, nicht im Git-Index
 - [x] **F-16:** SQLite WAL-Mode aktiviert (`PRAGMA journal_mode=WAL`)
 
+### Repo-Hygiene (Phase 5B – 2026-04-18)
+
+- [x] **5B-01:** `.gitattributes` angelegt — `* text=auto eol=lf`, Binary-Ausschlüsse, PS1/BAT=CRLF (Commit `ab40c05`)
+- [x] **5B-02:** `fix_ap_word.mjs` archiviert unter `scripts/archive/` — `git status` sauber (Commit `f7b1229`)
+- [x] **5B-03:** GitHub Actions CI/CD — Vitest + Build + Playwright, Artifact-Upload on failure (Commit `1d8e800`)
+- [x] **5B-04:** Alle 24+ Commits auf `origin/main` gepusht — Repo auf Stand
+
 ### Qualität
 
 - [x] **Playwright E2E:** 14/14 Tests grün (letzte Ausführung: 2026-04-03, 56s)
-- [x] **npm run build:** Erfolgreich, keine Errors (nur Chunk-Size-Warning, akzeptabel)
-- [x] **console.log:** 0 Stück in Produktions-Code (`console.warn/error`: 6, alle in catch-Blöcken – korrekt)
+- [x] **GitHub Actions CI:** Workflow aktiv (Vitest + Build + Playwright auf ubuntu-latest)
+- [x] **npm run build:** Erfolgreich, keine Errors (Chunk-Size-Warning: 1.550 kB, akzeptabel)
+- [x] **console.log:** 0 Stück in Produktions-Code (hinter `import.meta.env?.DEV`-Guard, Phase 5A)
 - [x] **TODOs/FIXMEs:** Keine kritischen TODOs im Quellcode
 - [x] **Hardcodierte URLs:** Keine funktionalen hardcodierten IPs oder `localhost:8000` im src/-Code (nur UI-Placeholder-Text in H5PModal)
 - [x] **BuchungsEngine:** Deterministisch, ISB-Bayern validiert, 6 Belegtypen, 0 % Fehlerquote
 - [x] **Refactoring:** Abgeschlossen (32 Module, BuchungsWerk.jsx = 175 Zeilen statt 14.075)
-- [x] **README.md:** Vollständig (440 Zeilen, BuchungsEngine-API-Doku, alle Belegtypen)
+- [x] **README.md:** Vollständig (Roadmap auf Stand 5A/5B, CI-Badge, Security-Abschnitt aktualisiert)
 
 ### Infrastruktur
 
@@ -105,4 +122,14 @@ Rate-Limiting, Auth, CORS, SQL-Injection-Schutz, HTML-Injection — alle produkt
 
 ---
 
-*Erstellt: 2026-04-03 · Claude Code · Phase 6 Final QA*
+---
+
+## 📋 Änderungshistorie
+
+| Stand | Phase | Was |
+|-------|-------|-----|
+| 2026-04-03 | Phase 6 Final QA | Erstellt |
+| 2026-04-18 | Phase 5A | P1-Security (JWT, Auth/Ownership, Rate-Limits, Debug-Logs, DB-Backup) |
+| 2026-04-18 | Phase 5B | Repo-Hygiene (.gitattributes, LF), CI/CD (GitHub Actions), Doku-Sync |
+
+*Aktualisiert: 2026-04-18 · Claude Code · Phase 5A/5B*
