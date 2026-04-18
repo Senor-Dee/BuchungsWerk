@@ -14,6 +14,7 @@ venv/
 # Secrets – NIEMALS ins Repository!
 .env
 .env.*
+!.env.example
 docker-compose.override.yml
 Resend_Key.txt
 *_Key.txt

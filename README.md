@@ -469,7 +469,15 @@ Ein CISO Security Audit wurde am 2026-04-02 durchgeführt. Alle kritischen und h
 
 ---
 
-## 11. Lizenz & Kontakt
+## 11. Analytics (optional)
+
+BuchungsWerk unterstützt [Plausible Analytics](https://plausible.io) — DSGVO-konform, Cookie-frei, kein Banner erforderlich. Standardmäßig **deaktiviert**.
+
+Aktivieren: `VITE_PLAUSIBLE_DOMAIN=buchungswerk.org` in `.env` setzen → Script wird beim App-Start geladen. Leer lassen → kein Script im DOM, keine Daten werden übertragen.
+
+---
+
+## 12. Lizenz & Kontakt
 
 **Lizenz:** GNU Affero General Public License v3 (AGPL-3.0)  
 Wer BuchungsWerk verändert und als Webservice betreibt, muss den vollständigen Quellcode veröffentlichen (§ 13 AGPL).

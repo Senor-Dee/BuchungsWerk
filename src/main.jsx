@@ -1259,7 +1259,21 @@ function UserBadge({ user, onLogout, onUserUpdate }) {
 }
 
 // ── App Root ──────────────────────────────────────────────────────────────────
+// ── Plausible Analytics (DSGVO-konform, Cookie-frei) ─────────────────────────
+// Wird nur geladen wenn VITE_PLAUSIBLE_DOMAIN gesetzt ist (Standard: deaktiviert)
+function usePlausible() {
+  useEffect(() => {
+    if (!import.meta.env.VITE_PLAUSIBLE_DOMAIN) return;
+    const script = document.createElement("script");
+    script.defer = true;
+    script.src = import.meta.env.VITE_PLAUSIBLE_SRC || "https://plausible.io/js/script.js";
+    script.setAttribute("data-domain", import.meta.env.VITE_PLAUSIBLE_DOMAIN);
+    document.head.appendChild(script);
+  }, []);
+}
+
 function App() {
+  usePlausible();
   const [loggedIn, setLoggedIn] = useState(isLoggedIn);
   const [user,     setUser]     = useState(getUser);
   // Schüler-Gastzugang: beim ersten Render prüfen ob ?session vorhanden ist.
