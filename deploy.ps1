@@ -1,41 +1,58 @@
-$PI_LOCAL  = "senor_d@192.168.68.54"
-$PI_REMOTE = "senor_d@ssh.buchungswerk.org"
-$ROOT      = "C:\Project Buchungswerk"
-$MAIN      = "$ROOT\buchungswerk-backend\main.py"
-$KEY       = "$HOME\.ssh\id_buchungswerk"
+$PI_LOCAL   = "senor_d@192.168.68.54"
+$PI_TUNNEL  = "senor_d@ssh.buchungswerk.org"
+$ROOT       = "C:\Project Buchungswerk"
+$MAIN       = "$ROOT\buchungswerk-backend\main.py"
+$KEY        = "$HOME\.ssh\id_buchungswerk"
+$CLOUDFLARED = "C:\Program Files (x86)\cloudflared\cloudflared.exe"
 
-# SSH-Optionen: -4 = IPv4 erzwingen (kein IPv6-Timeout); StrictHostKeyChecking=accept-new
-$SSH_OPTS  = @("-n", "-4", "-i", $KEY, "-o", "BatchMode=yes", "-o", "ConnectTimeout=15", "-o", "StrictHostKeyChecking=accept-new")
-$SCP_OPTS  = @("-4", "-i", $KEY, "-o", "StrictHostKeyChecking=accept-new")
+# ProxyCommand fuer SSH ueber Cloudflare-Tunnel
+$PROXY_CMD  = "`"$CLOUDFLARED`" access ssh --hostname ssh.buchungswerk.org"
 
 function Invoke-SSH($target, $cmd) {
-    & ssh @SSH_OPTS $target $cmd
+    if ($script:USE_TUNNEL) {
+        & ssh -n -4 -i $KEY -o "BatchMode=yes" -o "ConnectTimeout=20" `
+              -o "StrictHostKeyChecking=accept-new" `
+              -o "ProxyCommand=$PROXY_CMD" `
+              $target $cmd
+    } else {
+        & ssh -n -4 -i $KEY -o "BatchMode=yes" -o "ConnectTimeout=15" `
+              -o "StrictHostKeyChecking=accept-new" `
+              $target $cmd
+    }
 }
 
 function Invoke-SCP($src, $dst, [switch]$Recurse) {
-    if ($Recurse) {
-        & scp @SCP_OPTS -r $src $dst
+    if ($script:USE_TUNNEL) {
+        $proxyOpt = "ProxyCommand=$PROXY_CMD"
+        if ($Recurse) {
+            & scp -4 -i $KEY -o "StrictHostKeyChecking=accept-new" -o $proxyOpt -r $src $dst
+        } else {
+            & scp -4 -i $KEY -o "StrictHostKeyChecking=accept-new" -o $proxyOpt $src $dst
+        }
     } else {
-        & scp @SCP_OPTS $src $dst
+        if ($Recurse) {
+            & scp -4 -i $KEY -o "StrictHostKeyChecking=accept-new" -r $src $dst
+        } else {
+            & scp -4 -i $KEY -o "StrictHostKeyChecking=accept-new" $src $dst
+        }
     }
 }
 
-# 1. Pi erreichbar?
+# 1. Verbindungsweg ermitteln
 Write-Host "Netzwerk pruefen..."
+$script:USE_TUNNEL = $false
+
 if (Test-Connection -ComputerName 192.168.68.54 -Count 1 -Quiet -ErrorAction SilentlyContinue) {
-    $PI = $PI_LOCAL; Write-Host "Heimnetz."
+    $PI = $PI_LOCAL
+    Write-Host "Heimnetz – Direktverbindung." -ForegroundColor Green
+} elseif (Test-Path $CLOUDFLARED) {
+    $PI = $PI_TUNNEL
+    $script:USE_TUNNEL = $true
+    Write-Host "Kein Heimnetz – Cloudflare-Tunnel wird verwendet." -ForegroundColor Yellow
 } else {
-    # Tunnel (ssh.buchungswerk.org muss DNS-only / grauer Cloudflare-Record sein!)
-    Write-Host "Kein Heimnetz – versuche Tunnel (ssh.buchungswerk.org)..."
-    $testConn = Test-NetConnection -ComputerName "ssh.buchungswerk.org" -Port 22 -WarningAction SilentlyContinue
-    if (-not $testConn.TcpTestSucceeded) {
-        Write-Host ""
-        Write-Host "FEHLER: Port 22 auf ssh.buchungswerk.org nicht erreichbar." -ForegroundColor Red
-        Write-Host "Lösung: Cloudflare Dashboard → buchungswerk.org → DNS → 'ssh' Eintrag" -ForegroundColor Yellow
-        Write-Host "        Orange Cloud-Icon → Grey Cloud (DNS only) umstellen, dann erneut versuchen." -ForegroundColor Yellow
-        exit 1
-    }
-    $PI = $PI_REMOTE; Write-Host "Tunnel."
+    Write-Host "FEHLER: cloudflared nicht gefunden und kein Heimnetz." -ForegroundColor Red
+    Write-Host "cloudflared installieren: https://developers.cloudflare.com/cloudflared/install" -ForegroundColor Yellow
+    exit 1
 }
 
 # 2. Quellcode hochladen
@@ -107,60 +124,4 @@ find "$BACKUP_DIR" -name "buchungswerk-*.sql.gz" -mtime +30 -delete
     Write-Host "DB-Backup-Cron bereits aktiv."
 }
 
-# 8. DDNS-Script einmalig einrichten (haelt ssh.buchungswerk.org aktuell)
-$ddnsCheck = Invoke-SSH $PI "crontab -l 2>/dev/null | grep -c ddns-buchungswerk || echo 0"
-if ($ddnsCheck.Trim() -eq "0") {
-    Write-Host "DDNS-Script einrichten (einmalig)..."
-    $ddnsScript = @'
-#!/bin/bash
-# /home/senor_d/ddns-buchungswerk.sh
-# Haelt den DNS-Record ssh.buchungswerk.org aktuell (Cloudflare API)
-# Voraussetzung: CF_TOKEN und CF_ZONE_ID und CF_RECORD_ID in /home/senor_d/.ddns.env
-
-ENV_FILE="/home/senor_d/.ddns.env"
-if [ ! -f "$ENV_FILE" ]; then
-    echo "[$(date)] DDNS: .ddns.env nicht gefunden – Setup noetig. Bitte cf-setup.sh ausfuehren." >> /home/senor_d/ddns.log
-    exit 0
-fi
-source "$ENV_FILE"
-
-CURRENT_IP=$(curl -s -4 https://ifconfig.me)
-if [ -z "$CURRENT_IP" ]; then
-    echo "[$(date)] DDNS: Keine IP ermittelt." >> /home/senor_d/ddns.log
-    exit 1
-fi
-
-STORED_IP=$(cat /tmp/ddns_last_ip 2>/dev/null || echo "")
-if [ "$CURRENT_IP" = "$STORED_IP" ]; then
-    exit 0  # Keine Aenderung
-fi
-
-# Cloudflare DNS-Record aktualisieren
-RESPONSE=$(curl -s -X PATCH \
-    "https://api.cloudflare.com/client/v4/zones/${CF_ZONE_ID}/dns_records/${CF_RECORD_ID}" \
-    -H "Authorization: Bearer ${CF_TOKEN}" \
-    -H "Content-Type: application/json" \
-    --data "{\"content\":\"${CURRENT_IP}\",\"proxied\":false}")
-
-if echo "$RESPONSE" | grep -q '"success":true'; then
-    echo "[$(date)] DDNS: IP aktualisiert: $STORED_IP -> $CURRENT_IP" >> /home/senor_d/ddns.log
-    echo "$CURRENT_IP" > /tmp/ddns_last_ip
-else
-    echo "[$(date)] DDNS: Fehler: $RESPONSE" >> /home/senor_d/ddns.log
-fi
-'@
-    $tmp2 = [System.IO.Path]::GetTempFileName()
-    $ddnsScript | Out-File -FilePath $tmp2 -Encoding utf8 -NoNewline
-    Invoke-SCP $tmp2 "${PI}:/home/senor_d/ddns-buchungswerk.sh"
-    Remove-Item $tmp2
-    Invoke-SSH $PI "chmod +x /home/senor_d/ddns-buchungswerk.sh"
-    Invoke-SSH $PI "(crontab -l 2>/dev/null; echo '*/5 * * * * /home/senor_d/ddns-buchungswerk.sh') | crontab -"
-    Write-Host "DDNS-Script eingerichtet (alle 5 Minuten)."
-    Write-Host ""
-    Write-Host "WICHTIG: DDNS benoetigt noch Cloudflare-Zugangsdaten auf dem Pi!" -ForegroundColor Yellow
-    Write-Host "Fuehre aus: cf-setup.sh (wird separat bereitgestellt)" -ForegroundColor Yellow
-} else {
-    Write-Host "DDNS-Cron bereits aktiv."
-}
-
-Write-Host "Fertig! https://buchungswerk.org"
+Write-Host "Fertig! https://buchungswerk.org" -ForegroundColor Green
