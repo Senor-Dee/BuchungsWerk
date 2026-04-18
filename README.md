@@ -3,6 +3,7 @@
 > KI-gestützte Lern-App für Buchführung · Bayerische Realschulen Klassen 7–10  
 > Live: [https://buchungswerk.org](https://buchungswerk.org)
 
+![CI](https://github.com/Senor-Dee/BuchungsWerk/actions/workflows/test.yml/badge.svg)
 ![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)
 ![Playwright](https://img.shields.io/badge/Playwright-14%2F14%20grün-brightgreen)
 ![Live](https://img.shields.io/badge/Status-Live-success)

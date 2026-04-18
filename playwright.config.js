@@ -19,10 +19,8 @@ export default defineConfig({
     screenshot: "only-on-failure",
     video: "retain-on-failure",
     launchOptions: {
-      // Fallback: bereits installiertes Chromium 1208 nutzen wenn 1217 fehlt
-      executablePath:
-        process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH ||
-        "C:/Users/a.gebert/AppData/Local/ms-playwright/chromium-1208/chrome-win64/chrome.exe",
+      // Lokal: eigenes Chromium über Env-Var; CI: undefined → Playwright nutzt installierten Browser
+      executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH || undefined,
     },
   },
   webServer: {
